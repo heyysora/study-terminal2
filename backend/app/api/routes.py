@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy import delete, func, select, text
 
-from ..db.models import AppEvent, PaperFillRecord, PaperOrderRecord, Watchlist, WatchlistSymbol
+from ..db.models import AppEvent, Watchlist, WatchlistSymbol
 from ..market_data.providers.base import ProviderError, ProviderRateLimited, SymbolNotFound
 from ..market_data.service import MarketMonitor
 from ..market_data.types import Timeframe

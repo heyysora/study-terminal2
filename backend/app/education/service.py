@@ -3,11 +3,9 @@ from __future__ import annotations
 
 import json
 import random
-from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from ..analysis.features import build
 from ..db.models import LearningProgressRecord
 from ..db.session import Database
 from ..market_data.types import Timeframe
@@ -41,7 +39,7 @@ class EducationService:
     def grade(self, lid: str, answers: list[int]) -> dict:
         l = BY_ID[lid]
         res = []
-        for q, a in zip(l["quiz"], answers):
+        for q, a in zip(l["quiz"], answers, strict=False):
             res.append({"q": q["q"], "your_answer": a, "correct": a == q["answer"], "answer": q["answer"], "explain": q["explain"]})
         score = round(100 * sum(r["correct"] for r in res) / len(l["quiz"]))
         self._record(lid, "quiz", score, {"results": res})

@@ -36,7 +36,7 @@ async def client(settings):
     app = create_app(settings, provider=prov, clock=always_open_clock(), start_loops=False)
     async with app.router.lifespan_context(app):
         app.state.analysis._ttl = lambda tf: 3600
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t", timeout=120) as c:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t", timeout=120, headers={"X-Study-Terminal": "1"}) as c:
             yield c, app, prov
 
 

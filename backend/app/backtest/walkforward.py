@@ -20,7 +20,7 @@ DEFAULT_GRID = {"target_r": [1.5, 2.0, 3.0], "stop_buffer_atr": [0.1, 0.25], "rv
 
 def _grid(grid: dict) -> list[dict]:
     keys = list(grid)
-    return [dict(zip(keys, vals)) for vals in itertools.product(*(grid[k] for k in keys))]
+    return [dict(zip(keys, vals, strict=False)) for vals in itertools.product(*(grid[k] for k in keys))]
 
 
 def run_many(frames: dict[str, FeatureFrame], cfg: BacktestConfig, clock: MarketClock, start=None, end=None) -> tuple[list, list]:

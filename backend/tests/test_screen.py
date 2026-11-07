@@ -59,3 +59,42 @@ def test_change_detector():
     b, _ = render(seed=1)
     c, _ = render(seed=2)
     assert frame_change(a, b) == 0 and frame_change(a, c) > 1.5 and frame_change(None, a) == 255
+
+
+async def test_browser_tab_switch_stops_capture(monkeypatch):
+    """H2: a consented browser window that switches to a non-chart tab is not captured or read."""
+    import numpy as np
+
+    from app.screen import capture as cap
+    from app.screen.service import ScreenService
+    from app.screen.vision import title_looks_like_trading
+
+    class _Mon:
+        def _event(self, *a):
+            pass
+
+        async def quote(self, sym):
+            return {"last": None, "label": {}}
+
+    class _Settings:
+        def get(self, k, d=None):
+            return d
+
+    class _B:
+        def publish(self, e):
+            pass
+
+    titles = iter(["Inbox (3) - you@example.com - Gmail - Google Chrome", "TSLA 359.40 ▲ +4.61% Unnamed - Google Chrome"])
+    captured = []
+    monkeypatch.setattr(cap, "window_title", lambda hwnd: next(titles))
+    monkeypatch.setattr(cap, "capture", lambda t: (captured.append(1), (np.zeros((40, 40, 3), np.uint8), "test"))[1])
+    svc = ScreenService(_Mon(), None, _Settings(), _B())
+    svc.target = cap.Target(kind="window", id=1, title="TSLA chart - Google Chrome", process="chrome.exe")
+    svc.state = "running"
+    await svc.tick()
+    assert svc.holding and not captured and "doesn't look like a chart" in svc.state_reason
+    await svc.tick()
+    assert not svc.holding and captured == [1]
+    # desktop trading apps aren't subject to the browser rule; obvious non-trading titles are rejected
+    assert title_looks_like_trading("thinkorswim [build 1985]", "thinkorswim.exe")
+    assert not title_looks_like_trading("Chase Online - Account Summary - Google Chrome", "chrome.exe")

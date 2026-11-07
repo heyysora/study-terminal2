@@ -217,3 +217,40 @@ def test_order_placed_mid_bar_ignores_earlier_bar_extremes():
     # bar 10:00-10:01 dipped to 98 but we don't know if that was before 10:00:30
     assert e.on_price("TSLA", 100, at(1), LIVE, high=100.2, low=98, open_=99.5, bar_start=at(0)) == []
     assert e.on_price("TSLA", 98.9, at(2), LIVE, high=100, low=98.5, open_=99.8, bar_start=at(1))[0].price == 99
+
+
+def test_oversized_exit_flips_with_fresh_cost_basis():
+    """M2: the fill path itself never keeps a stale average price on a flipped position."""
+    from app.paper.engine import Order
+
+    e = engine()
+    o, _ = e.submit(buy(10, stop=99), ref(100), at(0))
+    assert e.positions["TSLA"].qty == 10
+    big = Order(id="x", symbol="TSLA", side=Side.SELL, qty=15, type=OrderType.MARKET, role=OrderRole.EXIT, tif=TIF.DAY,
+                created_at=at(1))
+    e.orders[big.id] = big
+    f = e._fill(big, 102.0, 102.0, at(1), "near_realtime")
+    assert f.realized_pnl == 20.0                       # only the 10 closed shares
+    p = e.positions["TSLA"]
+    assert p.qty == -5 and p.avg_price == 102.0 and p.unrealized() == 0
+
+
+def test_consecutive_losses_count_trades_not_partial_exits():
+    """M4: one losing trade closed in two pieces is one loss."""
+    e = engine(max_consecutive_losses=2, require_stop=False)
+    e.submit(buy(20), ref(100), at(0))
+    e.submit(OrderRequest(symbol="TSLA", side=Side.SELL, qty=10), ref(99), at(1))
+    e.submit(OrderRequest(symbol="TSLA", side=Side.SELL, qty=10), ref(98), at(2))
+    assert "TSLA" not in e.positions
+    assert e.consecutive_losses_today() == 1
+    from app.paper.trades import round_trips
+    (t,) = round_trips(e.fills)
+    assert t.direction == "long" and t.entry_qty == 20 and t.exit_qty == 20 and round(t.net_pnl, 2) == -30.0
+    assert round(t.avg_exit, 2) == 98.5
+
+
+def test_stale_marks_are_reported():
+    e = engine()
+    e.submit(buy(10, stop=99), ref(100), at(0))
+    h = e.mark_health(at(10))
+    assert h["stale_marks"] == ["TSLA"] and h["oldest_mark_age_seconds"] == 600

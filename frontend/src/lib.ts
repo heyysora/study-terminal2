@@ -5,7 +5,9 @@ export async function api<T = any>(path: string, opts: RequestInit & { json?: un
   const { json, ...rest } = opts;
   const res = await fetch(`/api${path}`, {
     ...rest,
-    headers: json !== undefined ? { "Content-Type": "application/json", ...(rest.headers || {}) } : rest.headers,
+    // X-Study-Terminal marks the request as coming from this app (the backend refuses
+    // state changes without it, so other web pages can't drive the local API).
+    headers: { "X-Study-Terminal": "1", ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...((rest.headers as any) || {}) },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
   const text = await res.text();

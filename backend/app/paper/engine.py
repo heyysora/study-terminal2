@@ -328,6 +328,7 @@ class PaperEngine:
             "consecutive_losses_today": self.consecutive_losses_today(),
             "max_consecutive_losses": self.risk.max_consecutive_losses,
             "exposure_pct": round(100 * self.gross_exposure() / eq, 1) if eq > 0 else None,
+            "marks": self.mark_health(),
         }
 
     def _period_realized(self, days: int) -> float:
@@ -337,18 +338,30 @@ class PaperEngine:
         return sum(f.realized_pnl - f.commission for f in self.fills if f.ts.astimezone(ET).date() >= start)
 
     def consecutive_losses_today(self) -> int:
+        """Losing round-trip trades in a row today (a trade with several partial exits counts once)."""
+        from .trades import round_trips
+
         today = (self.account.day or datetime.now(timezone.utc).astimezone(ET).date())
         n = 0
-        for f in reversed(self.fills):
-            if f.ts.astimezone(ET).date() != today:
+        for t in reversed([t for t in round_trips(self.fills) if not t.is_open]):
+            if t.closed_at.astimezone(ET).date() != today:
                 break
-            if f.role == OrderRole.ENTRY:
-                continue
-            if f.realized_pnl - f.commission < 0:
+            if t.net_pnl < 0:
                 n += 1
             else:
                 break
         return n
+
+    def mark_health(self, now: datetime | None = None) -> dict:
+        """How old the prices behind equity / unrealized P&L are. Never hidden: stale marks are listed."""
+        now = now or datetime.now(timezone.utc)
+        ages = {s: (now - p.mark_ts).total_seconds() for s, p in self.positions.items() if p.mark_ts}
+        regular = self.clock.session_of(now) == Session.REGULAR
+        limit = 120 if regular else 900
+        stale = sorted(s for s, a in ages.items() if a > limit)
+        return {"oldest_mark_age_seconds": round(max(ages.values()), 1) if ages else None,
+                "stale_marks": stale,
+                "note": (f"Equity uses last prices; {', '.join(stale)} not updated for over {limit // 60} min." if stale else None)}
 
     # ---------------- day handling ----------------
 
@@ -650,6 +663,11 @@ class PaperEngine:
             realized = (price - pos.avg_price) * closed * (1 if pos.qty > 0 else -1)
             pos.qty += signed
             pos.realized_pnl += realized
+            if pos.qty != 0 and (pos.qty > 0) == (signed > 0):
+                # Over-sized exit flipped the position: the new side's cost basis is this fill's price.
+                # (Order validation prevents this; kept safe here so P&L can't be computed on a stale basis.)
+                pos.avg_price, pos.opened_at, pos.realized_pnl = price, ts, 0.0
+                pos.mark, pos.mark_ts = price, ts
         if pos.mark is None:
             pos.mark, pos.mark_ts = price, ts
 

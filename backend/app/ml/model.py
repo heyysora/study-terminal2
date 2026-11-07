@@ -67,7 +67,7 @@ def _models() -> dict:
 def calibration_table(y: np.ndarray, p: np.ndarray, bins: int = 5) -> list[dict]:
     edges = np.linspace(0, 1, bins + 1)
     out = []
-    for a, b in zip(edges[:-1], edges[1:]):
+    for a, b in zip(edges[:-1], edges[1:], strict=False):
         m = (p >= a) & (p < b if b < 1 else p <= b)
         if m.sum():
             out.append({"bin": f"{a:.1f}-{b:.1f}", "n": int(m.sum()), "predicted": round(float(p[m].mean()), 3),
@@ -118,7 +118,7 @@ def train(trades: list[dict], model_dir: Path, test_frac: float = 0.3) -> dict:
               f"Not deployed: best model ({best_name}) Brier skill {best['brier_skill']}, AUC {best['auc']} on {len(yte)} unseen trades "
               "- not reliably better than simply knowing the average win rate.")
     imp = permutation_importance(best["model"], Xte, yte, n_repeats=5, random_state=0, scoring="neg_brier_score")
-    importance = sorted(({"feature": c, "importance": round(float(v), 5)} for c, v in zip(X.columns, imp.importances_mean)),
+    importance = sorted(({"feature": c, "importance": round(float(v), 5)} for c, v in zip(X.columns, imp.importances_mean, strict=False)),
                         key=lambda d: -d["importance"])[:12]
     version = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     meta = {

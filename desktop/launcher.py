@@ -80,7 +80,7 @@ class App:
 
     def api(self, method: str, path: str, **kw):
         try:
-            return httpx.request(method, f"{API}{path}", timeout=10, **kw).json()
+            return httpx.request(method, f"{API}{path}", timeout=10, headers={"X-Study-Terminal": "1"}, **kw).json()
         except Exception:
             return None
 

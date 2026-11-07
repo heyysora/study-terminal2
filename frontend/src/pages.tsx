@@ -241,7 +241,7 @@ export function Copilot() {
   const upload = async (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch("/api/screen/analyze-image", { method: "POST", body: fd });
+    const r = await fetch("/api/screen/analyze-image", { method: "POST", body: fd, headers: { "X-Study-Terminal": "1" } });
     const d = await r.json();
     if (!r.ok) { setErr(d.detail || "Could not analyze that image."); return; }
     setUploaded(d);

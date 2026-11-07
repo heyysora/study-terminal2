@@ -18,7 +18,7 @@ async def market_ws(ws: WebSocket):
     # Browsers always send Origin. Reject web pages that aren't our UI so a random
     # website can't read your market stream from localhost. Non-browser clients
     # (the CLI, tests) send no Origin and are allowed - the server binds to 127.0.0.1.
-    host = ws.headers.get("host", "")
+    host = ws.headers.get("host", "")  # already restricted to 127.0.0.1/localhost by LocalOnlyMiddleware
     same_origin = origin in (f"http://{host}", f"https://{host}")  # the UI served by this backend itself
     if origin and not same_origin and origin not in settings.allowed_origins:
         await ws.close(code=1008)

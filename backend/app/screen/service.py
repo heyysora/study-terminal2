@@ -20,7 +20,7 @@ import cv2
 
 from ..market_data.types import Timeframe
 from . import capture as cap
-from .vision import analyze_image
+from .vision import analyze_image, is_browser, title_looks_like_trading
 
 log = logging.getLogger(__name__)
 
@@ -44,13 +44,14 @@ class ScreenService:
         self._last_ai = 0.0
         self._task: asyncio.Task | None = None
         self.ai_explanation: dict | None = None
+        self.holding = False              # True while a browser window shows a non-chart tab
 
     # ---------------- control ----------------
 
     def status(self) -> dict:
         return {"state": self.state, "reason": self.state_reason, "target": self.target.__dict__ if self.target else None,
                 "consent_at": self.consent_at, "capture_method": self.capture_method, "frames_seen": self.frames,
-                "frames_analyzed": self.processed, "observation": self.observation, "fusion": self.fusion,
+                "frames_analyzed": self.processed, "holding_non_chart": self.holding, "observation": self.observation, "fusion": self.fusion,
                 "ai_explanation": self.ai_explanation,
                 "privacy": "Frames are processed in memory and never saved. Only the selected target is captured."}
 
@@ -112,6 +113,19 @@ class ScreenService:
             self.state, self.state_reason = "error", "The selected window was closed. Pick another window."
             self._push()
             return
+        if self.target.kind == "window" and is_browser(self.target.process) and not title_looks_like_trading(title or "", self.target.process):
+            # Privacy: the browser window switched to a tab that isn't a chart (email, bank...). Don't even capture it.
+            if not self.holding:
+                self.holding = True
+                self._last_frame, self.observation, self.fusion = None, None, None
+                self.state_reason = ("This browser window now shows something that doesn't look like a chart, so nothing is "
+                                     "being captured or read. Switch back to your chart tab to continue.")
+                self._push()
+            return
+        if self.holding:
+            self.holding = False
+            self.state_reason = f"Watching: {title}"
+            self._push()
         frame, method = await asyncio.to_thread(cap.capture, self.target)
         if frame is None:
             self.state_reason = f"Capture failed: {method}"

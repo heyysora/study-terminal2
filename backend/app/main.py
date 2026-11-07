@@ -17,6 +17,7 @@ from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
 from .api import routes, routes2, ws
+from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, Settings, get_settings
 from .core.events import Broadcaster
@@ -153,9 +154,13 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             db.dispose()
             log.info("Study Terminal stopped")
 
-    app = FastAPI(title="Study Terminal API", version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title="Study Terminal API", version="0.4.0", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins,
-                       allow_methods=["GET", "POST", "DELETE", "PUT", "PATCH"], allow_headers=["Content-Type"])
+                       allow_methods=["GET", "POST", "DELETE", "PUT", "PATCH"],
+                       allow_headers=["Content-Type", "X-Study-Terminal", "X-Study-Token"])
+    # Outermost: reject DNS-rebinding hosts and cross-site state changes (see api/security.py)
+    app.add_middleware(LocalOnlyMiddleware, port=settings.port,
+                       extra_hosts=["t", "testserver"] if settings.app_env == "test" else [])
     app.include_router(routes.router)
     app.include_router(routes2.router)
     app.include_router(ws.router)

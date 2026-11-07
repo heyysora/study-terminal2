@@ -22,7 +22,7 @@ async def settle():
 
 
 def client_for(app):
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t", headers={"X-Study-Terminal": "1"})
 
 
 async def test_launches_without_any_brokerage_or_keys(settings):
@@ -171,3 +171,32 @@ def test_ws_accepts_its_own_served_origin(settings):
     with TestClient(app) as c:
         with c.websocket_connect("/ws/market", headers={"origin": "http://testserver"}) as ws:
             assert json.loads(ws.receive_text())["type"] == "hello"
+
+
+async def test_cross_site_requests_are_refused(settings):
+    """C1: a web page can't change state (no intent header) or read data via DNS rebinding."""
+    app = create_app(settings, provider=FakeProvider(), clock=always_open_clock())
+    async with app.router.lifespan_context(app):
+        bare = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+        async with bare:
+            # form-style POST from another site: no custom header -> 403, and nothing happens
+            r = await bare.post("/api/monitoring/pause")
+            assert r.status_code == 403
+            assert app.state.monitor.monitoring_enabled is True
+            r = await bare.post("/api/paper/positions/AAPL/close", params={"confirm": "true"})
+            assert r.status_code == 403
+            # reads are fine from the app itself
+            assert (await bare.get("/api/health")).status_code == 200
+        rebinding = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://evil.example:8765",
+                                      headers={"X-Study-Terminal": "1"})
+        async with rebinding:
+            assert (await rebinding.get("/api/health")).status_code == 421
+            assert (await rebinding.get("/api/screen/status")).status_code == 421
+
+
+def test_ws_refuses_rebinding_host(settings):
+    app = create_app(settings, provider=FakeProvider(), clock=always_open_clock())
+    with TestClient(app, base_url="http://evil.example") as c:
+        with pytest.raises(WebSocketDisconnect):
+            with c.websocket_connect("/ws/market", headers={"origin": "http://evil.example"}) as ws:
+                ws.receive_text()

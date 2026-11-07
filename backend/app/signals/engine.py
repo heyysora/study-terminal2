@@ -136,9 +136,11 @@ def lifecycle(df: pd.DataFrame, i_signal: int, plan: dict, direction: str, live_
     if len(after):
         if (after["close"] < inval).any() if long else (after["close"] > inval).any():
             return "invalidated", "Price closed through the invalidation level after the signal."
-        triggered = (after["high"] >= trig).any() if long else (after["low"] <= trig).any()
+        hit = (after["high"] >= trig) if long else (after["low"] <= trig)
+        triggered = bool(hit.any())
         if triggered:
-            if (after["low"] <= stop).any() if long else (after["high"] >= stop).any():
+            since = after.iloc[int(hit.to_numpy().argmax()):]  # from the trigger bar on (stop on that bar counts: conservative)
+            if (since["low"] <= stop).any() if long else (since["high"] >= stop).any():
                 return "invalidated", "Triggered, then hit the stop level - this idea already failed."
     else:
         triggered = False

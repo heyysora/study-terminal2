@@ -86,7 +86,6 @@ class MarketClock:
             import pandas as pd
 
             cal = xc.get_calendar("XNYS")
-            today = datetime.now(timezone.utc).date()
             start = cal.first_session.date()  # full history: backtests need old sessions too
             end = cal.last_session.date()
             days = {}

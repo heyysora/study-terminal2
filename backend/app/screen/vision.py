@@ -141,6 +141,27 @@ def guess_platform(title: str, process: str | None) -> str:
     return "generic"
 
 
+BROWSER_PROCESSES = ("chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "arc")
+TRADING_TITLE_WORDS = ("tradingview", "thinkorswim", "webull", "trader workstation", "interactive brokers",
+                       "charles schwab", "schwab", "td ameritrade", "tradestation", "e*trade", "fidelity active trader",
+                       "finviz", "yahoo finance", "study terminal")
+
+
+def is_browser(process: str | None) -> bool:
+    p = (process or "").lower()
+    return any(b in p for b in BROWSER_PROCESSES)
+
+
+def title_looks_like_trading(title: str, process: str | None) -> bool:
+    """Privacy guard for browser windows: a browser window can switch tabs to email or a bank.
+    Only titles that look like a chart/trading page are analyzed."""
+    t = (title or "").strip()
+    low = t.lower()
+    if any(w in low for w in TRADING_TITLE_WORDS) or guess_platform(t, None) != "generic":
+        return True
+    return any(pat.match(t) for name, pat in TITLE_PATTERNS if name == "tradingview")
+
+
 @dataclass
 class Recognition:
     ticker: str | None = None
