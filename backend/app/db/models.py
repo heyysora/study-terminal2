@@ -1,0 +1,191 @@
+"""Database models (SQLAlchemy 2.0). SQLite now; the same models work on PostgreSQL."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    TypeDecorator,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+class UTCDateTime(TypeDecorator):
+    """Stores UTC, always returns timezone-aware UTC datetimes (SQLite drops tzinfo)."""
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            raise ValueError("naive datetime passed to UTCDateTime column")
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return value.replace(tzinfo=timezone.utc)
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Watchlist(Base):
+    __tablename__ = "watchlists"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    symbols: Mapped[list["WatchlistSymbol"]] = relationship(
+        back_populates="watchlist", cascade="all, delete-orphan", order_by="WatchlistSymbol.position"
+    )
+
+
+class WatchlistSymbol(Base):
+    __tablename__ = "watchlist_symbols"
+    __table_args__ = (UniqueConstraint("watchlist_id", "symbol"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id", ondelete="CASCADE"))
+    symbol: Mapped[str] = mapped_column(String(16))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    added_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    watchlist: Mapped[Watchlist] = relationship(back_populates="symbols")
+
+
+class BarRecord(Base):
+    """OHLCV bar cache. `provider` is stored so bars from different sources are never mixed."""
+
+    __tablename__ = "bars"
+    __table_args__ = (UniqueConstraint("symbol", "timeframe", "ts", "provider"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    timeframe: Mapped[str] = mapped_column(String(8))
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, index=True)  # bar open time
+    open: Mapped[float] = mapped_column(Float)
+    high: Mapped[float] = mapped_column(Float)
+    low: Mapped[float] = mapped_column(Float)
+    close: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float)
+    vwap: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trade_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider: Mapped[str] = mapped_column(String(16))
+    source: Mapped[str] = mapped_column(String(32))  # e.g. "yahoo-history" | "yahoo-poll"
+
+
+class AppEvent(Base):
+    """Connection/system event log shown in the UI (disconnects, auth failures, stale data)."""
+
+    __tablename__ = "app_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    level: Mapped[str] = mapped_column(String(8))
+    category: Mapped[str] = mapped_column(String(32))
+    message: Mapped[str] = mapped_column(Text)
+
+
+class SettingRecord(Base):
+    """User-editable settings persisted across restarts (JSON-encoded values)."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
+
+
+# ---------------- paper trading simulator ----------------
+
+class PaperStateRecord(Base):
+    """Single row: account balances + open positions (JSON). Rewritten after every change."""
+
+    __tablename__ = "paper_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    data: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
+
+
+class PaperOrderRecord(Base):
+    __tablename__ = "paper_orders"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    status: Mapped[str] = mapped_column(String(16), index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    data: Mapped[str] = mapped_column(Text)  # full order JSON
+
+
+class PaperFillRecord(Base):
+    __tablename__ = "paper_fills"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    order_id: Mapped[str] = mapped_column(String(16), index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    data: Mapped[str] = mapped_column(Text)
+
+
+# ---------------- backtests, calibration, alerts, learning, settings ----------------
+
+class BacktestRunRecord(Base):
+    __tablename__ = "backtest_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    kind: Mapped[str] = mapped_column(String(16))  # backtest | walk_forward | optimize
+    summary: Mapped[str] = mapped_column(Text)     # JSON: config + metrics
+    detail: Mapped[str] = mapped_column(Text)      # JSON: trades, equity, folds
+
+
+class SetupStatRecord(Base):
+    """Out-of-sample performance per setup/timeframe. Feeds signal confidence."""
+
+    __tablename__ = "setup_stats"
+    __table_args__ = (UniqueConstraint("setup", "timeframe"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    setup: Mapped[str] = mapped_column(String(32))
+    timeframe: Mapped[str] = mapped_column(String(8))
+    data: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
+
+
+class AlertRecord(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    category: Mapped[str] = mapped_column(String(16))   # entry | position | market | system
+    severity: Mapped[str] = mapped_column(String(8))    # info | low | medium | high
+    symbol: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text)
+    data: Mapped[str] = mapped_column(Text, default="{}")
+    read: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class LearningProgressRecord(Base):
+    __tablename__ = "learning_progress"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lesson_id: Mapped[str] = mapped_column(String(48), index=True)
+    kind: Mapped[str] = mapped_column(String(16))   # completed | quiz
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    data: Mapped[str] = mapped_column(Text, default="{}")
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
