@@ -331,13 +331,24 @@ def screen_status(request: Request):
     return st(request).screen.status()
 
 
+@router.get("/screen/platforms")
+def screen_platforms(request: Request):
+    from ..screen.platforms import ADAPTERS
+
+    return {"selected": st(request).settings_store.get("screen.platform", "auto"),
+            "read_account_info": st(request).settings_store.get("screen.read_account_info", False),
+            "platforms": [{"id": "auto", "name": "Detect automatically", "asset_class": "either"}] + [a.to_dict() for a in ADAPTERS.values()]}
+
+
 @router.post("/screen/analyze-image")
-async def screen_analyze_image(request: Request, file: UploadFile = File(...), title: str = Form("")):
+async def screen_analyze_image(request: Request, file: UploadFile = File(...), title: str = Form(""), platform: str = Form("")):
     data = await file.read()
     if len(data) > 25_000_000:
         raise HTTPException(413, "Image too large")
+    if platform and platform not in ("auto", "tradingview", "topstepx", "generic"):
+        raise HTTPException(422, "Unknown platform")
     try:
-        return await st(request).screen.analyze_upload(data, title)
+        return await st(request).screen.analyze_upload(data, title, platform or None)
     except ValueError as e:
         raise HTTPException(422, str(e))
 

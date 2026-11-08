@@ -45,6 +45,7 @@ class ScreenService:
         self._task: asyncio.Task | None = None
         self.ai_explanation: dict | None = None
         self.holding = False              # True while a browser window shows a non-chart tab
+        self.futures = None               # FuturesService, for futures charts (TopstepX or futures on TradingView)
 
     # ---------------- control ----------------
 
@@ -145,7 +146,8 @@ class ScreenService:
             await self.process(frame, title or "", self.target.process)
 
     async def process(self, frame, title: str, process: str | None) -> dict:
-        obs = await asyncio.to_thread(analyze_image, frame, title, process)
+        obs = await asyncio.to_thread(analyze_image, frame, title, process, self.settings.get("screen.platform", "auto"),
+                                      bool(self.settings.get("screen.read_account_info", False)))
         obs["at"] = datetime.now(timezone.utc).isoformat()
         prev = self.observation
         self.observation = obs
@@ -166,6 +168,12 @@ class ScreenService:
 
     async def fuse(self, obs: dict, prev: dict | None) -> dict:
         """Combine what's on screen with independently retrieved market data."""
+        if obs.get("asset_class") == "futures" or obs.get("platform") == "topstepx":
+            if not self.futures:
+                return {"ticker": obs.get("ticker"), "checks": [], "status": "Futures analysis isn't available."}
+            if self.signals:
+                self.signals.focus.clear()
+            return await self.futures.screen_fuse(obs, self.last_change_at)
         sym, tf_s = obs.get("ticker"), obs.get("timeframe")
         out: dict = {"ticker": sym, "timeframe": tf_s, "checks": []}
         if not sym:
@@ -242,14 +250,15 @@ class ScreenService:
             return first[0], first[1], "unconfirmed" if vp is not None else "market data has this symbol (no on-screen price to cross-check)"
         return sym, {}, "unconfirmed"
 
-    async def analyze_upload(self, png_bytes: bytes, title: str = "") -> dict:
+    async def analyze_upload(self, png_bytes: bytes, title: str = "", platform: str | None = None) -> dict:
         """Analyze a screenshot you provide (works on any OS). Not stored."""
         import numpy as np
 
         img = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError("Not an image")
-        obs = await asyncio.to_thread(analyze_image, img, title, None)
+        obs = await asyncio.to_thread(analyze_image, img, title, None, platform or self.settings.get("screen.platform", "auto"),
+                                      bool(self.settings.get("screen.read_account_info", False)))
         if obs.get("blocked"):
             return {"observation": obs}
         return {"observation": obs, "fusion": await self.fuse(obs, None)}

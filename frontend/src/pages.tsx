@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Action, CandleChart, ChartStamp, Meter, OrderTicket, Panel, QuoteStamp, SignalCard, type Overlay, type PriceLine } from "./components";
 import { Catalysts, EconCalendar } from "./pages3";
 import { TIMEFRAMES, api, etTime, money, num, pct, sign, tfShort, useLive, usePoll } from "./lib";
+import { FuturesPlan } from "./pages4";
 
 // ======================= Dashboard =======================
 export function Dashboard() {
@@ -219,6 +220,8 @@ export function Copilot() {
   const L = useLive();
   const status = usePoll("/screen/status", 5000);
   const targets = usePoll("/screen/targets");
+  const plats = usePoll("/screen/platforms");
+  const setPlatform = async (id: string) => { await api("/settings", { method: "PUT", json: { "screen.platform": id } }); plats.reload(); };
   const ai = usePoll("/ai/status");
   const [sel, setSel] = useState<any>(null);
   const [consent, setConsent] = useState(false);
@@ -282,15 +285,18 @@ export function Copilot() {
                   <button onClick={() => targets.reload()}>Refresh list</button></div>
                 {err && <div className="note bad">{err}</div>}
               </div>)}
+            <label className="f" style={{ marginTop: 10 }}>Platform<select value={plats.data?.selected || "auto"} onChange={(e) => setPlatform(e.target.value)} aria-label="Platform">
+              {(plats.data?.platforms || []).map((p: any) => <option key={p.id} value={p.id}>{p.name}{p.asset_class === "futures" ? " (futures)" : ""}</option>)}</select></label>
             <h3>Analyze a screenshot</h3>
             <input type="file" accept="image/*" aria-label="Screenshot" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </Panel>
-          <Panel title="What I see" sub={obs?.platform}>
+          <Panel title="What I see" sub={obs ? `${obs.platform}${obs.asset_class === "futures" ? " · futures" : ""}${obs.platform_source ? ` (${obs.platform_source})` : ""}` : ""}>
             {!obs ? <div className="muted">Nothing analyzed yet.</div> : obs.blocked ? <div className="note bad">{obs.reason}</div> : (
               <table><tbody>
                 <tr><td className="muted">Ticker</td><td>{obs.ticker ?? "not readable"} <span className="faint small">{obs.ticker_source}</span></td></tr>
                 <tr><td className="muted">Timeframe</td><td>{obs.timeframe ?? "not readable"} {obs.timeframe_note && <span className="faint small">{obs.timeframe_note}</span>}</td></tr>
-                <tr><td className="muted">Visible price</td><td className="num">{obs.visible_price != null ? money(obs.visible_price) : "not readable"}</td></tr>
+                <tr><td className="muted">Visible price</td><td className="num">{obs.visible_price != null ? (obs.asset_class === "futures" ? obs.visible_price : money(obs.visible_price)) : "not readable"}</td></tr>
+                {obs.futures && <tr><td className="muted">Futures contract</td><td>{obs.futures.contract || `${obs.futures.root} (no month shown)`} {obs.futures.note && <span className="faint small">{obs.futures.note}</span>}</td></tr>}
                 <tr><td className="muted">Indicators on screen</td><td>{obs.indicators_visible.join(", ") || "none read"}</td></tr>
                 <tr><td className="muted">Your drawn lines</td><td>{obs.drawn_levels.map((d: any) => money(d.price_estimate)).join(", ") || "none"}</td></tr>
                 <tr><td className="muted">Last candles</td><td>{obs.recent_candles.join(", ") || "—"}</td></tr>
@@ -307,9 +313,17 @@ export function Copilot() {
                 {fu.status && <div className="note warn">{fu.status}</div>}
                 {fu.discrepancy && <div className="note bad">{fu.discrepancy}</div>}
                 {fu.stale_screen && <div className="note warn">{fu.stale_screen}</div>}
-                {fu.market_price != null && <div className="row"><span>Market data {money(fu.market_price)}</span><Meter withText status={fu.market_label?.status} reason={fu.market_label?.reason} /> <QuoteStamp label={fu.market_label} />
-                  {fu.visible_price != null && <span className="muted">screen {money(fu.visible_price)} ({pct(fu.price_diff_pct)})</span>}</div>}
-                {fu.best_signal ? <SignalCard s={fu.best_signal} onTrade={() => (location.hash = `#/chart/${fu.ticker}`)} /> :
+                {fu.market_price != null && <div className="row"><span>Market data {fu.asset_class === "futures" ? fu.market_price : money(fu.market_price)}</span><Meter withText status={fu.market_label?.status} reason={fu.market_label?.reason} /> <QuoteStamp label={fu.market_label} />
+                  {fu.visible_price != null && <span className="muted">screen {fu.asset_class === "futures" ? fu.visible_price : money(fu.visible_price)} ({pct(fu.price_diff_pct)}{fu.price_diff_ticks != null ? `, ${fu.price_diff_ticks} ticks` : ""})</span>}</div>}
+                {fu.asset_class === "futures" ? <>
+                  {fu.checks?.map((c: any, i: number) => <div key={i} className={`small ${c.ok ? "" : "down"}`}>{c.ok ? "✓" : "✗"} {c.check}: {c.detail}</div>)}
+                  {fu.reasons && <div className="muted small">{fu.reasons.join(" ")}</div>}
+                  {fu.best_signal && <FuturesPlan s={fu.best_signal} />}
+                  {fu.developing?.length > 0 && <div className="small muted">{fu.developing.join(" ")}</div>}
+                  {fu.position_on_screen && <div className="small faint">Position on screen (unverified): {JSON.stringify(fu.position_on_screen)}</div>}
+                  {fu.contract && <a href={`#/futures/${fu.contract}`} className="small">Open the futures dashboard for {fu.contract}</a>}
+                  <div className="small faint">{fu.sim_only_note}</div>
+                </> : fu.best_signal ? <SignalCard s={fu.best_signal} onTrade={() => (location.hash = `#/chart/${fu.ticker}`)} /> :
                   fu.reasons && <div className="muted">{fu.reasons.join(" ")}</div>}
                 {fu.your_drawn_levels?.length > 0 && <div className="small">{fu.your_drawn_levels.map((d: any, i: number) => <div key={i}>Your line near {money(d.price_estimate)}{d.nearest_known_level ? ` sits by ${d.nearest_known_level}` : ""}.</div>)}</div>}
               </div>)}

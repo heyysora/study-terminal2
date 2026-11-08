@@ -46,6 +46,10 @@ One Python process on your PC (plus the WebView2 window it opens):
    alerts/        dedupe, history, Windows toasts/sound, in-app push
    ai/            provider choice (built-in / Claude / Ollama) ; grounded assistant ; Explain This Chart
    education/     lessons, quizzes, glossary, progress, real-chart exercises
+   futures/       contracts (specs, ticks, expirations, roll) ; sessions (Globex, CT) ; data (Yahoo delayed / optional
+                  read-only TopstepX API) ; features (levels, profile, structure) ; setups ; signals ; risk (prop-firm
+                  presets + personal limits) ; paper (futures simulator) ; backtest ; replay ; service
+   screen/platforms.py  platform adapters (TopstepX, TradingView, generic) feeding the shared OCR pipeline
    settings/      live-editable settings persisted in SQLite
 ```
 

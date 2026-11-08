@@ -18,7 +18,7 @@ from typing import Annotated, Literal
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 FROZEN = bool(getattr(sys, "frozen", False))      # running from the installed app (PyInstaller bundle)
 # Where the code and bundled files live: the repo when run from source, the bundle's folder when installed.
 REPO_ROOT = Path(getattr(sys, "_MEIPASS", "")) if FROZEN else Path(__file__).resolve().parents[2]
@@ -92,6 +92,11 @@ class Settings(BaseSettings):
 
     # --- optional AI (the app works fully without it) ---
     anthropic_api_key: SecretStr | None = None   # only needed if you choose the Claude provider
+
+    # --- optional TopstepX API (read-only market data; you pay ProjectX for it; never used for orders) ---
+    projectx_username: str | None = Field(default=None, alias="STUDY_PROJECTX_USERNAME")
+    projectx_api_key: SecretStr | None = Field(default=None, alias="STUDY_PROJECTX_API_KEY")
+    projectx_base_url: str = Field(default="https://api.topstepx.com", alias="STUDY_PROJECTX_BASE_URL")
 
     # --- watchlist seeded on first run ---
     default_watchlist: Annotated[list[str], NoDecode] = ["SPY", "QQQ", "AAPL", "TSLA", "NVDA"]

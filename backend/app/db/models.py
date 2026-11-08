@@ -111,6 +111,15 @@ class SettingRecord(Base):
 
 # ---------------- paper trading simulator ----------------
 
+class FuturesStateRecord(Base):
+    """Futures simulator state (JSON). id=1 is the practice account, id=2 the replay account, id=3 backtest evidence."""
+
+    __tablename__ = "futures_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    data: Mapped[str] = mapped_column(Text)
+
+
 class PaperStateRecord(Base):
     """Single row: account balances + open positions (JSON). Rewritten after every change."""
 

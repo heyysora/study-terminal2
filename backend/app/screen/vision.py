@@ -123,7 +123,7 @@ def parse_number(s: str) -> float | None:
 
 TITLE_PATTERNS = [
     # TradingView tab: "TSLA 359.40 ▲ +4.61% Unnamed - Google Chrome" ; "NASDAQ:TSLA ..."
-    ("tradingview", re.compile(r"^(?:[A-Z]+:)?([A-Z][A-Z0-9.\-]{0,9})\s+([\d,]+\.\d+)\s*[▲▼+\-−]")),
+    ("tradingview", re.compile(r"^(?:[A-Z_]+:)?([A-Z][A-Z0-9.!\-]{0,9})\s+([\d,]+\.\d+)\s*[▲▼+\-−]")),
     # generic "TSLA - something" or "TSLA | ..."
     ("generic", re.compile(r"^(?:[A-Z]+:)?([A-Z][A-Z0-9.\-]{0,5})\s*[\-|·:]\s")),
 ]
@@ -131,6 +131,8 @@ TITLE_PATTERNS = [
 
 def guess_platform(title: str, process: str | None) -> str:
     t, p = (title or "").lower(), (process or "").lower()
+    if "topstepx" in t or "projectx" in t or "topstepx" in p:   # TopstepX hosts TradingView charts: check it first
+        return "topstepx"
     if "tradingview" in t or "tradingview" in p or "unnamed" in t:
         return "tradingview"
     if "thinkorswim" in t or "thinkorswim" in p:
@@ -143,7 +145,7 @@ def guess_platform(title: str, process: str | None) -> str:
 
 
 BROWSER_PROCESSES = ("chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "arc")
-TRADING_TITLE_WORDS = ("tradingview", "thinkorswim", "webull", "trader workstation", "interactive brokers",
+TRADING_TITLE_WORDS = ("topstepx", "projectx", "tradingview", "thinkorswim", "webull", "trader workstation", "interactive brokers",
                        "charles schwab", "schwab", "td ameritrade", "tradestation", "e*trade", "fidelity active trader",
                        "finviz", "yahoo finance", "study terminal")
 
@@ -173,13 +175,21 @@ class Recognition:
     timeframe_note: str | None = None
     timeframe_source: str | None = None
     title_price: float | None = None
+    asset_class: str = "equities"
+    futures: dict | None = None
 
 
 def recognize(title: str, header_tokens: list[Token], platform: str) -> Recognition:
+    from .platforms import ADAPTERS, futures_candidates
+
+    adapter = ADAPTERS.get(platform, ADAPTERS["generic"])
     r = Recognition()
     for name, pat in TITLE_PATTERNS:
         m = pat.match(title or "")
         if m and m.group(1) not in UI_WORDS:
+            fut = adapter.futures_symbol(m.group(1))
+            if fut:
+                r.asset_class, r.futures = "futures", fut.to_dict()
             r.ticker, r.ticker_confidence, r.ticker_source = m.group(1), 0.95 if name == "tradingview" else 0.6, f"window title ({name})"
             if name == "tradingview":
                 r.title_price = parse_number(m.group(2))
@@ -210,6 +220,22 @@ def recognize(title: str, header_tokens: list[Token], platform: str) -> Recognit
     elif len(distinct) > 1:
         r.timeframe_note = (f"Several timeframe labels are visible ({', '.join(sorted(t.value for t in distinct))}) and I can't tell "
                             "which one is selected.")
+    if r.asset_class != "futures":
+        fc_ = futures_candidates(texts, adapter)
+        if fc_:
+            p = fc_[0]
+            r.asset_class, r.futures = "futures", p.to_dict()
+            r.ticker, r.ticker_confidence = (p.contract.code if p.contract else p.root), 0.6
+            r.ticker_source = "on-screen text (futures contract; needs market-data confirmation)"
+            r.ticker_candidates = [(c.contract.code if c.contract else c.root) for c in fc_][:5]
+            return r
+    if r.asset_class == "futures":
+        f = r.futures
+        r.ticker = f["contract"] or f["root"]
+        return r
+    if adapter.asset_class == "futures":
+        r.ticker, r.ticker_confidence, r.ticker_source = None, 0.0, None
+        return r   # a futures-only platform: never fall back to reading a stock ticker
     cands = []
     for x in texts:
         x2 = x.split(":")[-1].strip("·|,()").upper() if ":" in x else x.strip("·|,()")
@@ -433,10 +459,11 @@ def _header_cascade(region: np.ndarray, header: list[Token], title: str, platfor
     return header
 
 
-def analyze_image(img: np.ndarray, title: str = "", process: str | None = None) -> dict:
-    """Full pipeline on one frame."""
+def analyze_image(img: np.ndarray, title: str = "", process: str | None = None, platform_override: str | None = None,
+                  read_account: bool = False) -> dict:
+    """Full pipeline on one frame. Account/position panels are read only when `read_account` is on."""
     h, w = img.shape[:2]
-    platform = guess_platform(title, process)
+    platform = platform_override if platform_override and platform_override != "auto" else guess_platform(title, process)
     header_h = max(int(h * 0.14), 40)
     scale = min(1.0, 1600 / w)  # one full-frame OCR pass; big screens are downscaled for speed
     tokens = ocr(img, (0, 0), scale=scale, pad=16, _retry=False)
@@ -483,7 +510,9 @@ def analyze_image(img: np.ndarray, title: str = "", process: str | None = None) 
         "price_axis": {"points": axis.n, "max_error_pct": round(axis.max_resid_pct, 3)} if axis else None,
         "drawn_levels": lines[:8], "recent_candles": candle_colors(img, area) if axis else [],
         "indicators_visible": indicators_visible(header + axis_tokens),
-        "position_on_screen": position_info(tokens),
+        "position_on_screen": position_info(tokens) if read_account else None,
+        "asset_class": rec.asset_class, "futures": rec.futures,
+        "platform_source": "your selection" if platform_override and platform_override != "auto" else "window title/process",
         "could_not_recognize": unknown,
         "note": "Drawn levels and candle colors are visual estimates. Trading levels always come from market data.",
     }

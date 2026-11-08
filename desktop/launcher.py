@@ -309,11 +309,15 @@ def self_test() -> int:
     if ok:
         try:
             health = httpx.get(f"{API}/health", timeout=5).json()
-        except httpx.HTTPError:
-            ok = False
+            fut = httpx.get(f"{API}/futures/info", timeout=10).json()   # proves bundled futures presets load
+            futures_ok = bool(fut.get("presets", {}).get("presets")) and bool(fut.get("products"))
+            ok = ok and futures_ok
+        except (httpx.HTTPError, ValueError):
+            ok, futures_ok = False, False
     stopped = b.stop(30)
     print(f"self-test: backend {'up' if ok else 'FAILED'}; clean shutdown {'yes' if stopped else 'NO'}; "
-          f"version {VERSION}; brokerage_required={None if not health else health.get('brokerage_required')}")
+          f"version {VERSION}; brokerage_required={None if not health else health.get('brokerage_required')}; "
+          f"futures presets {'loaded' if ok else 'MISSING'}")
     return 0 if ok and stopped else 1
 
 

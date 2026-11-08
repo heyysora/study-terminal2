@@ -202,3 +202,11 @@ button.small { font-size: 11.5px; padding: 2px 6px; }
 .news-row a { color: var(--text); text-decoration: none; } .news-row a:hover { text-decoration: underline; }
 .cert { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; padding: 0 5px; border-radius: 3px; border: 1px solid var(--rule-strong); color: var(--muted); }
 .cert.c-confirmed { color: var(--text); } .cert.c-speculative { color: var(--warn); border-color: var(--warn); } .cert.c-opinion { color: var(--faint, #5d6a7b); }
+
+/* futures (TopstepX) */
+.sigcard { display: flex; flex-direction: column; gap: var(--s2); border: 1px solid var(--rule); border-radius: 3px; padding: var(--s3); }
+.sigcard .levels { grid-template-columns: repeat(5, 1fr); }
+.strip-lite { gap: var(--s4); padding: var(--s2) var(--s3); border: 1px solid var(--rule); border-radius: 3px; background: var(--panel); flex-wrap: wrap; }
+@media (max-width: 900px) { .sigcard .levels { grid-template-columns: repeat(2, 1fr); } }
+.cols.c-main { grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); }
+@media (max-width: 1100px) { .cols.c-main { grid-template-columns: 1fr; } }

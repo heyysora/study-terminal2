@@ -145,7 +145,9 @@ export const SOURCE_TEXT: Record<string, string> = {
 export function actionClass(a?: string) {
   if (!a) return "act";
   if (a === "STRONG BUY") return "act strong";
-  if (a === "BUY") return "act buy";
+  if (a === "BUY" || a === "LONG") return "act buy";
+  if (a === "HOLD") return "act wait";
+  if (a === "EXIT") return "act exit";
   if (a === "SHORT") return "act short";
   if (a === "STRONG SHORT") return "act short strong-short";
   if (a === "WAIT FOR CONFIRMATION" || a.startsWith("POTENTIAL")) return "act wait";

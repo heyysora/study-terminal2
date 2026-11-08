@@ -317,6 +317,9 @@ export function Settings() {
             <label className="check"><input type="checkbox" checked={!!v["desktop.start_on_login"]} onChange={(e) => startup(e.target.checked)} />Start Study Terminal when I log in to Windows</label>
             {b("desktop.keep_awake_while_monitoring", "Keep the PC awake while monitoring")}
             <div className="form">{n("screen.capture_fps", "Screen checks per second")}{n("screen.ocr_interval_seconds", "Min seconds between screen reads")}</div>
+            <label className="f">Platform on screen<select value={v["screen.platform"] || "auto"} onChange={(e) => { setV({ ...v, "screen.platform": e.target.value }); save({ "screen.platform": e.target.value }); }}>
+              <option value="auto">Detect automatically</option><option value="tradingview">TradingView (stocks or futures)</option><option value="topstepx">TopstepX (futures)</option><option value="generic">Other</option></select></label>
+            {b("screen.read_account_info", "Read account/position panels on screen (off by default; always marked unverified)")}
             <p className="small muted">If the computer sleeps, monitoring stops; the app reports the gap when it wakes instead of pretending it watched.</p>
             <MonitoringToggle />
           </div>

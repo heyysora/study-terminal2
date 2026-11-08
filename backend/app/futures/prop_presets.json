@@ -1,0 +1,94 @@
+{
+  "_about": "Starting points only. Prop-firm rules change. Each preset says where its numbers came from and when they were checked; the app shows that and asks you to confirm the values against your own account before treating them as your rules.",
+  "verified_on": "2026-11-07",
+  "presets": [
+    {
+      "id": "topstep_tc_50k", "firm": "Topstep", "account_type": "trading_combine", "label": "Topstep Trading Combine 50K",
+      "account_size": 50000, "starting_balance": 50000,
+      "max_loss_limit": 2000, "mll_type": "eod_trailing", "mll_lock_balance": 50000,
+      "daily_loss_limit": null, "daily_loss_limit_optional_value": 1000, "dll_behavior": "soft_lockout",
+      "profit_target": 3000, "consistency_pct": 50, "consistency_basis": "profit_target",
+      "max_minis": 5, "micro_ratio": 10,
+      "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
+    },
+    {
+      "id": "topstep_tc_100k", "firm": "Topstep", "account_type": "trading_combine", "label": "Topstep Trading Combine 100K",
+      "account_size": 100000, "starting_balance": 100000,
+      "max_loss_limit": 3000, "mll_type": "eod_trailing", "mll_lock_balance": 100000,
+      "daily_loss_limit": null, "daily_loss_limit_optional_value": 2000, "dll_behavior": "soft_lockout",
+      "profit_target": 6000, "consistency_pct": 50, "consistency_basis": "profit_target",
+      "max_minis": 10, "micro_ratio": 10,
+      "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
+    },
+    {
+      "id": "topstep_tc_150k", "firm": "Topstep", "account_type": "trading_combine", "label": "Topstep Trading Combine 150K",
+      "account_size": 150000, "starting_balance": 150000,
+      "max_loss_limit": 4500, "mll_type": "eod_trailing", "mll_lock_balance": 150000,
+      "daily_loss_limit": null, "daily_loss_limit_optional_value": 3000, "dll_behavior": "soft_lockout",
+      "profit_target": 9000, "consistency_pct": 50, "consistency_basis": "profit_target",
+      "max_minis": 15, "micro_ratio": 10,
+      "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
+    },
+    {
+      "id": "topstep_xfa_50k", "firm": "Topstep", "account_type": "express_funded", "label": "Topstep Express Funded 50K",
+      "account_size": 50000, "starting_balance": 0,
+      "max_loss_limit": 2000, "mll_type": "eod_trailing", "mll_lock_balance": 0,
+      "daily_loss_limit": null, "daily_loss_limit_optional_value": 1000, "dll_behavior": "soft_lockout",
+      "profit_target": null, "consistency_pct": null, "consistency_basis": "total_profit",
+      "max_minis": null, "micro_ratio": 10, "scaling_plan": true,
+      "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
+    },
+    {
+      "id": "topstep_xfa_100k", "firm": "Topstep", "account_type": "express_funded", "label": "Topstep Express Funded 100K",
+      "account_size": 100000, "starting_balance": 0,
+      "max_loss_limit": 3000, "mll_type": "eod_trailing", "mll_lock_balance": 0,
+      "daily_loss_limit": null, "daily_loss_limit_optional_value": 2000, "dll_behavior": "soft_lockout",
+      "profit_target": null, "consistency_pct": null, "consistency_basis": "total_profit",
+      "max_minis": null, "micro_ratio": 10, "scaling_plan": true,
+      "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
+    },
+    {
+      "id": "topstep_xfa_150k", "firm": "Topstep", "account_type": "express_funded", "label": "Topstep Express Funded 150K",
+      "account_size": 150000, "starting_balance": 0,
+      "max_loss_limit": 4500, "mll_type": "eod_trailing", "mll_lock_balance": 0,
+      "daily_loss_limit": null, "daily_loss_limit_optional_value": 3000, "dll_behavior": "soft_lockout",
+      "profit_target": null, "consistency_pct": null, "consistency_basis": "total_profit",
+      "max_minis": null, "micro_ratio": 10, "scaling_plan": true,
+      "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
+    },
+    {
+      "id": "custom", "firm": "Custom", "account_type": "custom", "label": "Custom / other firm (enter your own rules)",
+      "account_size": 50000, "starting_balance": 50000,
+      "max_loss_limit": null, "mll_type": "static", "mll_lock_balance": null,
+      "daily_loss_limit": null, "dll_behavior": "soft_lockout",
+      "profit_target": null, "consistency_pct": null, "consistency_basis": "profit_target",
+      "max_minis": null, "micro_ratio": 10,
+      "flat_by_ct": null, "no_new_entries_after_ct": null, "trade_day_start_ct": "17:00"
+    }
+  ],
+  "topstep_sources": [
+    {"what": "Maximum Loss Limit amounts, end-of-day trailing, real-time breach including unrealized P&L, lock at starting balance (Combine) or $0 (Express Funded)", "url": "https://help.topstep.com/en/articles/8284204-what-is-the-maximum-loss-limit"},
+    {"what": "Topstep uses end-of-day trailing drawdown, not intraday trailing", "url": "https://www.topstep.com/blog/static-vs-trailing-drawdown"},
+    {"what": "Trading hours: flat by 3:10:00 PM CT, risk team flattens from 3:08 PM CT, trading resumes 5:00 PM CT; trade day runs 5:00 PM CT to 3:10 PM CT", "url": "https://help.topstep.com/en/articles/8284206-when-and-what-products-can-i-trade"},
+    {"what": "Commissions and fees on TopstepX", "url": "https://help.topstep.com/en/articles/8284213-topstepx-commissions-and-fees"},
+    {"what": "Daily Loss Limit soft breach (flatten, locked until 5:00 PM CT) on the Live Funded Account", "url": "https://topstep.com/live-funded-account-rules"},
+    {"what": "TopstepX Personal Daily Loss Limit (fixed or trailing) set by the trader", "url": "https://help.topstep.com/en/articles/10490293-topstepx-daily-loss-limit"},
+    {"what": "News trading allowed at your own risk; trades hurt by releases are not reviewed or credited", "url": "https://help.topstep.com/en/articles/8284211-what-are-economic-releases"}
+  ],
+  "topstep_notes": [
+    "Profit targets ($3K/$6K/$9K), the 50% consistency target and the 5/10/15-mini (10:1 micro) position limits were taken from Topstep's Combine parameter pages as summarized by several third-party guides checked on 2026-11-07. Confirm them on your Topstep dashboard.",
+    "The Daily Loss Limit is optional at checkout for the Trading Combine and Express Funded Account. It is off in these presets; turn it on and set the amount only if your account has it.",
+    "Express Funded Accounts use a Scaling Plan instead of a fixed maximum position size. The plan's tiers are not included; enter your current tier's limit as Max contracts.",
+    "Some third-party sources describe a restriction on opening positions around CPI releases. Study Terminal could not confirm this on an official Topstep page, so it is not enforced; the economic calendar still warns you before CPI.",
+    "Topstep describes purposefully trading maximum position size into major news as prohibited conduct."
+  ],
+  "fees": {
+    "_about": "Round-turn dollars per contract on TopstepX (NFA + exchange + commission). Exchange fees change; edit these in Settings. Products without a verified number fall back to the commission only and are flagged.",
+    "source": "https://help.topstep.com/en/articles/8284213-topstepx-commissions-and-fees",
+    "checked_on": "2026-11-07",
+    "round_turn": {"ES": 3.78, "MES": 1.22, "NQ": 3.78, "MNQ": 1.22, "GC": 4.32},
+    "derived": {"RTY": 3.78, "M2K": 1.22},
+    "derived_note": "RTY and M2K share ES/MES's exchange-fee row in Topstep's earlier fee table; confirm before relying on them.",
+    "commission_only_round_turn": {"mini": 1.00, "micro": 0.50}
+  }
+}

@@ -159,6 +159,50 @@ class Assistant:
             log.warning("LLM failed: %s", e)
             return {"answer": ans.text(), "engine": f"Built-in (AI provider failed: {str(e)[:120]})", **base}
 
+    def _futures(self, a: Answer, intent: str, ctx: dict) -> None:
+        """Futures answers: same labelled structure, futures facts (contract, ticks, dollars per contract, prop limits)."""
+        fu = ctx["futures"]
+        sig, lv, data, spec = fu.get("signal") or {}, fu.get("levels") or {}, fu.get("data") or {}, fu.get("spec") or {}
+        code = (fu.get("contract") or {}).get("code") or ctx.get("symbol")
+        a.add("data", f"{code} data: {data.get('status', 'unknown')}. {data.get('reason', '')}".strip())
+        risk = (ctx.get("futures_account") or {}).get("risk") or {}
+        off, per, met = risk.get("official", {}), risk.get("personal", {}), risk.get("metrics", {})
+        best = sig.get("signal") or (sig.get("watch") or sig.get("study_only") or [None])[0]
+        if intent in ("risk", "rr", "stop", "invalidate", "entry", "short", "too_late", "why_signal", "exit", "general", "explain"):
+            a.add("fact", f"Signal: {sig.get('action', 'NO TRADE')}. " + " ".join((sig.get("reasons") or [])[:2]))
+        if best:
+            a.add("plan", f"{best['setup']} ({best['direction']}): entry {best['entry']:g}, stop {best['stop']:g} ({best.get('stop_ticks')} ticks, "
+                          f"${best.get('risk_per_contract_usd', 0):,.2f} per contract with slippage and fees), target {best['target']:g} "
+                          f"({best.get('reward_risk')}R). Invalidation: {best['invalidation']}")
+            a.add("evidence", f"Tested evidence: {best.get('evidence_short', 'untested')}. "
+                              + ("" if best.get("tradeable_evidence") else "That's why it's watch-only, not a trade."))
+            if best.get("suggested_contracts") is not None:
+                a.add("plan", f"Size from your limits: {best['suggested_contracts']} contract(s). {best.get('sizing_note', '')}")
+            for p_ in (best.get("risk_check") or {}).get("problems", [])[:3]:
+                a.add("uncertainty", p_)
+        elif sig.get("developing"):
+            a.add("interpretation", " ".join(sig["developing"][:2]))
+        if lv:
+            a.add("fact", f"Levels: VWAP {lv.get('vwap') or '-'}, previous day {lv.get('prev_day_high') or '-'} / {lv.get('prev_day_low') or '-'}, "
+                          f"overnight {lv.get('overnight_high') or '-'} / {lv.get('overnight_low') or '-'}, trend {lv.get('trend')}.")
+        if spec:
+            a.add("fact", f"{spec.get('root')}: tick {spec.get('tick_size')} = ${spec.get('tick_value')}; 1 point = ${spec.get('point_value')} per contract.")
+        if off:
+            bits = []
+            if off.get("mll_remaining") is not None:
+                bits.append(f"${off['mll_remaining']:,.2f} above the Maximum Loss Limit")
+            if off.get("dll_remaining") is not None:
+                bits.append(f"${off['dll_remaining']:,.2f} left of the Daily Loss Limit")
+            if per.get("daily_loss_remaining") is not None:
+                bits.append(f"${per['daily_loss_remaining']:,.2f} left of your own daily limit")
+            if bits:
+                a.add("fact", "Simulator account: " + "; ".join(bits) + f". Day P&L ${met.get('day_pnl', 0):,.2f}.")
+            for b in risk.get("blocks", [])[:2]:
+                a.add("uncertainty", "Blocked: " + b["text"])
+            if not off.get("confirmed"):
+                a.add("uncertainty", "Your prop-firm rules aren't confirmed against your account yet, so these limits may not match it.")
+        a.add("uncertainty", "Study Terminal can't see or change your real Topstep account; everything here is analysis and simulation.")
+
     def rule_answer(self, intent: str, question: str, ctx: dict, level: str) -> str:
         return self.rule_answer_parts(intent, question, ctx, level).text()
 
@@ -166,6 +210,9 @@ class Assistant:
 
     def rule_answer_parts(self, intent: str, question: str, ctx: dict, level: str) -> Answer:
         a = Answer()
+        if ctx.get("futures"):
+            self._futures(a, intent, ctx)
+            return a
         sym = ctx.get("symbol")
         if intent in NO_SYMBOL_INTENTS and intent in ("mistakes", "best_strategy"):
             (self._mistakes if intent == "mistakes" else self._best_strategy)(a, ctx)

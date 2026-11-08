@@ -10,6 +10,7 @@ datas = [
     (str(ROOT / "frontend" / "dist"), "frontend/dist"),
     (str(ROOT / "extension"), "extension"),
     (str(BACKEND / "app" / "news" / "bls_schedule.json"), "app/news"),
+    (str(BACKEND / "app" / "futures" / "prop_presets.json"), "app/futures"),
 ]
 for pkg in ("rapidocr_onnxruntime", "exchange_calendars", "tzdata", "yfinance", "certifi", "win11toast"):
     datas += collect_data_files(pkg)

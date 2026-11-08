@@ -1,0 +1,578 @@
+"""Futures service: wires contracts, sessions, data, levels, signals, prop-firm risk, the futures simulator,
+replay and backtests together for the API. Equity code paths are untouched."""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from dataclasses import asdict
+from datetime import date, datetime, timedelta, timezone
+
+import pandas as pd
+
+from ..db.models import FuturesStateRecord
+from ..market_data.types import Timeframe
+from . import backtest as fbt
+from . import contracts as fc
+from . import features as ff
+from . import signals as fsig
+from .data import SOURCES, FuturesData
+from .paper import FuturesPaperConfig, FuturesPaperEngine
+from .projectx import ProjectXClient
+from .risk import SIM_ONLY, PersonalRisk, PropRules, RiskEngine, load_presets
+from .sessions import FuturesClock
+
+log = logging.getLogger(__name__)
+ACCOUNT_ID, REPLAY_ID, EVIDENCE_ID = 1, 2, 3
+
+
+def resample(bars: list[dict], minutes: int) -> list[dict]:
+    if not bars or minutes <= 1:
+        return bars
+    df = pd.DataFrame(bars).set_index("ts")
+    df.index = pd.to_datetime(df.index, utc=True)
+    agg = df.resample(f"{minutes}min", label="left", closed="left").agg(
+        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna(subset=["open"])
+    return [{"ts": t.to_pydatetime(), **r} for t, r in zip(agg.index, agg.to_dict("records"), strict=True)]
+
+
+class FuturesService:
+    def __init__(self, settings, db, store, provider, alerts=None, broadcaster=None, news=None):
+        self.settings, self.db, self.store, self.alerts, self.broadcaster, self.news = settings, db, store, alerts, broadcaster, news
+        self.user_products_error = None
+        try:
+            fc.load_user_products(settings.data_dir / "futures_products.json")
+        except ValueError as e:
+            self.user_products_error = str(e)
+        self.projectx = None
+        key = settings.projectx_api_key.get_secret_value() if settings.projectx_api_key else None
+        if settings.projectx_username and key:
+            self.projectx = ProjectXClient(settings.projectx_username, key, settings.projectx_base_url,
+                                           live=bool(store.get("futures.projectx_live_data", False)))
+        self.data = FuturesData(provider, store, self.projectx)
+        presets = load_presets()
+        self.fees_default = {**presets["fees"]["round_turn"], **presets["fees"]["derived"]}
+        self.engine = FuturesPaperEngine(self.rules(), self.personal(), self.paper_cfg(), self.fees_default)
+        st = self._load(ACCOUNT_ID)
+        if st:
+            try:
+                self.engine.load_state(st)
+            except Exception:  # noqa: BLE001
+                log.exception("futures paper state unreadable; starting fresh")
+        self.evidence: dict = self._load(EVIDENCE_ID) or {}
+        self.replay: dict | None = None
+        self.last_actions: dict[str, str] = {}
+        self._fed: dict[str, str] = {}
+        self._task: asyncio.Task | None = None
+        self._bt_running: set[str] = set()
+
+    # ---------------- settings ----------------
+
+    def rules(self) -> PropRules:
+        d = self.store.get("futures.prop") or {}
+        return PropRules.from_dict(d) if d else PropRules.from_preset("topstep_tc_50k")
+
+    def personal(self) -> PersonalRisk:
+        return PersonalRisk.from_dict(self.store.get("futures.personal") or {})
+
+    def paper_cfg(self) -> FuturesPaperConfig:
+        cfg = FuturesPaperConfig.from_dict(self.store.get("futures.paper") or {})
+        cfg.fees_round_turn = {**(self.store.get("futures.fees") or {})}
+        return cfg
+
+    def apply(self, changes: dict | None = None) -> None:
+        if changes is None or any(k.startswith("futures.") for k in changes):
+            self.engine.rules, self.engine.personal, self.engine.cfg = self.rules(), self.personal(), self.paper_cfg()
+            if self.projectx:
+                self.projectx.live = bool(self.store.get("futures.projectx_live_data", False))
+
+    def set_prop(self, d: dict, confirm: bool = False) -> dict:
+        r = PropRules.from_dict({**self.rules().to_dict(), **d})
+        if confirm:
+            r.confirmed, r.confirmed_at = True, datetime.now(timezone.utc).isoformat()
+        elif d:
+            r.confirmed = bool(d.get("confirmed", False)) and r.confirmed
+        self.store.update({"futures.prop": r.to_dict()})
+        return r.to_dict()
+
+    def use_preset(self, preset_id: str) -> dict:
+        r = PropRules.from_preset(preset_id)
+        self.store.update({"futures.prop": r.to_dict()})
+        return r.to_dict()
+
+    # ---------------- persistence ----------------
+
+    def _load(self, rid: int) -> dict | None:
+        with self.db.session() as s:
+            row = s.get(FuturesStateRecord, rid)
+            return json.loads(row.data) if row else None
+
+    def _save(self, rid: int, data: dict) -> None:
+        with self.db.session() as s:
+            row = s.get(FuturesStateRecord, rid)
+            if row is None:
+                s.add(FuturesStateRecord(id=rid, data=json.dumps(data, default=str)))
+            else:
+                row.data = json.dumps(data, default=str)
+            s.commit()
+
+    def save(self) -> None:
+        self._save(ACCOUNT_ID, self.engine.to_state())
+
+    # ---------------- contracts / sessions ----------------
+
+    def clock(self, root: str) -> FuturesClock:
+        spec = fc.get(root)
+        o = (self.store.get("futures.rth") or {}).get(spec.root)
+        return FuturesClock(spec, (o[0], o[1]) if o else None)
+
+    def resolve(self, sym: str, on: date | None = None) -> tuple[fc.Contract, fc.ParsedSymbol]:
+        p = fc.parse_symbol(sym, allow_bare_root=True)
+        if not p:
+            raise KeyError(f"'{sym}' isn't a supported futures symbol. Try ES, MNQ, CL, GC or a contract like MESZ26.")
+        c = p.contract or fc.front_contract(p.root, on or datetime.now(fc.CT).date())
+        return c, p
+
+    def contract_info(self, root: str) -> dict:
+        spec = fc.get(root)
+        today = datetime.now(fc.CT).date()
+        front = fc.front_contract(spec.root, today)
+        return {"spec": spec.to_dict(), "front": front.to_dict(today),
+                "chain": [c.to_dict(today) for c in fc.next_contracts(spec.root, today, 3)],
+                "fees_round_turn": self.engine.round_turn(spec.root), "fee_note": self.engine.fee_per_side(spec.root)[1],
+                "session": self.clock(spec.root).state()}
+
+    # ---------------- analysis ----------------
+
+    async def frame(self, contract: fc.Contract, tf: Timeframe = Timeframe.M5, days: float = 6):
+        clk = self.clock(contract.root)
+        bars, label, notes = await self.data.bars(contract, tf, clk, days)
+        F = ff.build(ff.bars_to_frame(bars, clk), contract.spec, clk, bar_minutes=tf.seconds // 60)
+        return F, label, notes, clk
+
+    def flat_minutes(self, clk: FuturesClock) -> float | None:
+        r = self.engine.rules
+        rs = clk.rth_start.hour * 60 + clk.rth_start.minute
+        re_ = clk.rth_end.hour * 60 + clk.rth_end.minute
+        if r.enabled and r.flat_by_ct:
+            h, m = map(int, r.flat_by_ct.split(":"))
+            return min(h * 60 + m, re_) - rs
+        return re_ - rs
+
+    def events(self) -> dict | None:
+        if not self.news:
+            return None
+        try:
+            ev = self.news.event_risk(None)
+        except Exception:  # noqa: BLE001
+            return None
+        return {"gate": ev.get("gate"), "reason": next((n["text"] for n in ev.get("notes", []) if n["type"] == "macro_window"), None),
+                "notes": ev.get("notes", [])}
+
+    async def analysis(self, sym: str, tf: Timeframe = Timeframe.M5) -> dict:
+        contract, parsed = self.resolve(sym)
+        F, label, notes, clk = await self.frame(contract, tf)
+        now = datetime.now(timezone.utc)
+        snap = self.engine.snapshot(now, clk)
+        risk = RiskEngine(self.engine.rules, self.engine.personal)
+        st = risk.evaluate(snap)
+        pos = self.engine.positions.get(contract.code)
+        stop = next((o.stop_price for o in self.engine.orders.values() if o.active and o.contract == contract.code and o.role == "stop_loss"), None)
+        sig = fsig.evaluate(F, contract.spec, contract.code, label, self.evidence.get(contract.root, {}).get("by_setup", {}), now=now,
+                            position=asdict(pos) if pos and pos.qty else None, position_stop=stop, risk_engine=risk, snapshot=snap,
+                            round_turn=self.engine.round_turn(contract.root), slippage_ticks=self.engine.cfg.slippage_ticks_market,
+                            flat_by_min_from_rth=self.flat_minutes(clk), minutes_to_flat=st["official"].get("minutes_to_flat"),
+                            events=self.events())
+        self._maybe_alert(contract, sig)
+        chart = [{"t": int(r.ts.timestamp()), "o": r.o, "h": r.h, "l": r.l, "c": r.c, "v": r.v} for r in F.tail(400).itertuples()] if len(F) else []
+        return {"contract": contract.to_dict(), "parsed": parsed.to_dict(), "spec": contract.spec.to_dict(), "session": clk.state(now),
+                "data": label, "data_notes": notes, "levels": fsig.levels_snapshot(F, contract.spec), "signal": sig,
+                "evidence": self.evidence.get(contract.root, {}).get("overall"), "evidence_run": self.evidence.get(contract.root, {}).get("run"),
+                "chart": chart}
+
+    def _maybe_alert(self, contract: fc.Contract, sig: dict) -> None:
+        prev = self.last_actions.get(contract.code)
+        act = sig["action"]
+        self.last_actions[contract.code] = act
+        if not self.alerts or act == prev or act not in ("LONG", "SHORT", "EXIT"):
+            return
+        s = sig.get("signal") or {}
+        body = "; ".join(sig.get("reasons", [])[:3])
+        if s:
+            body = f"Entry {s['entry']:g}, stop {s['stop']:g}, target {s['target']:g}. " + body
+        self.alerts.emit("entry" if act != "EXIT" else "position", "high", f"{act} {contract.code} (futures, paper)", body,
+                         key=f"fut:{contract.code}", fingerprint=f"{act}:{s.get('entry')}", symbol=contract.code)
+
+    async def dashboard(self, sym: str | None = None) -> dict:
+        sym = sym or self.store.get("futures.default_root", "MES")
+        a = await self.analysis(sym)
+        now = datetime.now(timezone.utc)
+        clk = self.clock(a["contract"]["root"])
+        upcoming = []
+        if self.news:
+            try:
+                upcoming = [e for e in self.news.upcoming(3) if e.get("importance") == "high"][:6]
+            except Exception:  # noqa: BLE001
+                upcoming = []
+        return {**a, "account": self.engine.summary(now, clk), "upcoming_events": upcoming, "sim_only_note": SIM_ONLY,
+                "data_source": self.data.source}
+
+    # ---------------- paper ----------------
+
+    async def _ref(self, contract: fc.Contract) -> tuple[float | None, str, FuturesClock]:
+        clk = self.clock(contract.root)
+        bars, label, _ = await self.data.bars(contract, Timeframe.M1, clk, days=2)
+        self._feed(contract, bars, label, clk)
+        return (bars[-1]["close"] if bars else None), label.get("status", "unavailable"), clk
+
+    def _feed(self, contract: fc.Contract, bars: list[dict], label: dict, clk: FuturesClock) -> None:
+        """Feed bars the simulator hasn't seen yet (marks, fills, flat time). The last bar may still be forming,
+        so it only updates the mark."""
+        if not bars:
+            return
+        last = self._fed.get(contract.code)
+        status = label.get("status", "unavailable")
+        new = [b for b in bars[:-1] if last is None or b["ts"].isoformat() > last]
+        if last is None:
+            new = new[-1:]          # first look: don't replay history into working orders
+        for b in new:
+            self.engine.on_bar(contract.code, b["ts"], b["open"], b["high"], b["low"], b["close"], b["volume"], status, clk)
+            self._fed[contract.code] = b["ts"].isoformat()
+        lb = bars[-1]
+        pos = self.engine.positions.get(contract.code)
+        if pos:
+            pos.mark, pos.mark_ts, pos.mark_status = lb["close"], lb["ts"].isoformat(), status
+
+    async def preview(self, body: dict) -> dict:
+        contract, _ = self.resolve(body["contract"])
+        ref, status, clk = await self._ref(contract)
+        return self.engine.preview(contract.code, body["side"], int(body["qty"]), body.get("type", "market"), body.get("limit_price"),
+                                   body.get("stop_price"), body.get("bracket"), ref, datetime.now(timezone.utc), clk, status) | {
+                                       "ref_price": ref, "data_status": status}
+
+    async def submit(self, body: dict) -> dict:
+        if not body.get("confirm"):
+            raise PermissionError("Confirm the paper order first (you must review it before it's placed in the simulator).")
+        contract, _ = self.resolve(body["contract"])
+        ref, status, clk = await self._ref(contract)
+        o, pv = self.engine.submit(contract.code, body["side"], int(body["qty"]), body.get("type", "market"), body.get("limit_price"),
+                                   body.get("stop_price"), body.get("bracket"), ref, datetime.now(timezone.utc), clk, status,
+                                   signal_id=body.get("signal_id"))
+        self.save()
+        self._push()
+        return {"order": asdict(o) if o else None, "preview": pv}
+
+    def cancel(self, oid: str) -> dict:
+        o = self.engine.cancel(oid)
+        self.save()
+        self._push()
+        return asdict(o)
+
+    async def flatten(self, contract: str | None) -> dict:
+        now = datetime.now(timezone.utc)
+        fills = []
+        targets = [contract] if contract else [c for c, p in self.engine.positions.items() if p.qty]
+        for c in targets:
+            con, _ = self.resolve(c)
+            ref, status, clk = await self._ref(con)
+            if status not in ("realtime", "near_realtime", "polling") and not (status == "delayed" and self.engine.cfg.allow_delayed_practice):
+                raise ValueError(f"Can't flatten {c} in the simulator on {status} data. (In replay, use the replay controls.)")
+            fills += self.engine.flatten(con.code, now, "Flattened by you", price=ref, ts_basis=f"{status} last price")
+        self.save()
+        self._push()
+        return {"fills": [asdict(f) for f in fills]}
+
+    def reset(self, starting_balance: float | None = None) -> dict:
+        if starting_balance is not None:
+            self.set_prop({"starting_balance": float(starting_balance)})
+            self.apply()
+        self.engine.reset()
+        self._fed.clear()
+        self.save()
+        self._push()
+        return {"ok": True, "balance": self.engine.balance}
+
+    def review(self, note: str) -> dict:
+        out = self.engine.manual_review(note, datetime.now(timezone.utc))
+        self.save()
+        return out
+
+    def account(self) -> dict:
+        now = datetime.now(timezone.utc)
+        root = next((p.root for p in self.engine.positions.values() if p.qty), self.store.get("futures.default_root", "MES"))
+        return self.engine.summary(now, self.clock(fc.parse_symbol(root, allow_bare_root=True).root))
+
+    def journal(self) -> dict:
+        """Round trips from futures paper fills, net of fees, with R when the entry had a bracket stop."""
+        trips, cur = [], {}
+        orders = self.engine.orders
+        for f in self.engine.fills:
+            t = cur.get(f.contract)
+            if t is None:
+                o = orders.get(f.order_id)
+                stop = (o.bracket or {}).get("stop") if o else None
+                t = cur[f.contract] = {"contract": f.contract, "root": f.root, "direction": "long" if f.side > 0 else "short", "opened": f.ts,
+                                       "qty": 0, "max_qty": 0, "entry_value": 0.0, "exit_value": 0.0, "exit_qty": 0, "fees": 0.0,
+                                       "realized": 0.0, "stop": stop, "signal_id": o.signal_id if o else None, "exits": []}
+            t["fees"] += f.fee
+            sgn = 1 if t["direction"] == "long" else -1
+            if f.side == sgn:
+                t["qty"] += f.qty
+                t["max_qty"] = max(t["max_qty"], t["qty"])
+                t["entry_value"] += f.price * f.qty
+            else:
+                t["qty"] -= f.qty
+                t["exit_value"] += f.price * f.qty
+                t["exit_qty"] += f.qty
+                t["realized"] += f.realized
+                t["exits"].append(f.role)
+            if t["qty"] <= 0:
+                spec = fc.get(t["root"])
+                entry = t["entry_value"] / max(t["max_qty"], 1)
+                net = round(t["realized"] - t["fees"], 2)
+                risk = abs(fc.ticks_between(entry, t["stop"], spec)) * spec.tick_value * t["max_qty"] if t["stop"] else None
+                trips.append({"contract": t["contract"], "direction": t["direction"], "contracts": t["max_qty"], "opened": t["opened"], "closed": f.ts,
+                              "entry": round(entry, spec.decimals + 2), "exit": round(t["exit_value"] / max(t["exit_qty"], 1), spec.decimals + 2),
+                              "gross": round(t["realized"], 2), "fees": round(t["fees"], 2), "net": net, "stop": t["stop"],
+                              "r": round(net / risk, 2) if risk else None, "exit_reason": t["exits"][-1] if t["exits"] else None,
+                              "signal_id": t["signal_id"], "trade_date": f.trade_date})
+                del cur[f.contract]
+        n = len(trips)
+        wins = sum(1 for t in trips if t["net"] > 0)
+        return {"trades": trips[::-1], "summary": {"trades": n, "net": round(sum(t["net"] for t in trips), 2),
+                                                    "win_rate": round(100 * wins / n, 1) if n else None,
+                                                    "fees": round(sum(t["fees"] for t in trips), 2),
+                                                    "sample_warning": "Fewer than 30 trades: results say little yet." if n < 30 else None},
+                "review_log": self.engine.review_log[::-1]}
+
+    # ---------------- background ----------------
+
+    async def start(self) -> None:
+        self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        if self._task:
+            self._task.cancel()
+            self._task = None
+        if self.projectx:
+            await self.projectx.aclose()
+
+    async def _loop(self) -> None:
+        while True:
+            await asyncio.sleep(20)
+            try:
+                live = {o.contract for o in self.engine.orders.values() if o.active} | {c for c, p in self.engine.positions.items() if p.qty}
+                for code in live:
+                    con, _ = self.resolve(code)
+                    await self._ref(con)
+                now = datetime.now(timezone.utc)
+                root = next(iter(live), None)
+                clk = self.clock(fc.parse_symbol(root, allow_bare_root=True).root) if root else self.clock(self.store.get("futures.default_root", "MES"))
+                w = clk.window_at(now)
+                self.engine.on_clock(now, w.trade_date.isoformat() if w else None)
+                if live:
+                    self.save()
+                    self._push()
+                    st = self.engine.risk_status(now, clk)
+                    for w_ in st["warnings"]:
+                        if w_["level"] == "high" and self.alerts:
+                            self.alerts.emit("position", "high", "Futures risk warning (simulator)", w_["text"], key=f"futrisk:{w_['code']}",
+                                             fingerprint=w_["text"][:60])
+            except Exception:  # noqa: BLE001
+                log.exception("futures loop failed")
+
+    def _push(self) -> None:
+        if self.broadcaster:
+            try:
+                self.broadcaster.publish({"type": "futures", "data": {"balance": self.engine.balance, "unrealized": self.engine.unrealized()}})
+            except Exception:  # noqa: BLE001
+                pass
+
+    # ---------------- backtest ----------------
+
+    async def backtest(self, root: str, days: int = 59) -> dict:
+        spec = fc.get(root)
+        if spec.root in self._bt_running:
+            raise RuntimeError(f"A {spec.root} backtest is already running.")
+        self._bt_running.add(spec.root)
+        try:
+            clk = self.clock(spec.root)
+            raw, _notes = await self.data.yahoo.get_bars(f"{spec.root}=F", Timeframe.M5, datetime.now(timezone.utc) - timedelta(days=days))
+            bars = [{"ts": b.ts, "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume} for b in raw]
+            F = await asyncio.to_thread(lambda: ff.build(ff.bars_to_frame(bars, clk), spec, clk))
+            fee = self.engine.round_turn(spec.root)
+            res = await asyncio.to_thread(fbt.run, F, spec, fee, self.engine.cfg.slippage_ticks_market, 3, self.flat_minutes(clk))
+            res["run"] = {"at": datetime.now(timezone.utc).isoformat(), "source": f"Yahoo {spec.root}=F continuous 5-minute bars",
+                          "note": ("Continuous front-month series: the roll can create a price jump between two trade dates. "
+                                   "Signals at the jump can be distorted."),
+                          "fee_note": self.engine.fee_per_side(spec.root)[1]}
+            self.evidence[spec.root] = {k: v for k, v in res.items() if k != "trades"} | {"trades_sample": res["trades"][-50:]}
+            self._save(EVIDENCE_ID, self.evidence)
+            return self.evidence[spec.root]
+        finally:
+            self._bt_running.discard(spec.root)
+
+    # ---------------- replay ----------------
+
+    async def replay_start(self, sym: str, trade_date: str) -> dict:
+        contract, _ = self.resolve(sym, date.fromisoformat(trade_date))
+        clk = self.clock(contract.root)
+        w = clk.window(date.fromisoformat(trade_date))
+        if not w:
+            raise ValueError(f"{contract.root} didn't trade on {trade_date} (weekend or holiday).")
+        age = (datetime.now(timezone.utc) - w.open).days
+        tf = Timeframe.M1 if age <= 6 else Timeframe.M5
+        if age > 58:
+            raise ValueError("Yahoo only keeps about 59 days of intraday futures bars; pick a more recent date.")
+        hist_start = (clk.prev_window(w.trade_date) or w).open - timedelta(days=4)
+        raw, _ = await self.data.yahoo.get_bars(contract.yahoo_symbol, tf, hist_start, w.close + timedelta(minutes=1))
+        bars = [{"ts": b.ts, "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume} for b in raw]
+        if not any(w.contains(b["ts"]) for b in bars):
+            raise ValueError(f"No {contract.code} bars for {trade_date} from Yahoo.")
+        start_i = next(i for i, b in enumerate(bars) if w.contains(b["ts"]))
+        eng = FuturesPaperEngine(self.engine.rules, self.engine.personal, FuturesPaperConfig(**{**self.engine.cfg.to_dict()}), self.fees_default)
+        self.replay = {"contract": contract.code, "root": contract.root, "trade_date": trade_date, "bars": bars, "i": start_i, "start_i": start_i,
+                       "tf": tf.value, "engine": eng, "end_ts": w.close}
+        return await self.replay_step(0)
+
+    async def replay_step(self, n: int = 1) -> dict:
+        rp = self.replay
+        if not rp:
+            raise ValueError("No replay running.")
+        clk = self.clock(rp["root"])
+        eng: FuturesPaperEngine = rp["engine"]
+        for _ in range(max(0, n)):
+            if rp["i"] >= len(rp["bars"]) - 1 or rp["bars"][rp["i"] + 1]["ts"] >= rp["end_ts"]:
+                break
+            rp["i"] += 1
+            b = rp["bars"][rp["i"]]
+            eng.on_bar(rp["contract"], b["ts"], b["open"], b["high"], b["low"], b["close"], b["volume"], "replay", clk)
+        seen = rp["bars"][:rp["i"] + 1]
+        minutes = 1 if rp["tf"] == "1Min" else 5
+        five = resample(seen, 5) if minutes == 1 else seen
+        if minutes == 1 and five and five[-1]["ts"] + timedelta(minutes=5) > seen[-1]["ts"] + timedelta(minutes=1):
+            five = five[:-1]   # the last 5-minute bar is still forming
+        F = ff.build(ff.bars_to_frame(five, clk), fc.get(rp["root"]), clk)
+        now = seen[-1]["ts"] + timedelta(minutes=minutes)
+        spec = fc.get(rp["root"])
+        risk = RiskEngine(eng.rules, eng.personal)
+        snap = eng.snapshot(now, clk)
+        pos = eng.positions.get(rp["contract"])
+        stop = next((o.stop_price for o in eng.orders.values() if o.active and o.role == "stop_loss"), None)
+        sig = fsig.evaluate(F, spec, rp["contract"], {"status": "replay", "reason": "Replaying a past session"},
+                            self.evidence.get(rp["root"], {}).get("by_setup", {}), now=now,
+                            position=asdict(pos) if pos and pos.qty else None, position_stop=stop, risk_engine=risk, snapshot=snap,
+                            round_turn=eng.round_turn(rp["root"]), slippage_ticks=eng.cfg.slippage_ticks_market,
+                            flat_by_min_from_rth=self.flat_minutes(clk))
+        return {"contract": rp["contract"], "trade_date": rp["trade_date"], "bar_time": seen[-1]["ts"].isoformat(), "timeframe": rp["tf"],
+                "progress": {"i": rp["i"] - rp["start_i"], "of": sum(1 for b in rp["bars"] if b["ts"] < rp["end_ts"]) - rp["start_i"]},
+                "last": seen[-1]["close"], "levels": fsig.levels_snapshot(F, spec) if len(F) else {}, "signal": sig,
+                "account": eng.summary(now, clk),
+                "chart": [{"t": int(b["ts"].timestamp()), "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"], "v": b["volume"]}
+                          for b in five[-300:]],
+                "note": "Replay: a past session bar by bar. Fills use the replayed bars; this account is separate from your practice account."}
+
+    def replay_order(self, body: dict) -> dict:
+        rp = self.replay
+        if not rp:
+            raise ValueError("No replay running.")
+        if not body.get("confirm"):
+            raise PermissionError("Confirm the replay order first.")
+        eng: FuturesPaperEngine = rp["engine"]
+        b = rp["bars"][rp["i"]]
+        now = b["ts"] + timedelta(minutes=1 if rp["tf"] == "1Min" else 5)
+        o, pv = eng.submit(rp["contract"], body["side"], int(body["qty"]), body.get("type", "market"), body.get("limit_price"), body.get("stop_price"),
+                           body.get("bracket"), b["close"], now, self.clock(rp["root"]), "replay")
+        return {"order": asdict(o) if o else None, "preview": pv}
+
+    def replay_flatten(self) -> dict:
+        rp = self.replay
+        if not rp:
+            raise ValueError("No replay running.")
+        b = rp["bars"][rp["i"]]
+        fills = rp["engine"].flatten(rp["contract"], b["ts"], "Flattened by you (replay)", price=b["close"], ts_basis="replay bar close")
+        return {"fills": [asdict(f) for f in fills]}
+
+    # ---------------- screen (TopstepX or futures on TradingView) ----------------
+
+    async def screen_fuse(self, obs: dict, last_change_at: float | None = None) -> dict:
+        """Cross-check what's on a futures chart against independently retrieved futures data."""
+        import time as _t
+
+        out: dict = {"platform": obs.get("platform"), "asset_class": "futures", "ticker": obs.get("ticker"),
+                     "timeframe": obs.get("timeframe"), "checks": []}
+        f = obs.get("futures")
+        if not f:
+            out["status"] = ("I can't read a futures contract on this screen reliably, so I won't guess. Make the symbol visible in the chart "
+                             "legend (for example MESZ6 or /MES), or pick the platform in Screen settings.")
+            return out
+        try:
+            contract, _ = self.resolve(f["contract"] or f["root"])
+        except KeyError as e:
+            out["status"] = str(e.args[0])
+            return out
+        if f.get("continuous"):
+            out["checks"].append({"check": "contract", "ok": True,
+                                  "detail": f"The chart shows {f['raw']} (no month); assuming the front contract {contract.code}."})
+        if f.get("year_ambiguous"):
+            out["checks"].append({"check": "contract", "ok": False, "detail": "The contract year on screen is ambiguous."})
+        tf_s = obs.get("timeframe")
+        tf = Timeframe(tf_s) if tf_s in ("1Min", "5Min", "15Min") else Timeframe.M5
+        if tf_s not in ("1Min", "5Min", "15Min"):
+            out["checks"].append({"check": "timeframe", "ok": False,
+                                  "detail": f"Chart timeframe {'unknown' if not tf_s else tf_s}; analysis uses 5-minute bars."})
+        a = await self.analysis(contract.code, tf)
+        label, levels, sig = a["data"], a["levels"], a["signal"]
+        spec = contract.spec
+        out.update({"ticker": contract.code, "contract": contract.code, "market_label": label, "market_price": levels.get("last"),
+                    "analysis_timeframe": tf.value, "session": a["session"]["label"]})
+        vp, last = obs.get("visible_price"), levels.get("last")
+        if vp is not None and last:
+            on_grid = fc.round_to_tick(vp, spec) == round(vp, spec.decimals + 2)
+            out["checks"].append({"check": "price on the tick grid", "ok": on_grid,
+                                  "detail": f"{vp:g} {'is' if on_grid else 'is NOT'} a valid {spec.root} price (tick {spec.tick_size})."
+                                  + ("" if on_grid else " The price was probably misread.")})
+            diff = 100 * (vp / last - 1)
+            ticks = fc.ticks_between(last, vp, spec) if on_grid else None
+            out.update({"visible_price": vp, "price_diff_pct": round(diff, 3), "price_diff_ticks": ticks})
+            delayed = label.get("status") in ("delayed", "historical", "stale")
+            tol = 1.0 if delayed else 0.3
+            ok = abs(diff) <= tol
+            out["ticker_confirmed"] = ok and on_grid
+            out["ticker_confirmation"] = ("price on screen is close to market data" if ok else "unconfirmed")
+            detail = f"{diff:+.2f}%" + (f" ({ticks:+d} ticks)" if ticks is not None else "")
+            if delayed:
+                detail += (f". Market data here is {label.get('status')} ({label.get('reason', '')}); your platform is live, so a gap is "
+                           "expected and this check can only catch big mismatches (wrong contract, misread price).")
+            out["checks"].append({"check": "visible price vs market data", "ok": ok, "detail": detail})
+            if not ok:
+                out["discrepancy"] = (f"Screen shows {vp:g} but {label.get('provider')} shows {last:g} for {contract.code} ({diff:+.2f}%). The chart may "
+                                      "be a different contract month, the price may be misread, or a feed is delayed. Recommendations use market data only.")
+        else:
+            out["ticker_confirmed"] = False
+            out["checks"].append({"check": "visible price", "ok": False, "detail": "Couldn't read a price on screen to cross-check."})
+        if last_change_at and _t.monotonic() - last_change_at > 90 and label.get("status") in ("polling", "realtime", "near_realtime"):
+            out["stale_screen"] = "The screen hasn't changed for 90+ seconds while the market is live. The chart may be frozen."
+        out["action"], out["reasons"] = sig["action"], sig["reasons"]
+        out["best_signal"] = sig.get("signal") or (sig.get("watch") or sig.get("study_only") or [None])[0]
+        out["developing"] = sig.get("developing", [])
+        named = {k: v for k, v in levels.items() if isinstance(v, (int, float)) and k not in ("last", "atr")}
+        atr = levels.get("atr") or 0
+        out["your_drawn_levels"] = []
+        for d in obs.get("drawn_levels", []):
+            near = min(named.items(), key=lambda kv: abs(kv[1] - d["price_estimate"])) if named else None
+            out["your_drawn_levels"].append({**d, "nearest_known_level": near[0].replace("_", " ") if near and atr and abs(near[1] - d["price_estimate"]) <= atr else None})
+        if obs.get("position_on_screen"):
+            out["position_on_screen"] = {**obs["position_on_screen"], "note": "Read from your screen by OCR; not verified and not used for any calculation."}
+        out["sim_only_note"] = "Study Terminal reads your TopstepX screen. It can't place, change or cancel anything on your Topstep account."
+        return out
+
+    # ---------------- info ----------------
+
+    def info(self) -> dict:
+        return {"products": fc.all_specs_dict(), "presets": load_presets(), "sources": SOURCES, "data_source": self.data.source,
+                "projectx_configured": self.projectx is not None, "user_products_error": self.user_products_error,
+                "holiday_coverage": [d.isoformat() for d in (fc.holiday_coverage() or ())],
+                "prop": self.engine.rules.to_dict(), "personal": self.engine.personal.to_dict(), "paper": self.engine.cfg.to_dict(),
+                "fees_default": self.fees_default, "sim_only_note": SIM_ONLY,
+                "evidence": {k: {"overall": v.get("overall"), "run": v.get("run"), "by_setup": v.get("by_setup")} for k, v in self.evidence.items()}}

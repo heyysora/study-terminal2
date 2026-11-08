@@ -122,3 +122,21 @@ grounded data in friendlier language and are told never to invent prices, news o
 ## Learning
 18 lessons with quizzes, a glossary, and "spot the setup" exercises on real charts. The mentor adapts explanations to
 your level and the terms you've learned.
+
+## Futures and TopstepX
+Click **Futures** at the top left (or **Futures (TopstepX)** in the menu). The status strip switches to the futures
+simulator: balance, day P&L, room above the Maximum Loss Limit, which rules are active and whether entries are allowed.
+
+- **Live**: pick a product (ES, NQ, CL, GC, MES, MNQ, or type a contract such as MNQZ26). You get the chart with
+  session levels, the signal, the account and limits panel, a paper order ticket and the levels table. The data
+  label matters: Yahoo's futures prices are delayed, so you'll see setups marked "for study only" and no signals.
+- **Rules**: load a Topstep preset, check every number against your Topstep dashboard, then press confirm. Your own
+  limits sit next to it and are kept separate.
+- **Replay**: load a past session (last ~59 days), step through it bar by bar and practice in a separate account.
+- **Evidence**: run the futures backtest for a product. Until a setup is "reliable", it stays watch-only.
+- **Data & simulator**: data source (Yahoo or your TopstepX API subscription), slippage, partial-fill share,
+  auto-flatten, delayed practice, and fees per product.
+
+On the Live copilot page, set **Platform** to TopstepX (or leave it on automatic) and watch your TopstepX window as
+you would TradingView. Study Terminal reads the chart, checks the contract and price against futures data, and
+shows the futures signal. It can't place, change or cancel anything on your Topstep account.

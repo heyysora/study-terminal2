@@ -17,7 +17,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_journal, routes_news, ws
+from .api import routes, routes2, routes_extension, routes_futures, routes_journal, routes_news, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -25,6 +25,7 @@ from .core.events import Broadcaster
 from .core.market_clock import MarketClock
 from .db.session import Database
 from .education.service import EducationService
+from .futures.service import FuturesService
 from .journal.service import JournalService
 from .news.service import NewsService
 from .logging_setup import configure_logging
@@ -81,6 +82,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         journal.signals_service = signals
         signals.journal = journal
         s.journal = journal
+        futures = FuturesService(settings, db, store, prov, alerts, broadcaster, news)
+        s.futures = futures
 
         async def build_assistant():
             key = settings.anthropic_api_key.get_secret_value() if settings.anthropic_api_key else None
@@ -103,6 +106,18 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                                   for k, v in backtests.calibration.items()}
             ctx["calendar"] = news.upcoming(7)
             if not symbol:
+                return ctx
+            from .futures.contracts import parse_symbol as _fparse
+
+            if _fparse(symbol) or (store.get("app.market_mode", "equities") == "futures" and _fparse(symbol, allow_bare_root=True)):
+                try:
+                    fa = await futures.analysis(symbol)
+                    fa.pop("chart", None)
+                    ctx["futures"] = fa
+                    ctx["futures_account"] = {"risk": futures.account()["risk"]}
+                except Exception as e:  # noqa: BLE001
+                    ctx["data_error"] = str(e)
+                ctx.pop("calibration", None)
                 return ctx
             ctx["signal_log"] = journal.signals(symbol=symbol, limit=15)
             if fetch_news and news.enabled:
@@ -140,6 +155,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         s.health = health
 
         screen = ScreenService(monitor, signals, store, broadcaster, screen_ai)
+        screen.futures = futures
         s.screen = screen
 
         def apply(changes: dict | None = None):
@@ -162,6 +178,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                                  "min_severity_sound": v["alerts.min_severity_sound"], "categories": v["alerts.categories"]})
             scanner.filters = ScanFilters(**v["scanner.filters"]) if v["scanner.filters"] else ScanFilters()
             scanner.interval_s, scanner.enabled = v["scanner.interval_seconds"], v["scanner.enabled"]
+            futures.apply(changes)
             if changes and any(k.startswith("ai.") for k in changes):
                 import asyncio
                 asyncio.ensure_future(build_assistant())
@@ -177,12 +194,14 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await scanner.start()
             await health.start()
             await news.start()
+            await futures.start()
         try:
             yield
         finally:
             if screen.state != "off":
                 await screen.stop()
             await health.stop()
+            await futures.stop()
             await news.stop()
             await scanner.stop()
             await signals.stop()
@@ -203,6 +222,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_journal.router)
     app.include_router(routes_news.router)
     app.include_router(routes_extension.router)
+    app.include_router(routes_futures.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

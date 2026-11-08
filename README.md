@@ -1,4 +1,4 @@
-# Study Terminal 0.5.0
+# Study Terminal 0.6.0
 
 A trading research and paper-trading environment for Windows that you use alongside your charts. It watches
 the market, reads your chart window (with your permission), finds setups, tells you honestly how those setups
@@ -25,8 +25,9 @@ have performed on data they never saw, records every trade and signal in a journ
 | AI mentor | Answers from the app's own data, labelled observed / interpretation / evidence / uncertainty / scenario. Works offline; Claude or Ollama optional |
 | Backtesting | Walk-forward testing, diagnostics by strategy, ticker, regime, time of day and more, ML with a deployment gate |
 | Learning | 18 lessons, quizzes, glossary, real-chart exercises |
+| Futures (TopstepX) | Separate futures mode: CME contract specs, Globex sessions, futures levels and setups, Topstep rule presets plus your own limits, a futures simulator with replay, and a TopstepX screen adapter. Never places orders on TopstepX. See [docs/TOPSTEPX.md](docs/TOPSTEPX.md) |
 
-Docs: [User guide](docs/USER_GUIDE.md) · [Features and limits](FEATURES.md) · [Backtest results](docs/BACKTEST_RESULTS.md) ·
+Docs: [User guide](docs/USER_GUIDE.md) · [TopstepX and futures](docs/TOPSTEPX.md) · [Features and limits](FEATURES.md) · [Backtest results](docs/BACKTEST_RESULTS.md) ·
 [Market data sources](docs/DATA_PROVIDERS.md) · [Screen validation](docs/SCREEN_VALIDATION.md) ·
 [Windows verification](docs/WINDOWS_VERIFICATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Audit](docs/AUDIT.md)
 
@@ -42,7 +43,7 @@ cd C:\Users\<you>\dev\study-terminal
 powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1            # Python environment (once)
 winget install JRSoftware.InnoSetup                                    # free installer compiler (once)
 powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1  # ~5 minutes
-.\dist-installer\StudyTerminal-Setup-0.5.0.exe
+.\dist-installer\StudyTerminal-Setup-0.6.0.exe
 ```
 
 The installer:

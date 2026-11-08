@@ -83,3 +83,10 @@ Implement `market_data/providers/base.py: MarketDataProvider`:
 Register it in `providers/registry.py` and set `MARKET_DATA_PROVIDER=<name>` in `.env`. Validation, freshness
 labels, caching, the signal gate and the UI work unchanged. `guaranteed_realtime=True` is the only way to get
 the REALTIME label. Set it only if the vendor contractually provides consolidated real-time data.
+
+## 5. Futures
+
+Futures use a separate data layer (`backend/app/futures/data.py`). Yahoo serves CME futures but reports them as
+delayed (10 minutes when checked on 2026-11-07), so futures bars from Yahoo are labeled DELAYED and never produce
+signals. The optional, paid TopstepX API (ProjectX Gateway) is the documented way to get real-time TopstepX data;
+Databento is the main paid alternative. Comparison table and setup steps: [TOPSTEPX.md](TOPSTEPX.md) §8.

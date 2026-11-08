@@ -1,4 +1,4 @@
-# Features and limitations (0.5.0)
+# Features and limitations (0.6.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
@@ -31,6 +31,15 @@
 | | Single instance, clean shutdown, error message boxes, logs folder from tray and Settings, start-on-login (off by default) | 🟡 Windows behaviour unverified; clean shutdown verified on Linux |
 | | Tray, toasts, sound, hotkey, WebView2 window | 🟡 run `scripts\verify-windows.ps1` |
 | Chrome extension | Optional, token-paired, TradingView tabs only, title + address only | ✅ end-to-end in real Chrome with a real TradingView tab |
+| Futures / TopstepX (0.6.0) | Contract registry (ES, MES, NQ, MNQ, YM, MYM, RTY, M2K, CL, GC; add your own), exact tick math, expirations and roll dates, symbol parsing for platform formats | ✅ checked against CME spec pages |
+| | Globex sessions in exchange time: trade dates from 17:00 CT, RTH per product, holidays/early halts, daylight saving | ✅ (holiday minutes from exchange_calendars, not CME notices) |
+| | VWAP ±1σ, previous day/session, overnight, pre-RTH, opening range, initial balance, volume profile (POC/VAH/VAL/HVN/LVN), BOS/CHoCH, FVGs, sweeps | ✅ causal, tested on real ES bars |
+| | Five fixed futures setups; LONG/SHORT/HOLD/EXIT/NO TRADE with the same evidence gate as stocks; no signals on delayed/stale/incomplete data | ✅ |
+| | Topstep presets (Combine and Express Funded 50K/100K/150K) with sources, unconfirmed until you confirm; personal limits kept separate; warnings and blocking in the simulator | ✅ simulator only; can't enforce anything on a real account |
+| | Futures simulator: market/limit/stop, brackets, per-contract fees, tick slippage, partial fills, end-of-day trailing drawdown, flat-by time; replay of past sessions | ✅ |
+| | TopstepX screen adapter and platform selector; futures cross-checks (tick grid, contract month, delayed-feed tolerance) | 🟡 tested on synthetic charts only; no real TopstepX screenshots |
+| | Optional read-only TopstepX API (ProjectX) data source | 🟡 tested against a mock server only |
+| | Futures backtest (ES, MES, NQ, CL, GC) | ✅ no setup reliable; all watch-only ([docs/TOPSTEPX.md](docs/TOPSTEPX.md) §9) |
 | Earlier stages | Analysis, scanner, paper trading, risk limits, alerts, learning centre | ✅ (see previous releases) |
 
 ## Remaining limitations
@@ -46,4 +55,7 @@
 - **News**: Yahoo's feed only; no FDA calendar, no real-time wires; labels are keyword rules.
 - **Chrome extension**: TradingView doesn't always put the interval in the address; then your default timeframe is used.
 - Alert de-duplication resets on restart (M9 in the audit). Quitting within a second of launch logs a harmless library error (L6).
+- **Futures data is delayed by default** (Yahoo reports 10 minutes). Without the optional TopstepX API there are no live
+  futures signals or live simulator fills; use replay or delayed practice. Everything not tested against a real TopstepX
+  environment is listed in [docs/TOPSTEPX.md](docs/TOPSTEPX.md) §10.
 - Not built: real-money execution (by design), Webull/ToS/IBKR-specific readers, code signing for the installer.
