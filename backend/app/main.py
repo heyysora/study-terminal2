@@ -5,6 +5,7 @@ App UI:               http://127.0.0.1:8765/        API docs: http://127.0.0.1:8
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -71,7 +72,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         s.settings, s.db, s.monitor, s.paper, s.settings_store = settings, db, monitor, paper, store
         s.analysis, s.backtests, s.models, s.alerts, s.signals = analysis, backtests, models, alerts, signals
         s.scanner, s.education = scanner, education
-        news = NewsService(db, prov, monitor.clock, alerts, symbols_fn=lambda: monitor.monitored_symbols())
+        news = NewsService(db, prov, monitor.clock, alerts, symbols_fn=lambda: monitor.monitored_symbols(),
+                           enabled=settings.news_enabled)
         signals.news = news
         scanner.news = news
         s.news = news
@@ -87,12 +89,29 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
 
         await build_assistant()
 
-        async def build_context(symbol: str | None, tf: Timeframe | None = None) -> dict:
+        async def build_context(symbol: str | None, tf: Timeframe | None = None, fetch_news: bool = False) -> dict:
             ctx: dict = {"symbol": symbol, "market": signals.market, "known_terms": education.progress()["known_terms"],
                          "scanner": [{k: r.get(k) for k in ("symbol", "action", "rank_score", "change_pct", "rvol")}
                                      for r in scanner.results[:5]]}
+            try:
+                perf = journal.performance()
+                ctx["journal"] = {k: perf.get(k) for k in ("closed_trades", "open_trades", "net_pnl", "win_rate", "avg_r", "total_r",
+                                                           "by_strategy", "mistakes", "sample_warning")}
+            except Exception:  # noqa: BLE001 - the mentor must still answer without the journal
+                log.exception("journal context failed")
+            ctx["calibration"] = {k: {f: v.get(f) for f in ("tier", "trades", "avg_r", "expectancy_r", "avg_r_ci95", "win_rate", "note")}
+                                  for k, v in backtests.calibration.items()}
+            ctx["calendar"] = news.upcoming(7)
             if not symbol:
                 return ctx
+            ctx["signal_log"] = journal.signals(symbol=symbol, limit=15)
+            if fetch_news and news.enabled:
+                try:
+                    ctx["catalysts"] = await asyncio.wait_for(news.catalysts(symbol), timeout=15)
+                except Exception:  # noqa: BLE001
+                    ctx["catalysts"] = {**news.cached(symbol), "news_error": "Couldn't load news from Yahoo just now."}
+            else:
+                ctx["catalysts"] = news.cached(symbol)
             tf = tf or signals.timeframes[0]
             try:
                 ev, snap, _ = await signals.evaluate_symbol(symbol, tf)

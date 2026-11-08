@@ -36,14 +36,14 @@ BEA_URL = "https://www.bea.gov/news/schedule"
 
 
 class NewsService:
-    def __init__(self, db, provider, clock, alerts=None, symbols_fn=lambda: []):
+    def __init__(self, db, provider, clock, alerts=None, symbols_fn=lambda: [], enabled: bool = True):
         self.db, self.provider, self.clock, self.alerts, self.symbols_fn = db, provider, clock, alerts, symbols_fn
         self._news: dict[str, tuple[float, list]] = {}
         self._slow: dict[str, tuple[float, dict]] = {}
         self._macro: dict = {"events": [], "fetched_at": None, "errors": {}, "bls": None}
         self._macro_t = 0.0
         self._task: asyncio.Task | None = None
-        self.enabled = True
+        self.enabled = enabled
         self.errors: list[str] = []
 
     # ---------------- lifecycle ----------------
@@ -131,8 +131,20 @@ class NewsService:
         self._slow[symbol] = (now, data)
         return data
 
+    def cached(self, symbol: str) -> dict:
+        """What's already loaded for a symbol (no network)."""
+        sym = symbol.upper()
+        slow = (self._slow.get(sym) or (0, {}))[1] or {}
+        out = {"symbol": sym, "news": (self._news.get(sym) or (0, []))[1], "earnings": slow.get("earnings"),
+               "analyst": slow.get("analyst", []), "events": self.event_risk(sym, earnings=slow.get("earnings"))}
+        if not self.enabled:
+            out["disabled"] = True
+        return out
+
     async def catalysts(self, symbol: str, force: bool = False) -> dict:
         symbol = symbol.upper()
+        if not self.enabled:
+            return {**self.cached(symbol), "news_error": "News monitoring is turned off (NEWS_ENABLED=false)."}
         out: dict = {"symbol": symbol, "fetched_at": datetime.now(timezone.utc).isoformat()}
         try:
             out["news"] = await self.news(symbol, force)
@@ -194,6 +206,10 @@ class NewsService:
 
     async def macro(self, force: bool = False) -> dict:
         now = asyncio.get_running_loop().time()
+        if not self.enabled:
+            bls, meta = bls_events()
+            self._macro = {"events": bls, "errors": {"fomc": "news disabled", "bea": "news disabled"}, "bls": meta, "fetched_at": None}
+            return self._macro
         if not force and self._macro_t and now - self._macro_t < MACRO_TTL:
             return self._macro
         events, errors = [], {}

@@ -1,1 +1,0 @@
-wf_5Min_58_fixed.json 110.5 s | {'trades': 843, 'days': 21, 'avg_r': -0.036, 'total_r': -29.93, 'avg_r_ci95': [-0.126, 0.066], 'win_rate': 38.0, 'win_rate_ci95': [34.7, 41.3], 'folds_positive': '2/5', 'tier': 'losing', 'tier_text': 'Lost money out-of-sample on average (not conclusive, but no evidence of an edge).'}

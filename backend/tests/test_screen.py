@@ -152,3 +152,19 @@ def test_legend_timeframe_beats_toolbar_buttons_and_ambiguity_is_unknown():
 def test_single_letter_ocr_noise_ranks_after_real_tickers():
     r = recognize("", [_tok("Q", 20, 20), _tok("AAPL", 80, 20)], "tradingview")
     assert r.ticker == "AAPL" and r.ticker_candidates == ["AAPL", "Q"]
+
+
+async def test_ocr_ticker_is_confirmed_by_matching_price():
+    from app.screen.service import ScreenService
+
+    class Mon:
+        async def quote(self, s):
+            px = {"Q": 30.0, "AAPL": 342.37}.get(s)
+            return {"last": {"price": px}, "label": {}} if px else {"last": None}
+
+    svc = ScreenService.__new__(ScreenService)
+    svc.monitor = Mon()
+    sym, _, how = await svc._confirm_ticker({"ticker": "Q", "ticker_confidence": 0.5, "ticker_candidates": ["Q", "AAPL"], "visible_price": 342.35})
+    assert sym == "AAPL" and how.startswith("price on screen matches")
+    sym, _, how = await svc._confirm_ticker({"ticker": "AAPL", "ticker_confidence": 0.95, "visible_price": 1.0})
+    assert sym == "AAPL" and how == "window title"

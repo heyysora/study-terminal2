@@ -10,7 +10,7 @@ from app.db.session import Database
 def settings(tmp_path) -> Settings:
     # _env_file=None: tests never read your real .env
     return Settings(_env_file=None, app_env="test", STUDY_TERMINAL_DATA_DIR=tmp_path, poll_interval_seconds=3600,
-                    paper_slippage_bps=0, paper_slippage_min=0)
+                    paper_slippage_bps=0, paper_slippage_min=0, news_enabled=False)
 
 
 @pytest.fixture

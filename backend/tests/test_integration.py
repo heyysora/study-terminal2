@@ -54,7 +54,9 @@ async def test_analysis_signals_and_explain(client):
 async def test_assistant_is_grounded_and_honest(client):
     c, app, prov = client
     r = (await c.post("/api/ai/ask", json={"question": "Why is this stock moving?", "symbol": "TSLA"})).json()
-    assert "don't have a news feed" in r["answer"] and r["engine"].startswith("Built-in")
+    # news is off in tests: the mentor says it can't tell, and still won't guess
+    assert "won't guess" in r["answer"] and r["engine"].startswith("Built-in")
+    assert {p["kind"] for p in r["sections"]} >= {"uncertainty", "interpretation"}
     r = (await c.post("/api/ai/ask", json={"question": "Should I buy this right now?"})).json()
     assert "won't guess" in r["answer"]  # no symbol, no screen -> refuses to guess
     r = (await c.post("/api/ai/ask", json={"question": "Should I sell?", "symbol": "AAPL"})).json()
@@ -139,6 +141,25 @@ async def test_screen_requires_consent_and_analyzes_uploads(client):
     ok, png = cv2.imencode(".png", img)
     r = (await c.post("/api/screen/analyze-image", files={"file": ("c.png", io.BytesIO(png.tobytes()), "image/png")})).json()
     assert r["observation"]["ticker"] == "TSLA" and r["fusion"]["ticker"] == "TSLA"
-    assert r["fusion"]["ticker_confirmed"] is True and "discrepancy" in r["fusion"]  # synthetic $359 vs synthetic market ~$100
+    # OCR'd ticker, but the screen's $359 doesn't match the (synthetic) market ~$100: not confirmed, discrepancy shown
+    assert r["fusion"]["ticker_confirmed"] is False and r["fusion"]["ticker_confirmation"] == "unconfirmed"
+    assert "discrepancy" in r["fusion"]
     st = (await c.get("/api/screen/status")).json()
     assert st["state"] == "off" and "never saved" in st["privacy"]
+
+
+async def test_mentor_answers_from_journal_signals_and_evidence(client):
+    c, app, prov = client
+    r = (await c.post("/api/ai/ask", json={"question": "What mistakes am I repeating?"})).json()
+    assert r["intent"] == "mistakes" and "no closed paper trades" in r["answer"]
+    r = (await c.post("/api/ai/ask", json={"question": "Which of my strategies has performed best?"})).json()
+    assert r["intent"] == "best_strategy" and "walk-forward test has been run" in r["answer"]
+    r = (await c.post("/api/ai/ask", json={"question": "Am I chasing this move?", "symbol": "TSLA"})).json()
+    assert r["intent"] == "too_late"
+    r = (await c.post("/api/ai/ask", json={"question": "What is the risk/reward?", "symbol": "TSLA"})).json()
+    assert r["intent"] == "rr" and r["sections"]
+    for q in ("Why was this signal invalidated?", "Why did this signal appear?", "Is this breakout confirmed?",
+              "What does the current chart suggest?", "Where should my stop loss go?", "Is this a good short opportunity?"):
+        r = (await c.post("/api/ai/ask", json={"question": q, "symbol": "TSLA"})).json()
+        assert r["answer"] and all(p["label"] for p in r["sections"]), q
+        assert "journal" in r["grounded_in"] or "calibration" in r["grounded_in"] or "analysis" in r["grounded_in"]

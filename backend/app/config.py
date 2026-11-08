@@ -87,6 +87,7 @@ class Settings(BaseSettings):
 
     # --- watchlist seeded on first run ---
     default_watchlist: Annotated[list[str], NoDecode] = ["SPY", "QQQ", "AAPL", "TSLA", "NVDA"]
+    news_enabled: bool = True   # Yahoo news/earnings/analyst polling and the official macro calendars
 
     @field_validator("default_watchlist", "allowed_origins", mode="before")
     @classmethod

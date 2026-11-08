@@ -193,7 +193,9 @@ class AskIn(BaseModel):
 async def ai_ask(body: AskIn, request: Request):
     s = st(request)
     sym = _sym(body.symbol) if body.symbol else ((s.screen.fusion or {}).get("ticker") if s.screen.fusion else None)
-    ctx = await s.build_context(sym, body.timeframe)
+    from ..ai.assistant import classify
+
+    ctx = await s.build_context(sym, body.timeframe, fetch_news=classify(body.question) in ("why_moving", "missing", "explain"))
     res = await s.assistant.ask(body.question, ctx, level=s.settings_store.get("learning.level", "beginner"))
     res["context_symbol"] = sym
     return res

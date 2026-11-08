@@ -1,5 +1,7 @@
 """Phase 3: statistical uncertainty, evidence tiers, trade diagnostics, walk-forward hygiene."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+from app.core.market_clock import ET
 
 import numpy as np
 
@@ -114,3 +116,39 @@ def test_walk_forward_tests_only_on_unseen_windows():
     for t in wf["oos_trades"]:
         f = wf["folds"][t["fold"]]
         assert f["test"][0] <= t["entry_ts"][:10] <= f["test"][1]
+
+
+def test_hourly_backtest_flattens_every_day():
+    """Regression: hourly bars starting 15:30 used to 'end' at 16:29:59, the end-of-day close order couldn't fill,
+    and positions were carried for weeks without stop or target."""
+    from collections import OrderedDict
+
+    from app.market_data.types import Bar
+    src = [b for b in intraday("T", days=30, minutes=30, seed=11, premarket=False)]
+    groups: OrderedDict = OrderedDict()
+    for b in src:   # Yahoo-style hourly bars: 09:30, 10:30, ... 15:30 (the last one is only 30 minutes long)
+        t = b.ts.astimezone(ET)
+        start = t.replace(minute=30) if t.minute >= 30 else (t - timedelta(hours=1)).replace(minute=30)
+        groups.setdefault(start, []).append(b)
+    bars = [Bar(symbol="T", timeframe="1Hour", ts=k.astimezone(timezone.utc), open=g[0].open, high=max(x.high for x in g),
+                low=min(x.low for x in g), close=g[-1].close, volume=sum(x.volume for x in g), provider="fake", source="fake")
+            for k, g in groups.items()]
+    assert bars[-1].ts.astimezone(ET).hour == 15 and bars[-1].ts.astimezone(ET).minute == 30
+    ff = build(bars, Timeframe.H1)
+    cfg = BacktestConfig(params=SetupParams(rvol_min=0, vol_ratio_min=0), slippage_bps=0, slippage_min=0)
+    trades = run("T", ff, cfg, always_open_clock())["trades"]
+    for t in trades:
+        assert t["entry_ts"][:10] == t["exit_ts"][:10], t     # same trading day
+        assert t["r_multiple"] > -1.6 and t["r_multiple"] < 3.5
+
+
+def test_bar_end_respects_early_close():
+    import pandas as pd
+
+    from app.backtest.engine import _bar_times
+    from app.core.market_clock import MarketClock
+    clock = MarketClock()   # exchange calendar: 2024-11-29 closed at 13:00 ET
+    _, end = _bar_times(pd.Timestamp("2024-11-29 12:30", tz=ET), 3600, True, clock)
+    assert end.astimezone(ET).strftime("%H:%M:%S") == "12:59:59"
+    _, end = _bar_times(pd.Timestamp("2024-12-02 15:30", tz=ET), 3600, True, clock)
+    assert end.astimezone(ET).strftime("%H:%M:%S") == "15:59:59"

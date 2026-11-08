@@ -65,10 +65,20 @@ def _ml_row(row: pd.Series) -> dict:
     return d
 
 
-def _bar_times(ts: pd.Timestamp, bar_seconds: int, intraday: bool) -> tuple[datetime, datetime]:
+def _bar_times(ts: pd.Timestamp, bar_seconds: int, intraday: bool, clock: MarketClock | None = None) -> tuple[datetime, datetime]:
     t = ts.to_pydatetime()
     if intraday:
-        return t, t + timedelta(seconds=bar_seconds - 1)
+        # A bar can't end after the session does: Yahoo's last hourly bar starts 15:30 (12:30 on early-close days)
+        # and the locally built 4-hour bar starts 13:30, but trading stops at the close.
+        end = t + timedelta(seconds=bar_seconds - 1)
+        d = t.astimezone(ET).date()
+        close_t = time(16, 0)
+        if clock is not None:
+            td, _ = clock.trading_day(d)
+            if td is not None and td.regular_close:
+                close_t = td.regular_close
+        close = datetime.combine(d, close_t, tzinfo=ET).astimezone(timezone.utc) - timedelta(seconds=1)
+        return t, min(end, close) if t < close else end
     d = t.astimezone(ET).date()
     return (datetime.combine(d, time(9, 30), tzinfo=ET).astimezone(timezone.utc),
             datetime.combine(d, time(15, 59, 59), tzinfo=ET).astimezone(timezone.utc))
@@ -98,7 +108,7 @@ def run(symbol: str, ff: FeatureFrame, cfg: BacktestConfig, clock: MarketClock, 
                       RiskConfig(max_per_trade_pct=cfg.risk_pct, max_daily_loss_pct=cfg.daily_loss_pct, max_open_positions=1,
                                  min_reward_risk=0, require_stop=True, max_consecutive_losses=cfg.max_consecutive_losses,
                                  max_exposure_pct=cfg.max_exposure_pct),
-                      clock, now=_bar_times(idx[lo_i], ff.timeframe.seconds, ff.intraday)[0])
+                      clock, now=_bar_times(idx[lo_i], ff.timeframe.seconds, ff.intraday, clock)[0])
     status = DataStatus.NEAR_REALTIME
     bar_s = ff.timeframe.seconds
     sessions = df["session"].to_numpy()
@@ -138,15 +148,17 @@ def run(symbol: str, ff: FeatureFrame, cfg: BacktestConfig, clock: MarketClock, 
     for i in range(lo_i, hi_i):
         ts = idx[i]
         row = df.iloc[i]
-        b0, b1 = _bar_times(ts, bar_s, ff.intraday)
+        b0, b1 = _bar_times(ts, bar_s, ff.intraday, clock)
         eng.roll(b0)
         eng.on_price(symbol, float(row["close"]), b1, status, high=float(row["high"]), low=float(row["low"]),
                      open_=float(row["open"]), bar_start=b0)
         entered_now = pending is not None and eng.orders[pending["order_id"]].status.value == "filled"
         harvest(i)
         if entered_now and symbol in eng.positions:
-            # conservative: if this same bar also traded through the stop, assume it was hit
-            eng.on_price(symbol, float(row["close"]), b1, status, high=float(row["high"]), low=float(row["low"]))
+            # conservative: if this same bar also traded through the stop, assume it was hit. Price moved continuously
+            # from the entry to the stop inside the bar (no gap), so the stop fills at the stop (+ slippage), not the close.
+            eng.on_price(symbol, float(row["close"]), b1, status, high=float(row["high"]), low=float(row["low"]),
+                         open_=open_trade["entry_price"])
             harvest(i)
         if pending and i >= pending["expire_i"]:
             o = eng.orders[pending["order_id"]]
@@ -163,6 +175,8 @@ def run(symbol: str, ff: FeatureFrame, cfg: BacktestConfig, clock: MarketClock, 
             if cfg.flatten_eod and symbol in eng.positions:
                 eng.close_position(symbol, PriceRef(float(row["close"]), b1, status), b1)
                 harvest(i)
+                if symbol in eng.positions:  # never carry an unprotected position silently
+                    raise RuntimeError(f"{symbol}: end-of-day flatten failed at {b1.isoformat()} (bar ends outside the session?)")
         elif pending is None and open_trade is None and symbol not in eng.positions and ts in cands.index:
             day = sessions[i]
             if trades_today.get(day, 0) < cfg.max_trades_per_day:
