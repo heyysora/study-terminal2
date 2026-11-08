@@ -88,6 +88,24 @@ def psi(expected: np.ndarray, actual: np.ndarray, bins: int = 10) -> float:
     return float(np.sum((a - e) * np.log(a / e)))
 
 
+def _skill_ci(y, p, base: float, ts, n_boot: int = 1000, seed: int = 3) -> list[float] | None:
+    """95% interval of Brier skill vs the base rate, resampling whole trading days (trades on a day move together)."""
+    y, p = np.asarray(y, float), np.asarray(p, float)
+    days = pd.Series(pd.to_datetime(ts.values).date)
+    groups = [np.where(days.values == d)[0] for d in days.unique()]
+    if len(groups) < 5:
+        return None
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(n_boot):
+        idx = np.concatenate([groups[i] for i in rng.integers(0, len(groups), len(groups))])
+        bb = float(np.mean((base - y[idx]) ** 2))
+        if bb > 0:
+            out.append(1 - float(np.mean((p[idx] - y[idx]) ** 2)) / bb)
+    lo, hi = np.percentile(out, [2.5, 97.5])
+    return [round(float(lo), 4), round(float(hi), 4)]
+
+
 def train(trades: list[dict], model_dir: Path, test_frac: float = 0.3) -> dict:
     model_dir.mkdir(parents=True, exist_ok=True)
     if len(trades) < 60:
@@ -103,20 +121,41 @@ def train(trades: list[dict], model_dir: Path, test_frac: float = 0.3) -> dict:
         return {"deployed": False, "reason": "Training or test period has only winners or only losers.", "n": len(trades)}
     base = float(ytr.mean())
     brier_base = brier_score_loss(yte, np.full(len(yte), base))
+    # Choose the model type WITHOUT looking at the test period: fit on the first 75% of the training window and
+    # compare on its last 25% (validation). Only the chosen type is then refit on all training data and scored
+    # once on the test period. (Picking the best of several models by their test score would flatter the result.)
+    vcut = int(len(Xtr) * 0.75)
+    Xfit, Xval, yfit, yval = Xtr.iloc[:vcut], Xtr.iloc[vcut:], ytr[:vcut], ytr[vcut:]
+    val_ok = len(set(yfit)) == 2 and len(set(yval)) == 2
+    val_base = brier_score_loss(yval, np.full(len(yval), float(yfit.mean()))) if val_ok else None
     results = {}
     for name, m in _models().items():
+        entry: dict = {}
+        if val_ok:
+            m.fit(Xfit, yfit)
+            pv = m.predict_proba(Xval)[:, 1]
+            entry["validation_brier_skill"] = round(1 - brier_score_loss(yval, pv) / val_base, 4)
         m.fit(Xtr, ytr)
         p = m.predict_proba(Xte)[:, 1]
         b = brier_score_loss(yte, p)
-        results[name] = {"model": m, "brier": round(b, 4), "brier_skill": round(1 - b / brier_base, 4),
-                         "auc": round(roc_auc_score(yte, p), 4), "precision": round(precision_score(yte, p >= 0.5, zero_division=0), 3),
-                         "recall": round(recall_score(yte, p >= 0.5, zero_division=0), 3), "proba": p}
-    best_name = max(results, key=lambda k: results[k]["brier_skill"])
+        entry.update({"model": m, "brier": round(b, 4), "brier_skill": round(1 - b / brier_base, 4),
+                      "auc": round(roc_auc_score(yte, p), 4), "precision": round(precision_score(yte, p >= 0.5, zero_division=0), 3),
+                      "recall": round(recall_score(yte, p >= 0.5, zero_division=0), 3), "proba": p})
+        results[name] = entry
+    if val_ok:
+        best_name = max(results, key=lambda k: results[k]["validation_brier_skill"])
+        chosen_by = "validation slice of the training period"
+    else:
+        best_name, chosen_by = "logistic_baseline", "default (validation slice had only winners or only losers)"
     best = results[best_name]
-    deployed = best["brier_skill"] > 0.02 and best["auc"] > 0.55 and len(yte) >= 40
-    reason = ("Beats the base-rate forecast on unseen data." if deployed else
-              f"Not deployed: best model ({best_name}) Brier skill {best['brier_skill']}, AUC {best['auc']} on {len(yte)} unseen trades "
-              "- not reliably better than simply knowing the average win rate.")
+    skill_ci = _skill_ci(yte, best["proba"], base, ts.iloc[cut:])
+    deployed = (best["brier_skill"] > 0.02 and best["auc"] > 0.55 and len(yte) >= 40
+                and skill_ci is not None and skill_ci[0] > 0)
+    reason = (f"Beats the base-rate forecast on unseen data ({best_name}, chosen on the {chosen_by}; Brier skill "
+              f"{best['brier_skill']}, AUC {best['auc']} on {len(yte)} test trades)." if deployed else
+              f"Not deployed: the chosen model ({best_name}, picked on the {chosen_by}) had Brier skill {best['brier_skill']}, "
+              f"AUC {best['auc']} on {len(yte)} unseen trades (95% interval of skill {skill_ci}) - not reliably better than simply "
+              "knowing the average win rate.")
     imp = permutation_importance(best["model"], Xte, yte, n_repeats=5, random_state=0, scoring="neg_brier_score")
     importance = sorted(({"feature": c, "importance": round(float(v), 5)} for c, v in zip(X.columns, imp.importances_mean, strict=False)),
                         key=lambda d: -d["importance"])[:12]
@@ -126,7 +165,9 @@ def train(trades: list[dict], model_dir: Path, test_frac: float = 0.3) -> dict:
         "n_train": int(len(ytr)), "n_test": int(len(yte)),
         "train_period": [str(ts.iloc[0]), str(ts.iloc[cut - 1])], "test_period": [str(ts.iloc[cut]), str(ts.iloc[-1])],
         "base_win_rate_train": round(base, 3), "win_rate_test": round(float(yte.mean()), 3), "brier_baseline": round(brier_base, 4),
-        "candidates": {k: {kk: v[kk] for kk in ("brier", "brier_skill", "auc", "precision", "recall")} for k, v in results.items()},
+        "chosen_by": chosen_by, "brier_skill_ci95": skill_ci,
+        "candidates": {k: {kk: v.get(kk) for kk in ("validation_brier_skill", "brier", "brier_skill", "auc", "precision", "recall")}
+                       for k, v in results.items()},
         "calibration": calibration_table(yte, best["proba"]), "feature_importance": importance,
         "features": list(X.columns), "train_feature_sample": {c: X[c].iloc[:cut].dropna().tolist()[-500:] for c in ML_FEATURES if c in X},
     }

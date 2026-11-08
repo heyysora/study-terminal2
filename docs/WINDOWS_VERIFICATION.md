@@ -8,7 +8,7 @@ on Windows until you run the check.
 
 | Part | Verified | Where / how |
 |---|---|---|
-| Backend, analysis, signals, journal, news, paper trading, API | Yes | 170 automated tests on Python 3.13 and 3.11 (Linux) |
+| Backend, analysis, signals, journal, news, paper trading, API | Yes | 163 automated tests on Python 3.13 and 3.11 (Linux; the 3.11 run from a clean install) |
 | Packaged app starts, serves the UI, shuts down cleanly | Yes, on Linux | PyInstaller build of the same spec, `StudyTerminal --self-test` |
 | Bundled files found in the installed layout (UI, OCR models, exchange calendar, BLS schedule) | Yes, on Linux | Same frozen build |
 | Single instance, focus hand-off from a second launch | Partly | The focus API round-trip works; the Windows mutex is untested |
