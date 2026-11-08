@@ -228,19 +228,40 @@ function Replay({ symbol, spec }: { symbol: string; spec: any }) {
 }
 
 function EvidencePanel({ root, info, onRun }: { root: string; info: any; onRun: () => void }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const ev = info?.evidence?.[root];
-  const run = async () => { setBusy(true); setErr(null); try { await api("/futures/backtest", { method: "POST", json: { root } }); onRun(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const run = async (kind: "research" | "backtest") => {
+    setBusy(kind); setErr(null);
+    try { await api(`/futures/${kind}`, { method: "POST", json: { root } }); onRun(); } catch (e: any) { setErr(e.message); } finally { setBusy(null); }
+  };
+  const o = ev?.oos_metrics, h = ev?.holdout_metrics;
+  const M = ({ m, title }: { m: any; title: string }) => !m?.trades ? <div className="small muted">{title}: no trades.</div> : (
+    <div><div className="small"><b>{title}</b></div><div className="levels">
+      <div><div className="k">Trades / days</div><div className="v">{m.trades} / {m.days}</div></div>
+      <div><div className="k">Win rate</div><div className="v">{m.win_rate}%</div></div>
+      <div><div className="k">Avg R</div><div className={`v ${sign(m.avg_r)}`}>{num(m.avg_r, 3)}{m.avg_r_ci95 ? <span className="small faint"> ({num(m.avg_r_ci95[0], 2)} to {num(m.avg_r_ci95[1], 2)})</span> : null}</div></div>
+      <div><div className="k">Profit factor</div><div className="v">{m.profit_factor ?? "—"}</div></div>
+    </div><div className="small faint">Avg winner {num(m.avg_winner_r, 2)}R ({money(m.avg_winner_usd)}), avg loser {num(m.avg_loser_r, 2)}R ({money(m.avg_loser_usd)}), expectancy {money(m.expectancy_usd)}, max drawdown {money(m.max_drawdown_usd)} ({m.max_drawdown_r}R), avg cost {money(m.avg_cost_usd)}.</div></div>);
   return (
-    <Panel title={`Tested evidence: ${root}`} sub="fixed rules, ~59 days of 5-minute bars, costs included" right={<button onClick={run} disabled={busy}>{busy ? "Testing…" : ev ? "Re-run" : "Run test"}</button>}>
+    <Panel title={`Strategy research: ${root}`} sub="walk-forward + holdout, ~59 days of 5-minute bars, after costs"
+      right={<div className="row"><button onClick={() => run("research")} disabled={!!busy}>{busy === "research" ? "Researching… (several minutes)" : "Run research"}</button>
+        <button className="ghost" onClick={() => run("backtest")} disabled={!!busy}>{busy === "backtest" ? "Testing…" : "Quick backtest"}</button></div>}>
       {err && <div className="note bad small">{err}</div>}
-      {!ev ? <div className="small muted">Not tested yet. Until a setup has reliable out-of-sample evidence, futures setups stay watch-only.</div> : <div className="stack small">
-        <div className="row"><span className={`tier t-${ev.overall?.tier}`}>{TIER_TEXT[ev.overall?.tier]}</span>{ev.overall?.trades} trades over {ev.overall?.days} days, average {num(ev.overall?.avg_r, 3)}R
-          {ev.overall?.avg_r_ci95 && <> (95% interval {num(ev.overall.avg_r_ci95[0], 2)} to {num(ev.overall.avg_r_ci95[1], 2)})</>}</div>
-        <table><thead><tr><th>Setup</th><th className="r">Trades</th><th className="r">Avg R</th><th>Evidence</th></tr></thead><tbody>
-          {Object.entries(ev.by_setup || {}).map(([k, v]: any) => <tr key={k}><td>{k.replace("|", " · ").replace(/_/g, " ")}</td><td className="r">{v.trades}</td><td className={`r ${sign(v.avg_r)}`}>{num(v.avg_r, 2)}</td><td><span className={`tier t-${v.tier}`}>{TIER_TEXT[v.tier]}</span></td></tr>)}
-        </tbody></table>
+      {!ev ? <div className="small muted">Not tested yet. Until research validates a strategy, futures setups stay watch-only.</div> : <div className="stack small">
+        {ev.run?.bundled && <div className="note warn small">{ev.run.note}</div>}
+        <div className="row"><span className={`tier t-${ev.overall?.tier}`}>{TIER_TEXT[ev.overall?.tier]}</span>
+          <span>Validated strategies: {ev.validated?.length ? ev.validated.join(", ") : "none"}. Mode B trades only validated strategies.</span></div>
+        {o && <M m={o} title={`Out-of-sample (${ev.data?.development || "development folds"})`} />}
+        {h && <M m={h} title={`Holdout, never used for choices (${ev.data?.holdout})`} />}
+        {ev.registry && <table><thead><tr><th>Setup</th><th className="r">OOS trades</th><th className="r">OOS avg R</th><th className="r">Holdout</th><th>Status</th></tr></thead><tbody>
+          {Object.entries(ev.registry).map(([k, r]: any) => <tr key={k}><td>{k.replace("|", " · ").replace(/_/g, " ")}</td><td className="r">{ev.by_setup?.[k]?.trades}</td>
+            <td className={`r ${sign(ev.by_setup?.[k]?.avg_r)}`}>{num(ev.by_setup?.[k]?.avg_r, 2)}</td><td className="r">{ev.holdout_by_setup?.[k]?.trades ?? 0} / {num(ev.holdout_by_setup?.[k]?.avg_r, 2)}</td>
+            <td title={r.why}><span className={r.status === "validated" ? "up" : "faint"}>{r.status}</span></td></tr>)}</tbody></table>}
+        {!ev.registry && ev.by_setup && <div className="faint">Quick backtest only (no walk-forward). Run research to evaluate strategies for automation.</div>}
+        {ev.diagnostics && <details><summary>Diagnostics (out-of-sample)</summary>{["volatility", "time_of_day", "trend_aligned", "volume", "vs_vwap"].map((dim) =>
+          <div key={dim}><b>{dim.replace(/_/g, " ")}:</b> {(ev.diagnostics[dim] || []).map((x: any) => `${x.bucket} ${num(x.avg_r, 2)}R (${x.trades})`).join(" · ")}</div>)}</details>}
+        {ev.cost_sensitivity && <div className="faint">Cost sensitivity (all dates): {Object.entries(ev.cost_sensitivity).map(([k, m]: any) => `${k}: ${num(m.avg_r, 3)}R`).join(" · ")}</div>}
         <div className="faint">{ev.run?.source}, run {ev.run?.at ? etDate(ev.run.at) : ""}. {ev.run?.note} {ev.run?.fee_note}</div>
       </div>}
     </Panel>

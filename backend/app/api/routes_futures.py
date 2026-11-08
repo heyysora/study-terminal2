@@ -364,3 +364,12 @@ def sandbox_reset(body: ResetIn, request: Request):
     if not body.confirm:
         raise HTTPException(400, "Confirm the sandbox reset.")
     return request.app.state.futures.reset_sandbox()
+
+
+@router.post("/research")
+async def research(body: BacktestIn, request: Request):
+    """Walk-forward + holdout research; the only way a strategy becomes validated (eligible for automated paper trading)."""
+    try:
+        return await _f(request).research(body.root, body.days)
+    except Exception as e:  # noqa: BLE001
+        _err(e)

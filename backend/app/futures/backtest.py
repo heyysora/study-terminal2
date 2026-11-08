@@ -22,10 +22,25 @@ from .contracts import ProductSpec, round_to_tick
 from .setups import SETUPS, SetupParams, detect
 
 
-def run(F: pd.DataFrame, spec: ProductSpec, fee_round_turn: float, slippage_ticks: float = 1.0, max_trades_per_day: int = 3,
-        flat_by_min_from_rth: float | None = 400, params: SetupParams | None = None, n_folds: int = 4) -> dict:
+def scan(F: pd.DataFrame, spec: ProductSpec, params: SetupParams | None = None, max_trades_hint: int = 3) -> dict[int, object]:
+    """Setups confirmed at each RTH bar close (the expensive part; reused across cost scenarios)."""
     p = params or SetupParams()
-    p.flat_by_min_from_rth = flat_by_min_from_rth
+    out = {}
+    rth = F["rth"].values
+    for i in range(len(F) - 1):
+        if rth[i]:
+            found, _ = detect(F, i, spec, p)
+            if found:
+                out[i] = found[0]
+    return out
+
+
+def _bucket_time(m: float) -> str:
+    return "first hour" if m < 60 else "midday" if m < 300 else "last part of RTH"
+
+
+def simulate(F: pd.DataFrame, spec: ProductSpec, signals: dict, fee_round_turn: float, slippage_ticks: float = 1.0,
+             max_trades_per_day: int = 3, flat_by_min_from_rth: float | None = 400) -> list[dict]:
     tick = float(spec.tick)
     bm = F.attrs.get("bar_minutes", 5)
     trades: list[dict] = []
@@ -33,25 +48,36 @@ def run(F: pd.DataFrame, spec: ProductSpec, fee_round_turn: float, slippage_tick
     per_day: dict = defaultdict(int)
     n = len(F)
     rows = F.to_dict("records")
+    atr_pct = F["atr"].rolling(600, min_periods=50).rank(pct=True).values
     for i in range(n - 1):
         r = rows[i]
         nxt = rows[i + 1]
-        if pos is None and r["rth"] and per_day[r["td"]] < max_trades_per_day:
-            found, _ = detect(F, i, spec, p)
-            if found and nxt["td"] == r["td"] and nxt["rth"]:
-                s = found[0]
+        if pos is None and r["rth"] and per_day[r["td"]] < max_trades_per_day and i in signals:
+            s = signals[i]
+            if flat_by_min_from_rth is not None and r["min_from_rth"] + bm > flat_by_min_from_rth - 20:
+                s = None
+            if s is not None and nxt["td"] == r["td"] and nxt["rth"]:
                 d = s.direction
                 fill = round_to_tick(nxt["o"] + d * slippage_ticks * tick, spec)
                 risk_pts = abs(fill - s.stop)
-                if (fill - s.stop) * d <= 0:
-                    continue   # gapped past the stop before entry
-                pos = {"setup": s.name, "dir": d, "entry": fill, "stop": s.stop, "target": s.target, "i": i + 1, "td": r["td"],
-                       "entry_ts": nxt["ts"].isoformat(), "risk_usd": risk_pts / tick * spec.tick_value}
-                per_day[r["td"]] += 1
+                if (fill - s.stop) * d > 0:
+                    ap = atr_pct[i]
+                    pos = {"setup": s.name, "dir": d, "entry": fill, "stop": s.stop, "target": s.target, "i": i + 1, "td": r["td"],
+                           "entry_ts": nxt["ts"].isoformat(), "risk_usd": risk_pts / tick * spec.tick_value, "risk_pts": risk_pts,
+                           "mfe": 0.0, "mae": 0.0,
+                           "attrs": {"volatility": "unknown" if ap != ap else "low" if ap < 0.2 else "normal" if ap < 0.8 else "high",
+                                     "trend_aligned": "with structure" if int(r["trend"]) == d else "against structure" if int(r["trend"]) == -d else "no structure",
+                                     "time_of_day": _bucket_time(r["min_from_rth"]),
+                                     "volume": ("above average" if r["vol_avg20"] and r["v"] > 1.2 * r["vol_avg20"] else "average or below"),
+                                     "entry_lateness_atr": round(abs(r["c"] - s.trigger) / r["atr"], 2) if r["atr"] else None,
+                                     "vs_vwap": "above VWAP" if r["c"] > r["vwap"] else "below VWAP"}}
+                    per_day[r["td"]] += 1
         if pos and i + 1 >= pos["i"]:
             b = nxt if i + 1 > pos["i"] else rows[pos["i"]]
             j = i + 1
             d = pos["dir"]
+            pos["mfe"] = max(pos["mfe"], ((b["h"] if d > 0 else -b["l"]) - (pos["entry"] if d > 0 else -pos["entry"])) / pos["risk_pts"])
+            pos["mae"] = max(pos["mae"], ((pos["entry"] if d > 0 else -pos["entry"]) - (b["l"] if d > 0 else -b["h"])) / pos["risk_pts"])
             exit_px = role = None
             hit_stop = (b["l"] <= pos["stop"]) if d > 0 else (b["h"] >= pos["stop"])
             hit_tgt = (b["h"] >= pos["target"] + tick) if d > 0 else (b["l"] <= pos["target"] - tick)
@@ -74,8 +100,18 @@ def run(F: pd.DataFrame, spec: ProductSpec, fee_round_turn: float, slippage_tick
                 trades.append({"setup": pos["setup"], "direction": "long" if d > 0 else "short", "entry_ts": pos["entry_ts"],
                                "exit_ts": b["ts"].isoformat(), "trade_date": str(pos["td"]), "entry": pos["entry"], "exit": exit_px,
                                "stop": pos["stop"], "target": pos["target"], "exit_role": role, "ticks": ticks,
-                               "pnl": round(net, 2), "gross": round(gross, 2), "r_multiple": round(net / pos["risk_usd"], 3) if pos["risk_usd"] else 0.0})
+                               "pnl": round(net, 2), "gross": round(gross, 2), "costs": round(fee_round_turn + 2 * slippage_ticks * spec.tick_value, 2),
+                               "r_multiple": round(net / pos["risk_usd"], 3) if pos["risk_usd"] else 0.0,
+                               "mfe_r": round(pos["mfe"], 2), "mae_r": round(pos["mae"], 2), **pos["attrs"]})
                 pos = None
+    return trades
+
+
+def run(F: pd.DataFrame, spec: ProductSpec, fee_round_turn: float, slippage_ticks: float = 1.0, max_trades_per_day: int = 3,
+        flat_by_min_from_rth: float | None = 400, params: SetupParams | None = None, n_folds: int = 4) -> dict:
+    p = params or SetupParams()
+    p.flat_by_min_from_rth = flat_by_min_from_rth
+    trades = simulate(F, spec, scan(F, spec, p), fee_round_turn, slippage_ticks, max_trades_per_day, flat_by_min_from_rth)
     return report(trades, n_folds, spec, fee_round_turn, slippage_ticks, F)
 
 

@@ -61,6 +61,12 @@ class FuturesService:
             except Exception:  # noqa: BLE001
                 log.exception("futures paper state unreadable; starting fresh")
         self.evidence: dict = self._load(EVIDENCE_ID) or {}
+        if not self.evidence:                       # first run: show the research results shipped with this version, clearly dated
+            try:
+                from pathlib import Path
+                self.evidence = json.loads(Path(__file__).with_name("bundled_research.json").read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                log.exception("bundled research results unreadable")
         self.sandbox = FuturesPaperEngine(self.rules(), self.personal(), self.paper_cfg(), self.fees_default)
         sb = self._load(SANDBOX_ID)
         if sb:
@@ -237,7 +243,7 @@ class FuturesService:
     def validated_strategies(self, root: str) -> set[str] | None:
         """Strategy keys ('setup|direction') allowed to trade for this product. Filled by strategy research (P5)."""
         reg = (self.evidence.get(root) or {}).get("validated")
-        return set(reg) if reg is not None else None
+        return set(reg or [])          # nothing trades until a walk-forward research run validates it
 
     def last_plan(self, contract: str) -> dict | None:
         """The most recent not-yet-acted plan for this contract today (to detect invalidation before entry)."""
@@ -602,6 +608,29 @@ class FuturesService:
         finally:
             self._bt_running.discard(spec.root)
 
+    async def research(self, root: str, days: int = 59) -> dict:
+        """Walk-forward + holdout research on Yahoo's continuous 5-minute bars; updates the strategy registry."""
+        from . import research as fr
+        spec = fc.get(root)
+        if spec.root in self._bt_running:
+            raise RuntimeError(f"A {spec.root} test is already running.")
+        self._bt_running.add(spec.root)
+        try:
+            clk = self.clock(spec.root)
+            raw, _ = await self.data.yahoo.get_bars(f"{spec.root}=F", Timeframe.M5, datetime.now(timezone.utc) - timedelta(days=days))
+            bars = [{"ts": b.ts, "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume} for b in raw]
+            F = await asyncio.to_thread(lambda: ff.build(ff.bars_to_frame(bars, clk), spec, clk))
+            res = await asyncio.to_thread(fr.walk_forward, F, spec, self.engine.round_turn(spec.root), self.engine.cfg.slippage_ticks_market,
+                                          self.flat_minutes(clk))
+            res["run"] = {"at": res["run_at"], "source": f"Yahoo {spec.root}=F continuous 5-minute bars", "method": res["method"],
+                          "note": "Continuous series: a roll inside the window can distort signals near it.",
+                          "fee_note": self.engine.fee_per_side(spec.root)[1]}
+            self.evidence[spec.root] = res
+            self._save(EVIDENCE_ID, self.evidence)
+            return res
+        finally:
+            self._bt_running.discard(spec.root)
+
     # ---------------- replay ----------------
 
     async def replay_start(self, sym: str, trade_date: str) -> dict:
@@ -769,4 +798,6 @@ class FuturesService:
                 "holiday_coverage": [d.isoformat() for d in (fc.holiday_coverage() or ())],
                 "prop": self.engine.rules.to_dict(), "personal": self.engine.personal.to_dict(), "paper": self.engine.cfg.to_dict(),
                 "fees_default": self.fees_default, "sim_only_note": SIM_ONLY,
-                "evidence": {k: {"overall": v.get("overall"), "run": v.get("run"), "by_setup": v.get("by_setup")} for k, v in self.evidence.items()}}
+                "evidence": {k: {f: v.get(f) for f in ("overall", "run", "by_setup", "validated", "registry", "oos_metrics", "holdout_metrics",
+                                                          "holdout_by_setup", "diagnostics", "cost_sensitivity", "data", "folds", "final_params", "method")}
+                             for k, v in self.evidence.items()}}

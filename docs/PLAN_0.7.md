@@ -70,3 +70,15 @@ active), api /futures/automation*, /futures/sandbox.
 Tests: 12 in tests/test_futures_automation.py; full suite 310 passed.
 Not verified: a full trading session of automated paper trading on live data (only Yahoo delayed data is available here, and no
 strategy is validated, so mode B currently approves nothing; the sandbox is where experimental strategies run).
+
+### P5 Strategy research (done)
+Changed: futures/backtest.py split into scan (setups per bar) and simulate (fills/costs), trades now carry regime, structure,
+time of day, volume, VWAP side, entry lateness, MFE/MAE; new futures/research.py (walk-forward over development folds with a 4-set
+parameter grid chosen only on earlier folds, one pass over a chronological holdout, metrics: win rate, avg winner/loser, expectancy,
+avg R with CI, profit factor, max drawdown, costs; diagnostics; cost sensitivity; registry validated vs experimental),
+futures/service.py (research endpoint; nothing is tradable until research validates it; bundled dated results on first run),
+research/futures_report.py -> docs/BACKTEST_RESULTS_FUTURES.md, UI Evidence panel.
+Real-data result (NQ, MNQ, ES, MES, 2026-08-31 to 2026-11-06): no strategy validated. NQ/MNQ positive OOS and on the holdout but
+intervals include zero; ES/MES slightly negative. Mode B therefore approves nothing; the sandbox is where these run.
+Tests: 4 in tests/test_futures_research.py.
+Not verified: results beyond Yahoo's ~59-day window (no longer history is available without a paid source).
