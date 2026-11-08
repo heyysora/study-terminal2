@@ -26,14 +26,21 @@ One Python process on your PC (plus the WebView2 window it opens):
 
 ```
  desktop/launcher.py   native window (pywebview -> WebView2) + tray icon (pystray) + Ctrl+Alt+S + keep-awake
+                       single-instance mutex, clean shutdown, error dialogs, --minimized, --self-test
+ installer/            PyInstaller spec (one-folder bundle) + Inno Setup script (per-user installer)
+ extension/            optional Chrome MV3 extension -> /api/extension (token-paired, TradingView tabs only)
         |  hosts
  FastAPI backend (127.0.0.1:8765)  ── serves the React UI (frontend/dist) + REST + WebSocket
    market_data/   provider interface -> Yahoo (history, polling, stream) ; MarketMonitor ; FreshnessTracker
+                  validation (bad bars, spikes, missing candles) ; FeedHealthWatcher (drop-out/recovery alerts)
    analysis/      causal feature frame (indicators, levels, structure, candles) -> snapshot / MTF
    signals/       setups (vectorized, causal) -> trade plan -> lifecycle -> action ; position management
    scanner/       Yahoo market-wide lists + watchlists -> filters -> deep scan -> transparent rank
    paper/         local simulator (orders, fills, P&L, risk limits) + SQLite persistence
    backtest/      bar replay with the simulator's own fill rules ; walk-forward ; optimization ; calibration
+                  stats (day-clustered bootstrap, Wilson, evidence tiers) ; diagnostics (17 slices, MFE/MAE, findings)
+   journal/       round trips from paper fills -> trades, plan checks, mistakes, performance ; signal log
+   news/          Yahoo news/earnings/analyst ; FOMC + BEA (live) + BLS (bundled) ; labels ; event gate
    ml/            setup-outcome classifier, chronological validation, deploy gate, drift (PSI)
    screen/        window capture -> change detection -> OCR (RapidOCR) + OpenCV -> fusion with market data
    alerts/        dedupe, history, Windows toasts/sound, in-app push
@@ -45,7 +52,9 @@ One Python process on your PC (plus the WebView2 window it opens):
 Design rules:
 - **One feature frame for everything.** Live analysis, signals, the scanner and the backtester all consume the same causal per-bar features. Tests recompute on truncated data to prove there's no look-ahead.
 - **Freshness gates everything.** Signals and paper fills only use REALTIME, NEAR_REALTIME or POLLING data (polling: 5-minute+ setups only).
-- **Confidence is never invented.** A signal shows three separate things: out-of-sample backtest history (walk-forward only), a model probability (only if the model beat the base rate on unseen data), and a checklist score that is labeled as not a probability. STRONG BUY needs positive out-of-sample history.
+- **Confidence is never invented.** A signal shows three separate things: out-of-sample evidence (walk-forward only, with a 95% interval and a tier), a model probability (only if the model beat the base rate on unseen data with an interval above zero), and a checklist score labeled as not a probability. Only "reliable" evidence allows BUY/SHORT; STRONG also needs a non-negative record in the current regime.
+- **Sessions come from the exchange calendar**, never from a fixed 09:30–16:00 (early-close days).
+- **Every number shown has a source and a time** (quotes, charts, news, calendar entries).
 - **The LLM explains; it doesn't calculate.** It receives the computed JSON with strict no-invention rules. Without an LLM, built-in templates answer.
 - **No broker code exists.** Orders go only to the local simulator, and each needs `confirm: true`.
 - **Screen frames never touch disk.** Capture is off until you consent and select a target. Login screens are skipped.
@@ -57,38 +66,36 @@ Why pywebview instead of Tauri: Tauri needs Rust plus Visual Studio Build Tools 
 ```
 study-terminal/
 ├─ README.md · FEATURES.md · .env.example (optional)
-├─ docs/        ARCHITECTURE.md · MIGRATION_FROM_ALPACA.md
-├─ scripts/     setup.ps1 · test.ps1 · check.ps1 · run-backend.ps1 · run-desktop.ps1
-├─ desktop/     launcher.py (window, tray, hotkey)
+├─ docs/        USER_GUIDE · BACKTEST_RESULTS · DATA_PROVIDERS · SCREEN_VALIDATION · WINDOWS_VERIFICATION · AUDIT · ARCHITECTURE · MIGRATION_FROM_ALPACA
+├─ scripts/     setup · test · check · run-backend · run-desktop · verify-windows · screen-eval · build-installer (.ps1)
+├─ desktop/     launcher.py (window, tray, hotkey) · verify_windows.py · make_icon.py · assets/
+├─ installer/   StudyTerminal.spec (PyInstaller) · StudyTerminal.iss (Inno Setup)
+├─ extension/   optional Chrome extension
 ├─ frontend/    React + TypeScript + Vite + lightweight-charts (dist/ prebuilt)
 └─ backend/
    ├─ app/      main.py config.py cli.py | core/ db/ market_data/ analysis/ signals/ scanner/ paper/
-   │            backtest/ ml/ screen/ alerts/ ai/ education/ settings/ api/
-   └─ tests/    unit + integration tests (synthetic data, fake provider, fake Yahoo socket, rendered chart screenshots)
+   │            backtest/ ml/ screen/ alerts/ ai/ education/ settings/ journal/ news/ api/
+   ├─ research/ run_walkforward.py · run_all.sh · screen_eval.py · out/ (study results, JSON)
+   └─ tests/    163 unit + integration tests (synthetic data, fake provider, fake Yahoo socket, rendered charts,
+                trimmed real Fed/BEA pages)
 ```
 
-## 3b. What the backtests found (Nov 7, 2026)
+## 3b. What the backtests found
 
-Walk-forward test, 6 large caps (SPY, QQQ, AAPL, TSLA, NVDA, AMD), 5-minute bars, about 58 days: **274 out-of-sample trades, -0.11R per trade after costs, -0.03R before costs.** The setups as written show no demonstrated edge on this sample. A few were positive out-of-sample (support breakdown +0.24R over 32 trades, short trend pullback +0.27R over 37), but these are small samples from one market period, too few to tell skill from luck. The app acts on this automatically: setups that lost money out-of-sample are capped at POTENTIAL, and STRONG BUY is impossible without positive out-of-sample history. Re-run walk-forward regularly; results will change with market conditions.
+See [BACKTEST_RESULTS.md](BACKTEST_RESULTS.md): six walk-forward studies on 20 symbols (5-min, 15-min, 1-hour; fixed
+and optimized). No setup has a reliable edge; the largest study (2,796 hourly trades over 21 months) averages
+−0.027R with a 95% interval of −0.065 to +0.015R. The Stage 10 figure (−0.11R on 274 trades) is superseded.
 
-## 4. Free data sources investigated
+## 4. Data sources
 
-| Source | Real-time? | Key needed? | Verdict |
-|---|---|---|---|
-| **Yahoo Finance (yfinance)** | Price real-time when from Nasdaq Last Sale, else delayed. Unofficial push socket. | No | **Default.** Covers history, polling, and the stream. |
-| Finnhub free tier | Free WebSocket for trades; ~60 REST calls/min | Free data key (not a brokerage) | **Best candidate for a second, optional provider.** Would plug into `registry.py`. Not added, since you asked for no key requirements. |
-| Twelve Data free | Mostly delayed; 800 requests/day | Free key | Too limited for monitoring |
-| Polygon/Massive free | End-of-day only, 5 calls/min | Free key | History only |
-| Alpha Vantage free | Delayed, 25 requests/day | Free key | Too limited |
-| Nasdaq.com / CNBC unofficial endpoints | Varies | No | Not used: undocumented, and scraping them is fragile |
-
-Paid upgrade path, should you ever want true real-time: any licensed provider can be added as a new `MarketDataProvider` with `guaranteed_realtime=True`. Only then will the app show REALTIME.
+See [DATA_PROVIDERS.md](DATA_PROVIDERS.md) for what Yahoo actually provides, how it's labelled, and a priced
+comparison of Finnhub, Tiingo, Twelve Data, Alpha Vantage, Massive (Polygon) and Databento.
 
 ## 5. Runs entirely on your PC
 Indicators, structure, setups, risk, sizing, the paper simulator, the market calendar, backtests on cached data, ML, screen capture and OCR/CV, the journal, analytics, lessons, notifications, and the database.
 
 ## 6. Needs internet
-Market data (Yahoo), news (later), and the optional cloud LLM.
+Market data and news (Yahoo), the FOMC and BEA calendars (federalreserve.gov, bea.gov), and the optional cloud LLM.
 
 ## 7. Needs payment
 Nothing. Optional: Claude API usage for AI explanations (Stage 8, can stay off), or a licensed data provider if you ever want guaranteed real-time data.

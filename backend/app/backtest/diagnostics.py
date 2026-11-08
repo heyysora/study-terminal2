@@ -198,6 +198,7 @@ def findings(trades: list[dict], sl: dict, mech: dict) -> list[dict]:
     gross, net, cst = m["avg_r_before_costs"], m["avg_r_after_costs"], m["avg_cost_r"]
     add("Costs", f"Slippage and commissions cost {cst:.3f}R per trade on average ({gross:+.3f}R before costs, {net:+.3f}R after). "
         + ("Costs turn a small loss into a bigger one; they are not the main reason for losing." if gross < 0 else
+           "Before costs the setups were roughly break-even (within noise); costs push them negative." if net < 0 and gross < 0.05 else
            "Before costs the setups made money; costs erase it." if net < 0 < gross else "Costs are affordable here."),
         "measured", "costs")
     be = m.get("breakeven_win_rate_pct")
