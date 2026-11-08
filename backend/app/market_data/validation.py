@@ -18,7 +18,7 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from ..core.market_clock import ET
+from ..core.market_clock import ET, regular_close_minute
 from .types import Bar
 
 REPAIR_TOL = 0.0005        # 0.05%: rounding noise we'll widen high/low for
@@ -138,7 +138,7 @@ def _flag_spikes(bars: list[Bar], rep: QualityReport, window: int = 10, skip_fir
 def _regular_minute(ts: datetime) -> int | None:
     t = ts.astimezone(ET)
     m = t.hour * 60 + t.minute
-    return m if 570 <= m < 960 else None
+    return m if 570 <= m < regular_close_minute(t.date()) else None
 
 
 def _find_gaps(bars: list[Bar], bar_seconds: int, rep: QualityReport) -> None:

@@ -160,3 +160,17 @@ class MarketClock:
                 if o > now_et:
                     return o, source
         return None, source
+
+
+_SHARED: MarketClock | None = None
+
+
+def regular_close_minute(d: date) -> int:
+    """Minutes after midnight ET when the regular session ends on `d` (960 = 16:00; 780 on early-close days)."""
+    global _SHARED
+    if _SHARED is None:
+        _SHARED = MarketClock()
+    td, _ = _SHARED.trading_day(d)
+    if td is None or td.regular_close is None:
+        return 960
+    return td.regular_close.hour * 60 + td.regular_close.minute

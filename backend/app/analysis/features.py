@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from ..core.market_clock import ET
+from ..core.market_clock import ET, regular_close_minute
 from ..market_data.types import Bar, Timeframe
 from . import candles, indicators as ind
 
@@ -75,7 +75,11 @@ def build(bars: list[Bar] | pd.DataFrame, timeframe: Timeframe) -> FeatureFrame:
     date = pd.Series(et.date, index=raw.index)
 
     if intraday:
-        regular = (minute >= 570) & (minute < 960)
+        # regular session per the exchange calendar: on early-close days (e.g. the day after Thanksgiving) bars after
+        # 13:00 are after-hours, not part of the session
+        closes = {d: regular_close_minute(d) for d in set(et.date)}
+        close_min = np.array([closes[d] for d in et.date])
+        regular = (minute >= 570) & (minute < close_min)
         pm = raw[(minute >= 240) & (minute < 570)]
         pm_by_date = pm.groupby(pd.Series(pm.index.tz_convert(ET).date, index=pm.index)).agg(pm_high=("high", "max"), pm_low=("low", "min"))
         df = raw[regular].copy()

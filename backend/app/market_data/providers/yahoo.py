@@ -21,7 +21,7 @@ from collections import deque
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
-from ...core.market_clock import ET
+from ...core.market_clock import ET, regular_close_minute
 from ..types import Bar, ProviderInfo, SymbolFeedInfo, Timeframe
 from .base import MarketDataProvider, ProviderError, ProviderRateLimited, StateHandler, SymbolNotFound, TickHandler, TickStream
 
@@ -101,7 +101,7 @@ def aggregate_4h(bars_1h: list[Bar]) -> list[Bar]:
     for b in bars_1h:
         t = b.ts.astimezone(ET)
         minutes = (t.hour * 60 + t.minute) - (9 * 60 + 30)
-        if minutes < 0 or t.time() >= time(16, 0):
+        if minutes < 0 or t.hour * 60 + t.minute >= regular_close_minute(t.date()):   # after the close (13:00 on early-close days)
             continue
         groups.setdefault((t.date(), minutes // 240), []).append(b)
     out = []

@@ -72,7 +72,7 @@ def _bar_times(ts: pd.Timestamp, bar_seconds: int, intraday: bool, clock: Market
         # and the locally built 4-hour bar starts 13:30, but trading stops at the close.
         end = t + timedelta(seconds=bar_seconds - 1)
         d = t.astimezone(ET).date()
-        close_t = time(16, 0)
+        close_t = time(16, 0)   # replaced by the calendar close below when a clock is given
         if clock is not None:
             td, _ = clock.trading_day(d)
             if td is not None and td.regular_close:

@@ -127,3 +127,16 @@ def test_mtf_alignment():
 def test_volume_profile():
     vp = ind.volume_profile(pd.Series([10, 10, 10, 11, 12, 10, 10]), pd.Series([100, 100, 100, 1, 1, 100, 100]), bins=4)
     assert vp["poc"] < 10.5 and vp["val"] <= 10 <= vp["vah"]
+
+
+def test_early_close_day_excludes_after_hours_bars():
+    """2024-11-29 closed at 13:00 ET: Yahoo still returns zero-volume 13:00-15:00 hourly bars, which are after-hours."""
+    from datetime import datetime
+
+    from app.core.market_clock import ET
+    from app.market_data.types import Bar
+    hours = [(9, 30), (10, 30), (11, 30), (13, 0), (14, 0), (15, 0)]
+    bars = [Bar(symbol="X", timeframe="1Hour", ts=datetime(2024, 11, 29, h, m, tzinfo=ET), open=100, high=101, low=99, close=100,
+                volume=1000 if h < 12 else 0, provider="t", source="t") for h, m in hours]
+    ff = build(bars, Timeframe.H1)
+    assert [t.astimezone(ET).hour for t in ff.df.index] == [9, 10, 11]

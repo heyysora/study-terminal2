@@ -9,7 +9,7 @@ import asyncio
 import time
 from datetime import datetime, timedelta, timezone
 
-from ..core.market_clock import ET
+from ..core.market_clock import ET, regular_close_minute
 from ..market_data.providers.base import MarketDataProvider, ProviderError
 from ..market_data.types import DataStatus, Timeframe
 from ..market_data.validation import validate_bars
@@ -93,7 +93,7 @@ class AnalysisService:
         bars = self.cached_bars(symbol, ctf)
         if ctf not in (Timeframe.D1, Timeframe.H4) and not extended:
             # match the analysis: indicators are computed on the regular session only
-            bars = [b for b in bars if 570 <= (lambda t: t.hour * 60 + t.minute)(b.ts.astimezone(ET)) < 960]
+            bars = [b for b in bars if 570 <= (lambda t: t.hour * 60 + t.minute)(b.ts.astimezone(ET)) < regular_close_minute(b.ts.astimezone(ET).date())]
         out["data"] = self.data_info(ff)
         out["chart"] = {"timeframe": ctf.value, "extended_hours": extended, "data": out["data"],
                         "bars": [{"time": int(b.ts.timestamp()), "open": b.open, "high": b.high, "low": b.low, "close": b.close,
