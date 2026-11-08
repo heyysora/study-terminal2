@@ -60,6 +60,7 @@ class NewsService:
         while True:
             try:
                 await self.macro()
+                await self.econ_values()
                 sess = self.clock.session_at().session.value
                 if self.enabled and sess in ("premarket", "regular"):
                     for sym in list(self.symbols_fn())[:40]:
@@ -204,6 +205,15 @@ class NewsService:
 
     # ---------------- macro calendar ----------------
 
+    async def econ_values(self, force: bool = False) -> dict:
+        if getattr(self, "econ", None) is None:
+            import os
+            from .econ_data import EconData
+            self.econ = EconData(os.environ.get("STUDY_BLS_API_KEY"))
+        if not self.enabled:
+            return {**self.econ.snapshot(), "error": "news disabled"}
+        return await self.econ.refresh(force)
+
     async def macro(self, force: bool = False) -> dict:
         now = asyncio.get_running_loop().time()
         if not self.enabled:
@@ -229,7 +239,18 @@ class NewsService:
     def upcoming(self, days: int = 14, today: date | None = None) -> list[dict]:
         today = today or datetime.now(ET).date()
         end = today + timedelta(days=days)
-        return [e for e in self._macro["events"] if today.isoformat() <= e["date"] <= end.isoformat()]
+        return [self._with_values(e) for e in self._macro["events"] if today.isoformat() <= e["date"] <= end.isoformat()]
+
+    RELEVANCE = {"fomc": "high for index futures (rates)", "bls_cpi": "high for index futures", "bls_jobs": "high for index futures",
+                 "bls_ppi": "medium", "bea": "medium (GDP/PCE high)"}
+
+    def _with_values(self, e: dict) -> dict:
+        """Attach the latest published BLS values (actual/previous) to BLS events; forecasts are never invented."""
+        out = {**e, "market_relevance": self.RELEVANCE.get(e["kind"], "medium")}
+        econ = getattr(self, "econ", None)
+        if econ is not None and e["kind"].startswith("bls_"):
+            out["published_values"] = econ.for_kind(e["kind"])
+        return out
 
     def event_risk(self, symbol: str | None = None, now: datetime | None = None, earnings: dict | None = None) -> dict:
         """Notes for the signal engine and UI. gate=True makes new signals watch-only for now."""

@@ -7,6 +7,7 @@ import json
 import logging
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -24,6 +25,7 @@ from .risk import SIM_ONLY, PersonalRisk, PropRules, RiskEngine, load_presets
 from .sessions import FuturesClock
 
 log = logging.getLogger(__name__)
+ET = ZoneInfo("America/New_York")
 ACCOUNT_ID, REPLAY_ID, EVIDENCE_ID, AUTOMATION_ID, SANDBOX_ID = 1, 2, 3, 4, 5
 
 
@@ -537,6 +539,30 @@ class FuturesService:
         except Exception:  # noqa: BLE001
             log.exception("could not read the economic calendar for futures risk")
 
+    def event_warnings(self, now: datetime) -> list[dict]:
+        """One alert per high-impact release, `events.warn_minutes` before it (setting; 0 turns it off). Times come from the
+        official calendars; nothing is estimated."""
+        lead = int(self.store.get("events.warn_minutes", 30) or 0)
+        out = []
+        if lead <= 0:
+            return out
+        warned = self.__dict__.setdefault("_warned_events", set())
+        for name, dt in self.engine.upcoming_events:
+            if dt is None:
+                continue
+            mins = (dt - now).total_seconds() / 60
+            key = f"{name}|{dt.isoformat()}"
+            if 0 <= mins <= lead and key not in warned:
+                warned.add(key)
+                out.append({"event": name, "at": dt.isoformat(), "minutes": round(mins)})
+                block = self.engine.personal.event_block_minutes if self.engine.personal.enabled else None
+                body = f"{name} at {dt.astimezone(ET).strftime('%H:%M')} ET, in {round(mins)} min." + (
+                    f" New simulated entries are blocked from {block} min before." if block else "")
+                self.engine._event("medium", "Upcoming release: " + body, now)
+                if self.alerts:
+                    self.alerts.emit("market", "medium", f"{name} in {round(mins)} min", body, key=f"fut:event:{key}", fingerprint=key)
+        return out
+
     async def _loop(self) -> None:
         while True:
             await asyncio.sleep(20)
@@ -548,6 +574,7 @@ class FuturesService:
                     self.alerts.emit("system", "medium", "Monitoring gap", f"No monitoring for {gap['seconds'] // 60} minutes; reconciling.",
                                      key="fut:gap", fingerprint=gap["from"])
             self.refresh_events()
+            self.event_warnings(datetime.now(timezone.utc))
             try:
                 live = set()
                 for eng in (self.engine, self.sandbox):

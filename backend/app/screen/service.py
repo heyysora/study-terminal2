@@ -46,6 +46,7 @@ class ScreenService:
         self.ai_explanation: dict | None = None
         self.holding = False              # True while a browser window shows a non-chart tab
         self.futures = None               # FuturesService, for futures charts (TopstepX or futures on TradingView)
+        self.calibration = None           # CalibrationStore (set by the app)
 
     # ---------------- control ----------------
 
@@ -268,3 +269,42 @@ class ScreenService:
         if obs.get("blocked"):
             return {"observation": obs}
         return {"observation": obs, "fusion": await self.fuse(obs, None)}
+
+
+    # ---------------- calibration ----------------
+
+    @staticmethod
+    def _tick_for(ticker: str | None) -> float | None:
+        from ..futures.contracts import get, parse_symbol
+        p = parse_symbol(ticker or "", allow_bare_root=True) if ticker else None
+        return float(get(p.root).tick_size) if p else None
+
+    async def calibrate(self, png_bytes: bytes, labels: dict, platform: str, keep_image: bool, keep_result: bool = True) -> dict:
+        """Read a labelled screenshot with the live monitor's code and score each field. The image is kept only if keep_image."""
+        import numpy as np
+
+        from .calibration import score
+        img = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Not an image")
+        plat = platform if platform and platform != "auto" else self.platform()
+        obs = await asyncio.to_thread(analyze_image, img, labels.get("title", ""), None, plat, False)
+        res = score(obs, labels, self._tick_for(labels.get("ticker")))
+        row = self.calibration.add(obs.get("platform") or plat, labels, obs, res, png_bytes, keep_image, keep_result)
+        return {**row, "kept": {"image": row["image_kept"], "result": bool(keep_result and not res.get("blocked"))}}
+
+    async def recalibrate(self) -> dict:
+        """Re-score every kept screenshot with the current reader (e.g. after an update). Samples without an image keep their score."""
+        import numpy as np
+
+        from .calibration import score
+        n = 0
+        for r in self.calibration.samples():
+            png = self.calibration.image(r["id"])
+            if not png:
+                continue
+            img = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
+            obs = await asyncio.to_thread(analyze_image, img, r["labels"].get("title", ""), None, r["platform"], False)
+            self.calibration.replace_result(r["id"], score(obs, r["labels"], self._tick_for(r["labels"].get("ticker"))), obs)
+            n += 1
+        return {"rescored": n, "report": self.calibration.report()}

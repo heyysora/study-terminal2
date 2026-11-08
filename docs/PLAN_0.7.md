@@ -95,3 +95,21 @@ Regression found and fixed: P1's holiday-aware flat time used the calendar date,
 past the flat time and flattened. The flat time now belongs to the trade date; test added.
 UI: replay play/pause/speed, timeframe, automation toggles, results; Rules tab shows evaluation status and profiles.
 Tests: 7 in tests/test_futures_p6_p7.py + 1 regression; full suite 322 passed.
+
+### P8 + P9 — screen calibration; mentor, published values, event warnings (done 2026-11-08)
+- **Calibration** (`app/screen/calibration.py`, Screen page > "Calibrate screen reading"): upload your own screenshot, type contract/timeframe/last price,
+  and the live monitor's reader is scored per field (ticker, timeframe, price within N ticks, price axis). Report per platform with sample count,
+  95% Wilson range, ticker confidence when right vs wrong, and failure cases. Under 20 real samples a field is marked "not yet meaningful".
+  Synthetic charts are scored but never counted. Images are stored only with the "keep" box ticked; results can be kept out of the report too;
+  login screens are refused and nothing from them is kept; delete one or all. "Re-score" re-reads kept images after an update.
+  **No accuracy figure is claimed for TopstepX: no real TopstepX screenshots were available in this build.** The only samples scored in tests are synthetic.
+- **Published values** (`app/news/econ_data.py`): actual and previous for CPI, core CPI, PPI final demand, payrolls and unemployment from the BLS
+  public API, one request per 6 hours, last good copy kept on refusal, optional `STUDY_BLS_API_KEY` (v2). Shown in the economic calendar with
+  period and the BLS "preliminary" flag. Forecast column says "not available": no official free source. Relevance label per event kind.
+  Only `CES0000000001` was checked against the live API in this build (daily limit hit on the shared IP); the other IDs are BLS's standard IDs.
+- **Event warnings**: one alert per high-impact release `events.warn_minutes` (default 30, 0 = off) before it, in the futures event log too.
+- **Futures mentor**: new direct answers for "how many contracts fit" (risk engine's number, limits applied, can't be raised by the mentor),
+  nearest support/resistance (levels from completed bars with tick distance), why a decision was rejected (failed pipeline steps + recent decisions),
+  mistakes (futures journal), best strategies (research run, OOS and holdout, registry), late entry (distance as share of the stop), R:R.
+  Context now carries recent decisions, the futures journal and the research run.
+- Not covered: retail sales (Census) values, geopolitical events. Tests: `tests/test_p8_p9.py` (17). Full suite 339 passed (3.11).

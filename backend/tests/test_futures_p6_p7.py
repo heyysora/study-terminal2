@@ -1,7 +1,6 @@
 """Evaluation practice (status, trading days, winning days, profiles) and replay (no look-ahead, persistence, automation, review)."""
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
-import pandas as pd
 import pytest
 
 from app.futures import contracts as fc

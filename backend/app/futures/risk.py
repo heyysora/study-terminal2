@@ -221,7 +221,8 @@ class RiskEngine:
         m: dict = {"balance": round(s.balance, 2), "equity": round(s.equity, 2), "unrealized": round(s.unrealized, 2),
                    "day_pnl": round(s.day_pnl, 2), "trade_date": s.trade_date, "open_risk_usd": s.open_risk_usd,
                    "open_mini_equivalent": round(s.open_mini_equivalent, 2)}
-        official: dict = {"firm": r.firm, "label": r.label, "confirmed": r.confirmed, "enabled": r.enabled}
+        official: dict = {"firm": r.firm, "label": r.label, "confirmed": r.confirmed, "enabled": r.enabled,
+                          "max_contracts_mini": self.max_contracts_mini()}
         if r.enabled:
             # Maximum Loss Limit (watched in real time on equity, including unrealized P&L)
             if r.max_loss_limit is not None and s.mll_floor is not None:

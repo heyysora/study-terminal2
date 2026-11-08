@@ -290,6 +290,7 @@ export function Copilot() {
             <h3>Analyze a screenshot</h3>
             <input type="file" accept="image/*" aria-label="Screenshot" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </Panel>
+          <CalibrationPanel />
           <Panel title="What I see" sub={obs ? `${obs.platform}${obs.asset_class === "futures" ? " · futures" : ""}${obs.platform_source ? ` (${obs.platform_source})` : ""}` : ""}>
             {!obs ? <div className="muted">Nothing analyzed yet.</div> : obs.blocked ? <div className="note bad">{obs.reason}</div> : (
               <table><tbody>
@@ -484,6 +485,77 @@ function SizeCalc() {
       <div className="form"><label className="f">Entry<input type="number" step="0.01" value={e} onChange={(x) => setE(x.target.value)} /></label>
         <label className="f">Stop<input type="number" step="0.01" value={s} onChange={(x) => setS(x.target.value)} /></label></div>
       {r && <p style={{ marginTop: 10 }}>Risking {money(r.risk_dollars)} ({r.risk_pct}% of {money(r.equity, 0)}) with {money(r.risk_per_share)} per share at risk: <b>{r.shares} shares</b> ({money(r.notional, 0)} of stock).</p>}
+    </Panel>
+  );
+}
+
+
+function CalibrationPanel() {
+  const cal = usePoll("/screen/calibration", 0);
+  const [f, setF] = useState<any>({ ticker: "", timeframe: "", price: "", tolerance_ticks: 2, platform: "topstepx", synthetic: false, keep_image: false, keep_result: true });
+  const [file, setFile] = useState<File | null>(null);
+  const [res, setRes] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const submit = async () => {
+    if (!file) return;
+    setErr(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    Object.entries(f).forEach(([k, v]) => fd.append(k, String(v)));
+    const r = await fetch("/api/screen/calibration/sample", { method: "POST", body: fd, headers: { "X-Study-Terminal": "1" } });
+    const d = await r.json();
+    if (!r.ok) { setErr(d.detail || "Could not score that image."); return; }
+    setRes(d); cal.reload();
+  };
+  const del = async (id: string) => { await api(`/screen/calibration/${id}`, { method: "DELETE" }); cal.reload(); };
+  const rescore = async () => { await api("/screen/calibration/rescore", { method: "POST" }); cal.reload(); };
+  const rep = cal.data?.report;
+  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  return (
+    <Panel title="Calibrate screen reading" sub={rep ? `${rep.real_samples} real sample(s)` : ""}
+      right={<button onClick={() => setOpen(!open)}>{open ? "Hide" : "Open"}</button>}>
+      {!open ? <p className="small muted">Measure how well the copilot reads your own charts: upload a screenshot and type what's really on it.</p> : <div className="stack">
+        <p className="small muted">The screenshot is analyzed in memory and dropped unless you tick "keep". Only the labels you type and the scores are saved,
+          so the report can add up. Don't upload screens showing passwords or account numbers; login screens are refused.</p>
+        <input type="file" accept="image/*" aria-label="Calibration screenshot" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <div className="row">
+          <label className="f">Contract / ticker<input value={f.ticker} onChange={set("ticker")} placeholder="MNQZ26" /></label>
+          <label className="f">Timeframe<input value={f.timeframe} onChange={set("timeframe")} placeholder="5m" /></label>
+          <label className="f">Last price<input value={f.price} onChange={set("price")} placeholder="21012.25" /></label>
+          <label className="f">Tolerance (ticks)<input type="number" min={0} value={f.tolerance_ticks} onChange={set("tolerance_ticks")} /></label>
+          <label className="f">Platform<select value={f.platform} onChange={set("platform")}><option value="topstepx">TopstepX</option>
+            <option value="tradingview">TradingView</option><option value="generic">Other</option><option value="auto">Detect</option></select></label>
+        </div>
+        <label className="check"><input type="checkbox" checked={f.keep_image} onChange={set("keep_image")} />Keep this screenshot on this computer (lets me re-score it after updates)</label>
+        <label className="check"><input type="checkbox" checked={f.keep_result} onChange={set("keep_result")} />Count it in the accuracy report</label>
+        <label className="check"><input type="checkbox" checked={f.synthetic} onChange={set("synthetic")} />This is a generated test chart (scored, but never counted as accuracy)</label>
+        <div className="row"><button className="primary" disabled={!file} onClick={submit}>Score it</button>
+          <button onClick={rescore} disabled={!rep?.images_kept}>Re-score kept screenshots</button></div>
+        {err && <div className="note bad">{err}</div>}
+        {res && (res.result?.blocked ? <div className="note bad">{res.result.reason}</div> :
+          <table><tbody>{Object.entries(res.result || {}).map(([k, v]: any) => <tr key={k}><td className="muted">{k.replace("_", " ")}</td>
+            <td className={v.ok ? "pos" : "neg"}>{v.ok ? "correct" : "wrong"}</td>
+            <td className="small">read {v.read == null ? "nothing" : typeof v.read === "object" ? `${v.read.points} axis labels` : String(v.read)}{v.truth != null ? `, actual ${v.truth}` : ""}</td></tr>)}</tbody></table>)}
+        {rep && <>
+          <h3>Accuracy by platform</h3>
+          {!Object.keys(rep.platforms).length ? <div className="muted small">No real samples yet.</div> :
+            Object.entries(rep.platforms).map(([p, fields]: any) => <div key={p}><b>{p}</b>
+              <table><thead><tr><th>Field</th><th>Samples</th><th>Accuracy</th><th>95% range</th><th></th></tr></thead><tbody>
+                {Object.entries(fields).filter(([, c]: any) => c.samples).map(([k, c]: any) => <tr key={k}><td>{k.replace("_", " ")}</td><td>{c.samples}</td>
+                  <td>{c.accuracy_pct}%</td><td className="small">{c.ci95 ? `${c.ci95[0]}–${c.ci95[1]}%` : "-"}</td>
+                  <td className="small faint">{c.note || (k === "ticker" && c.avg_confidence_when_wrong != null ? `confidence when wrong ${c.avg_confidence_when_wrong}` : "")}</td></tr>)}
+              </tbody></table></div>)}
+          <div className="small faint">{rep.synthetic_note} {rep.synthetic_samples} synthetic sample(s) excluded. {rep.images_kept} screenshot(s) kept.</div>
+          {(cal.data?.samples || []).length > 0 && <details><summary className="small">Samples and failures</summary>
+            <table><tbody>{cal.data.samples.slice(0, 50).map((r: any) => <tr key={r.id}><td className="small">{r.at.slice(0, 16).replace("T", " ")}</td>
+              <td className="small">{r.platform}{r.synthetic ? " (synthetic)" : ""}</td>
+              <td className="small">{Object.entries(r.result || {}).filter(([, v]: any) => !v.ok).map(([k]) => k).join(", ") || "all correct"}</td>
+              <td className="small">{r.image_kept ? <a href={`/api/screen/calibration/${r.id}/image`} target="_blank" rel="noreferrer">image</a> : "no image"}</td>
+              <td><button className="small" onClick={() => del(r.id)}>Delete</button></td></tr>)}</tbody></table>
+            <button className="danger small" onClick={() => del("all")}>Delete all calibration data</button></details>}
+        </>}
+      </div>}
     </Panel>
   );
 }

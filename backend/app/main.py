@@ -105,6 +105,17 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             ctx["calibration"] = {k: {f: v.get(f) for f in ("tier", "trades", "avg_r", "expectancy_r", "avg_r_ci95", "win_rate", "note")}
                                   for k, v in backtests.calibration.items()}
             ctx["calendar"] = news.upcoming(7)
+            ctx["market_mode"] = store.get("app.market_mode", "equities")
+            if ctx["market_mode"] == "futures":
+                try:
+                    fj = futures.journal("practice")
+                    ctx["futures_journal"] = {"summary": fj.get("summary"), "mistakes": fj.get("mistakes", [])[:30],
+                                              "automated": fj.get("automated"), "manual": fj.get("manual")}
+                    root = store.get("futures.default_root", "MES")
+                    ev = futures.evidence.get(root) or {}
+                    ctx["futures_research"] = {k: ev.get(k) for k in ("run", "validated", "overall", "holdout_metrics", "registry")} if ev else {}
+                except Exception:  # noqa: BLE001
+                    log.exception("futures journal context failed")
             if not symbol:
                 return ctx
             from .futures.contracts import parse_symbol as _fparse
@@ -115,6 +126,11 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                     fa.pop("chart", None)
                     ctx["futures"] = fa
                     ctx["futures_account"] = {"risk": futures.account()["risk"]}
+                    code = fa["contract"]["code"]
+                    ctx["futures_decisions"] = [{k: d.get(k) for k in ("id", "outcome", "reason", "evaluated_at", "acted")}
+                                                for d in futures.decisions(code, limit=10)]
+                    ev = futures.evidence.get(fa["contract"]["root"]) or {}
+                    ctx["futures_research"] = {k: ev.get(k) for k in ("run", "validated", "overall", "holdout_metrics", "registry")} if ev else {}
                 except Exception as e:  # noqa: BLE001
                     ctx["data_error"] = str(e)
                 ctx.pop("calibration", None)
@@ -155,6 +171,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         s.health = health
 
         screen = ScreenService(monitor, signals, store, broadcaster, screen_ai)
+        from .screen.calibration import CalibrationStore
+        screen.calibration = CalibrationStore(settings.data_dir)
         screen.futures = futures
         s.screen = screen
 

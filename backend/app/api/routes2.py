@@ -355,6 +355,55 @@ async def screen_analyze_image(request: Request, file: UploadFile = File(...), t
         raise HTTPException(422, str(e))
 
 
+@router.post("/screen/calibration/sample")
+async def screen_calibration_sample(request: Request, file: UploadFile = File(...), ticker: str = Form(""), timeframe: str = Form(""),
+                                    price: str = Form(""), tolerance_ticks: float = Form(2), platform: str = Form("auto"),
+                                    title: str = Form(""), axis_visible: bool = Form(True), synthetic: bool = Form(False),
+                                    keep_image: bool = Form(False), keep_result: bool = Form(True)):
+    """Score a labelled screenshot. The image is stored only when keep_image is true (explicit consent)."""
+    data = await file.read()
+    if len(data) > 25_000_000:
+        raise HTTPException(413, "Image too large")
+    if platform not in ("auto", "tradingview", "topstepx", "generic"):
+        raise HTTPException(422, "Unknown platform")
+    if price:
+        try:
+            float(price)
+        except ValueError:
+            raise HTTPException(422, "Price must be a number")
+    labels = {"ticker": ticker.strip() or None, "timeframe": timeframe.strip() or None, "price": price.strip() or None,
+              "tolerance_ticks": tolerance_ticks, "title": title, "axis_visible": axis_visible, "synthetic": synthetic}
+    try:
+        return await st(request).screen.calibrate(data, labels, platform, keep_image, keep_result)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/screen/calibration")
+def screen_calibration(request: Request):
+    cal = st(request).screen.calibration
+    return {"report": cal.report(), "samples": cal.samples()[:200]}
+
+
+@router.get("/screen/calibration/{sid}/image")
+def screen_calibration_image(request: Request, sid: str):
+    from fastapi import Response
+    png = st(request).screen.calibration.image(sid)
+    if png is None:
+        raise HTTPException(404, "No kept image for this sample")
+    return Response(png, media_type="image/png")
+
+
+@router.post("/screen/calibration/rescore")
+async def screen_calibration_rescore(request: Request):
+    return await st(request).screen.recalibrate()
+
+
+@router.delete("/screen/calibration/{sid}")
+def screen_calibration_delete(request: Request, sid: str):
+    return {"deleted": st(request).screen.calibration.delete(None if sid == "all" else sid)}
+
+
 # ---------------- settings & monitoring control & desktop ----------------
 
 @router.get("/settings")

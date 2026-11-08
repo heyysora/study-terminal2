@@ -288,8 +288,18 @@ export function EconCalendar() {
       {!d ? <div className="empty">{c.error || "Loading…"}</div> : <>
         {d.now?.notes?.map((n: any, i: number) => <div key={i} className={`note ${d.now.gate ? "warn" : ""} small`} style={{ margin: "8px 12px" }}>{n.text}</div>)}
         {!d.events.length ? <div className="empty">No scheduled high-impact releases in the next 14 days.</div> :
-          <table><tbody>{d.events.map((e: any, i: number) => <tr key={i}><td>{e.date.slice(5)} {e.time_et}</td>
-            <td><a href={e.url} target="_blank" rel="noreferrer noopener">{e.event}</a></td><td className="small faint">{e.source}</td></tr>)}</tbody></table>}
+          <table><thead><tr><th>When (ET)</th><th>Release</th><th>Relevance</th><th>Last published (actual / previous)</th><th>Forecast</th></tr></thead>
+            <tbody>{d.events.map((e: any, i: number) => <tr key={i}><td>{e.date.slice(5)} {e.time_et}</td>
+            <td><a href={e.url} target="_blank" rel="noreferrer noopener">{e.event}</a><div className="small faint">{e.source}</div></td>
+            <td className="small">{e.market_relevance || "-"}</td>
+            <td className="small">{(e.published_values || []).length ? e.published_values.map((v: any) =>
+              <div key={v.series_id}>{v.name}: <b>{v.actual}</b> {v.unit} ({v.period}{v.preliminary ? ", preliminary" : ""}) / {v.previous} ({v.previous_period})</div>)
+              : <span className="faint">{e.kind?.startsWith("bls_") ? "not loaded" : "not tracked"}</span>}</td>
+            <td className="small faint">not available</td></tr>)}</tbody></table>}
+        {d.published_values && <div className="small faint" style={{ padding: "6px 12px" }}>
+          Actual/previous from the BLS public data API{d.published_values.fetched_at ? `, fetched ${d.published_values.fetched_at.slice(0, 16).replace("T", " ")} UTC` : ""}.
+          {d.published_values.error ? ` Last refresh failed (${d.published_values.error}); showing the last good copy if any.` : ""} Forecasts aren't shown: no official free source publishes them.
+          The new figure appears here after BLS releases it (refreshed every 6 hours).</div>}
         {Object.keys(d.errors || {}).length > 0 && <div className="note warn small" style={{ margin: "8px 12px" }}>Couldn't refresh: {Object.keys(d.errors).join(", ")}. Showing the last good copy.</div>}
         {d.bls && <div className="small faint" style={{ padding: "6px 12px" }}>BLS dates bundled {d.bls.retrieved}, through {d.bls.last_date}. Signals go watch-only 15 min either side of major releases.</div>}
       </>}

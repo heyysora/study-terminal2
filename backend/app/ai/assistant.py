@@ -17,6 +17,9 @@ from .providers import LLMProvider, NoLLM
 log = logging.getLogger(__name__)
 
 INTENTS = [
+    ("size", r"\bhow many\b.*\b(contracts?|lots?|mes|mnq|es|nq|micros?)\b|\bposition siz\w*|\bsize\b.*\b(fit|allow|limit)"),
+    ("support", r"\b(nearest|closest|next|where is|key)\b.*\b(support|resistance|levels?)\b|\bsupport\b|\bresistance\b"),
+    ("why_rejected", r"\bwhy\b.*\b(reject\w*|no trade|not (approved|taken|trade)|blocked|watch[- ]only|wait\w*|didn'?t (it )?(trade|enter|take))"),
     ("mistakes", r"\bmistakes?\b|\bwhat am i doing wrong\b|\brepeat(ing)?\b|\bbad habits?\b"),
     ("best_strategy", r"\b(which|what|best|worst)\b.*\b(strateg\w*|setups?)\b.*\b(perform|work|best|worst|win|lose|losing)|\bmy (best|worst) (strateg\w*|setups?)"),
     ("why_invalid", r"\bwhy\b.*\b(invalid|cancel|gone|disappear|no longer|expired|stopp?ed out)"),
@@ -37,6 +40,7 @@ INTENTS = [
     ("explain", r"\b(explain|what.*(happening|going on|see|suggest)|chart)\b"),
 ]
 NO_SYMBOL_INTENTS = {"mistakes", "best_strategy", "better", "market"}
+FUTURES_EXTRA = {"size", "support", "why_rejected", "mistakes", "best_strategy", "too_late", "rr"}
 
 LABELS = {"fact": "Observed", "interpretation": "Interpretation", "evidence": "Historical evidence",
           "uncertainty": "Uncertainty", "hypothetical": "If you", "data": "Data", "plan": "Plan (from the signal engine)"}
@@ -203,6 +207,116 @@ class Assistant:
                 a.add("uncertainty", "Your prop-firm rules aren't confirmed against your account yet, so these limits may not match it.")
         a.add("uncertainty", "Study Terminal can't see or change your real Topstep account; everything here is analysis and simulation.")
 
+    def _futures_specific(self, a: Answer, intent: str, ctx: dict) -> None:
+        """Direct answers to the futures questions the mentor is asked most. Every number comes from the context;
+        the mentor explains the deterministic risk engine's result and never overrides it."""
+        fu = ctx.get("futures") or {}
+        sig, lv, spec = fu.get("signal") or {}, fu.get("levels") or {}, fu.get("spec") or {}
+        best = sig.get("signal") or (sig.get("watch") or sig.get("study_only") or [None])[0]
+        dec = sig.get("decision") or {}
+        code = (fu.get("contract") or {}).get("code") or ctx.get("symbol")
+        if intent == "size":
+            if not best:
+                a.add("fact", f"There's no current plan on {code}, so there's no stop distance to size from. Size is always "
+                              "(dollars you're willing to lose) / (stop distance in ticks x tick value + fees and slippage).")
+                return
+            risk = (ctx.get("futures_account") or {}).get("risk") or {}
+            per = best.get("risk_per_contract_usd")
+            a.add("fact", f"Planned stop: {best.get('stop_ticks')} ticks = ${per or 0:,.2f} per contract including fees and slippage.")
+            if best.get("suggested_contracts") is not None:
+                a.add("plan", f"The risk engine allows {best['suggested_contracts']} contract(s) on this plan. {best.get('sizing_note', '')}".strip())
+            caps = []
+            off, pr = risk.get("official", {}), risk.get("personal", {})
+            if off.get("max_contracts_mini") is not None:
+                caps.append(f"max {off['max_contracts_mini']:g} mini-equivalent contracts (10 micros = 1 mini)")
+            if pr.get("daily_loss_remaining") is not None and per:
+                caps.append(f"your daily limit leaves room for {int(pr['daily_loss_remaining'] // per)} at this stop")
+            if caps:
+                a.add("fact", "Limits applied: " + "; ".join(caps) + ".")
+            a.add("uncertainty", "The mentor can't raise this number. Change your limits in Futures > Rules if they're wrong.")
+        elif intent == "support":
+            last = lv.get("last")
+            names = {"vwap": "VWAP", "prev_day_high": "previous day high", "prev_day_low": "previous day low", "prev_day_close": "previous day close",
+                     "overnight_high": "overnight high", "overnight_low": "overnight low", "opening_range_high": "opening range high",
+                     "opening_range_low": "opening range low", "ib_high": "initial balance high", "ib_low": "initial balance low",
+                     "swing_high": "swing high", "swing_low": "swing low", "session_high": "session high", "session_low": "session low"}
+            if last is None:
+                a.add("uncertainty", f"I don't have recent bars for {code}, so I can't place levels relative to price.")
+                return
+            lvls = [(n, lv[k]) for k, n in names.items() if isinstance(lv.get(k), (int, float))]
+            below = sorted([x for x in lvls if x[1] < last], key=lambda x: last - x[1])[:2]
+            above = sorted([x for x in lvls if x[1] > last], key=lambda x: x[1] - last)[:2]
+            tick = float(spec.get("tick_size") or 0.25)
+            fmt = lambda xs: ", ".join(f"{n} {p:g} ({(abs(last - p) / tick):.0f} ticks away)" for n, p in xs) or "none in the data"  # noqa: E731
+            a.add("fact", f"Last {code} price in the analysis: {last:g} (bar at {lv.get('as_of', '?')}).")
+            a.add("fact", f"Nearest levels below (possible support): {fmt(below)}.")
+            a.add("fact", f"Nearest levels above (possible resistance): {fmt(above)}.")
+            a.add("interpretation", "These are reference levels from completed bars, not predictions. Price often reacts near them "
+                                    "but can pass straight through.")
+        elif intent == "why_rejected":
+            if not dec:
+                a.add("uncertainty", "There's no recorded decision for this contract yet.")
+                return
+            a.add("fact", f"Decision {dec.get('outcome')} at {dec.get('evaluated_at', '?')[:19]}: {dec.get('reason', '')}")
+            failed = [st for st in dec.get("steps", []) if st.get("passed") is False]
+            for st in failed[:3]:
+                a.add("fact", f"Step {st['n']} ({st['step']}) failed: {st['detail']}")
+            if not failed:
+                a.add("interpretation", "No step failed outright; the outcome reflects missing confirmation or evidence rather than a block.")
+            hist = [d for d in (ctx.get("futures_decisions") or []) if d.get("id") != dec.get("id")][:3]
+            if hist:
+                a.add("evidence", "Recent decisions: " + "; ".join(f"{d.get('outcome')} ({d.get('reason', '')[:70]})" for d in hist))
+        elif intent == "mistakes":
+            j = ctx.get("futures_journal") or {}
+            ms = j.get("mistakes") or []
+            summ = j.get("summary") or {}
+            if not summ.get("trades"):
+                a.add("fact", "No futures paper trades have closed yet, so there's nothing to review.")
+                return
+            a.add("fact", f"{summ['trades']} futures paper round trips, net ${summ.get('net', 0):,.2f}.")
+            if not ms:
+                a.add("fact", "None of the checked mistakes (no stop, chasing, overtrading, trading against the pipeline) were found.")
+            counts: dict = {}
+            for m in ms:
+                counts[m["code"]] = counts.get(m["code"], 0) + 1
+            for c, n in sorted(counts.items(), key=lambda x: -x[1]):
+                ex = next(m for m in ms if m["code"] == c)
+                a.add("fact", f"{c.replace('_', ' ')}: {n} time(s). Example: {ex['text']}")
+            if summ.get("trades", 0) < 20:
+                a.add("uncertainty", "Fewer than 20 trades; patterns this early can be noise.")
+        elif intent == "best_strategy":
+            res = ctx.get("futures_research") or {}
+            if not res:
+                a.add("uncertainty", "No research run is stored for this product. Run one from Futures > Evidence.")
+                return
+            run = res.get("run") or {}
+            a.add("evidence", f"Research run {str(run.get('at', '?'))[:10]} ({run.get('source', '?')}). Validated strategies: "
+                              + (", ".join(res.get("validated") or []) or "none") + ".")
+            ov, ho = res.get("overall") or {}, res.get("holdout_metrics") or {}
+            if ov:
+                a.add("evidence", f"Out-of-sample: {ov.get('trades')} trades, avg {ov.get('avg_r')}R, 95% CI {ov.get('avg_r_ci95')}, "
+                                  f"tier {ov.get('tier')}. {ov.get('tier_text', '')}")
+            if ho:
+                a.add("evidence", f"Final holdout: {ho.get('trades')} trades, avg {ho.get('avg_r')}R.")
+            reg = res.get("registry") or {}
+            ranked = sorted(reg.items(), key=lambda kv: kv[1].get("status") != "validated")[:4]
+            for k, v in ranked:
+                a.add("evidence", f"{k.replace('|', ' ')}: {v.get('status')}. {v.get('why', '')}")
+            a.add("uncertainty", "Results that can't be told apart from luck aren't a reason to trade a strategy with money.")
+        elif intent == "too_late" and best:
+            last = lv.get("last")
+            if last is not None:
+                dist = abs(last - best["entry"])
+                stop_d = abs(best["entry"] - best["stop"]) or 1
+                a.add("fact", f"Price {last:g} is {dist:g} points from the planned entry {best['entry']:g} "
+                              f"({dist / stop_d:.0%} of the stop distance).")
+                a.add("interpretation", "More than about a quarter of the stop distance away usually means the reward/risk on the "
+                                        "original plan no longer holds; wait for a retest or a new setup." if dist / stop_d > 0.25
+                      else "Price is still close to the planned entry.")
+        elif intent == "rr" and best:
+            a.add("fact", f"Reward/risk on the plan: {best.get('reward_risk')}R (entry {best['entry']:g}, stop {best['stop']:g}, target {best['target']:g}), "
+                          "after fees and slippage.")
+
     def rule_answer(self, intent: str, question: str, ctx: dict, level: str) -> str:
         return self.rule_answer_parts(intent, question, ctx, level).text()
 
@@ -210,8 +324,14 @@ class Assistant:
 
     def rule_answer_parts(self, intent: str, question: str, ctx: dict, level: str) -> Answer:
         a = Answer()
-        if ctx.get("futures"):
-            self._futures(a, intent, ctx)
+        if ctx.get("futures") or (ctx.get("market_mode") == "futures" and intent in ("mistakes", "best_strategy")):
+            if intent in FUTURES_EXTRA:
+                self._futures_specific(a, intent, ctx)
+                if intent in ("mistakes", "best_strategy", "support", "size", "why_rejected") and len(a):
+                    a.add("uncertainty", "Study Terminal can't see or change your real Topstep account; everything here is analysis and simulation.")
+                    return a
+            if ctx.get("futures"):
+                self._futures(a, intent, ctx)
             return a
         sym = ctx.get("symbol")
         if intent in NO_SYMBOL_INTENTS and intent in ("mistakes", "best_strategy"):
