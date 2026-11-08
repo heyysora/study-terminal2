@@ -37,3 +37,13 @@ drop confirmation, account-size change re-bases a fresh account or requires rese
 db/models.py (futures_fills).
 Tests: 11 regression tests in tests/test_futures_p1_regressions.py (one per finding); full suite 275 passed (3.11).
 Not verified: holiday close times still come from exchange_calendars, not CME notices.
+
+### P2 Data reliability (done)
+Changed: new futures/feed.py (bar validation: duplicates, order, impossible OHLC, future timestamps, off-tick and spike flags,
+missing candles per session; source health with exponential backoff; downtime tracker), futures/data.py (validation on every
+fetch, failures serve the last good copy labeled CACHED and blocking, UNAVAILABLE when there's none, TopstepX API failure falls
+back to Yahoo only with an explicit DELAYED label and note, cache key includes lookback), futures/service.py (downtime gaps
+logged and alerted; screen fusion lists the origin of every value), screen/service.py + settings (platform kept per mode,
+TopstepX default in futures mode), frontend platform selector writes the per-mode key; REPLAY label.
+Tests: 8 in tests/test_futures_p2_data.py; full suite 283 passed.
+Not verified: behaviour against a real TopstepX API outage (mock only).

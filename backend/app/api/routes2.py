@@ -335,8 +335,10 @@ def screen_status(request: Request):
 def screen_platforms(request: Request):
     from ..screen.platforms import ADAPTERS
 
-    return {"selected": st(request).settings_store.get("screen.platform", "auto"),
-            "read_account_info": st(request).settings_store.get("screen.read_account_info", False),
+    store = st(request).settings_store
+    mode = store.get("app.market_mode", "equities")
+    return {"selected": st(request).screen.platform(), "mode": mode, "setting_key": "futures.platform" if mode == "futures" else "screen.platform",
+            "read_account_info": store.get("screen.read_account_info", False),
             "platforms": [{"id": "auto", "name": "Detect automatically", "asset_class": "either"}] + [a.to_dict() for a in ADAPTERS.values()]}
 
 

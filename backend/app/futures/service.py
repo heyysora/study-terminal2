@@ -17,6 +17,7 @@ from . import contracts as fc
 from . import features as ff
 from . import signals as fsig
 from .data import SOURCES, FuturesData
+from .feed import DowntimeTracker
 from .paper import FuturesPaperConfig, FuturesPaperEngine
 from .projectx import ProjectXClient
 from .risk import SIM_ONLY, PersonalRisk, PropRules, RiskEngine, load_presets
@@ -64,6 +65,7 @@ class FuturesService:
         self.last_actions: dict[str, str] = {}
         self._task: asyncio.Task | None = None
         self._bt_running: set[str] = set()
+        self.downtime = DowntimeTracker(20.0)
 
     # ---------------- settings ----------------
 
@@ -430,6 +432,13 @@ class FuturesService:
     async def _loop(self) -> None:
         while True:
             await asyncio.sleep(20)
+            gap = self.downtime.tick()
+            if gap:
+                self.engine._event("high", f"Study Terminal wasn't running for {gap['seconds'] // 60} min ({gap['from'][:16]} to {gap['to'][:16]} UTC: "
+                                   "sleep, shutdown or a stall). Missed bars are reconciled before anything else happens.", datetime.now(timezone.utc))
+                if self.alerts:
+                    self.alerts.emit("system", "medium", "Monitoring gap", f"No monitoring for {gap['seconds'] // 60} minutes; reconciling.",
+                                     key="fut:gap", fingerprint=gap["from"])
             self.refresh_events()
             try:
                 live = {o.contract for o in self.engine.orders.values() if o.active} | {c for c, p in self.engine.positions.items() if p.qty}
@@ -635,6 +644,10 @@ class FuturesService:
             out["your_drawn_levels"].append({**d, "nearest_known_level": near[0].replace("_", " ") if near and atr and abs(near[1] - d["price_estimate"]) <= atr else None})
         if obs.get("position_on_screen"):
             out["position_on_screen"] = {**obs["position_on_screen"], "note": "Read from your screen by OCR; not verified and not used for any calculation."}
+        out["origins"] = {"contract_on_screen": f"screen OCR ({obs.get('ticker_source') or 'chart text'})",
+                          "visible_price": f"screen OCR ({obs.get('visible_price_source') or 'not read'})",
+                          "market_price": f"{label.get('provider')} market data, {label.get('status')}, bar time {label.get('data_time')}",
+                          "levels_and_signal": f"computed by Study Terminal from {label.get('provider')} bars, not from the screen"}
         out["sim_only_note"] = "Study Terminal reads your TopstepX screen. It can't place, change or cancel anything on your Topstep account."
         return out
 

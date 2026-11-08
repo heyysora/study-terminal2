@@ -49,6 +49,12 @@ class ScreenService:
 
     # ---------------- control ----------------
 
+    def platform(self) -> str:
+        """Platform choice is kept per market mode: futures defaults to TopstepX, stocks to automatic detection."""
+        if self.settings.get("app.market_mode", "equities") == "futures":
+            return self.settings.get("futures.platform", "topstepx") or "topstepx"
+        return self.settings.get("screen.platform", "auto") or "auto"
+
     def status(self) -> dict:
         return {"state": self.state, "reason": self.state_reason, "target": self.target.__dict__ if self.target else None,
                 "consent_at": self.consent_at, "capture_method": self.capture_method, "frames_seen": self.frames,
@@ -146,7 +152,7 @@ class ScreenService:
             await self.process(frame, title or "", self.target.process)
 
     async def process(self, frame, title: str, process: str | None) -> dict:
-        obs = await asyncio.to_thread(analyze_image, frame, title, process, self.settings.get("screen.platform", "auto"),
+        obs = await asyncio.to_thread(analyze_image, frame, title, process, self.platform(),
                                       bool(self.settings.get("screen.read_account_info", False)))
         obs["at"] = datetime.now(timezone.utc).isoformat()
         prev = self.observation
@@ -257,7 +263,7 @@ class ScreenService:
         img = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError("Not an image")
-        obs = await asyncio.to_thread(analyze_image, img, title, None, platform or self.settings.get("screen.platform", "auto"),
+        obs = await asyncio.to_thread(analyze_image, img, title, None, platform or self.platform(),
                                       bool(self.settings.get("screen.read_account_info", False)))
         if obs.get("blocked"):
             return {"observation": obs}

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 from ..market_data.types import Timeframe
 from .contracts import Contract
+from .feed import SourceHealth, validate_bars
 from .projectx import ProjectXClient, ProjectXError
 from .sessions import FuturesClock
 
@@ -52,6 +53,8 @@ class FuturesData:
         self._cache: dict[tuple, tuple[float, list, dict, list]] = {}
         self._delay: dict[str, tuple[float, int | None, str | None]] = {}
         self._lock = asyncio.Lock()
+        self.health: dict[str, SourceHealth] = {}
+        self.last_validation: dict[str, dict] = {}
 
     @property
     def source(self) -> str:
@@ -74,8 +77,11 @@ class FuturesData:
         self._delay[symbol] = (time.monotonic(), d, src)
         return d, src
 
+    def _h(self, key: str) -> SourceHealth:
+        return self.health.setdefault(key, SourceHealth(key))
+
     async def bars(self, contract: Contract, tf: Timeframe, clock: FuturesClock, days: float = 6, now: datetime | None = None) -> tuple[list[dict], dict, list[str]]:
-        key = (contract.code, tf.value, self.source)
+        key = (contract.code, tf.value, self.source, round(days, 2))
         ttl = 20 if tf.seconds <= 300 else 60
         hit = self._cache.get(key)
         if hit and time.monotonic() - hit[0] < ttl:
@@ -83,29 +89,58 @@ class FuturesData:
         async with self._lock:
             now = now or datetime.now(timezone.utc)
             notes: list[str] = []
-            bars: list[dict] = []
             source_used = self.source
-            if source_used == "projectx":
-                try:
-                    bars = await self.projectx.bars(contract.short_code, tf.seconds // 60, now - timedelta(days=days), now)
-                except ProjectXError as e:
-                    notes.append(f"TopstepX API failed ({e}); fell back to Yahoo (delayed).")
-                    source_used = "yahoo"
-            symbol = contract.yahoo_symbol
-            if source_used == "yahoo":
-                try:
-                    raw, n2 = await self.yahoo.get_bars(symbol, tf, now - timedelta(days=days))
-                except Exception as e:  # noqa: BLE001
-                    cont = f"{contract.root}=F"
-                    notes.append(f"Yahoo has no data for {symbol} ({type(e).__name__}); using the continuous front-month series {cont}, "
-                                 "which can differ from your contract around a roll.")
-                    symbol = cont
-                    raw, n2 = await self.yahoo.get_bars(cont, tf, now - timedelta(days=days))
-                bars = [{"ts": b.ts, "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume} for b in raw]
-                notes += [n for n in n2 if "extended-hours" not in n and "dividend" not in n]
+            h = self._h(f"{source_used}:{contract.code}:{tf.value}")
+            if h.backing_off and hit:
+                return self._cached(hit, h, notes)
+            try:
+                bars, symbol, source_used, n = await self._fetch(contract, tf, days, now, source_used)
+                notes += n
+                h.ok()
+            except Exception as e:  # noqa: BLE001 - any provider failure: serve the last good copy, labeled
+                h.fail(f"{type(e).__name__}: {str(e)[:160]}")
+                if hit:
+                    return self._cached(hit, h, notes)
+                return [], {"provider": source_used, "symbol": contract.code, "timeframe": tf.value, "status": "unavailable",
+                            "reason": f"Couldn't load data: {h.last_error}. Retrying in {h.to_dict()['retry_in_seconds']} s.",
+                            "health": h.to_dict()}, notes
+            bars, rep = validate_bars(bars, tf.seconds, contract.spec, clock, now)
+            self.last_validation[f"{contract.code}:{tf.value}"] = rep
             label = await self.label(bars, tf, clock, source_used, symbol, now)
+            label["validation"] = {k: rep[k] for k in ("summary", "duplicates", "impossible", "future", "off_tick", "missing_total", "ok")}
+            label["health"] = h.to_dict()
+            label["fetched_at"] = now.isoformat()
             self._cache[key] = (time.monotonic(), bars, label, notes)
             return bars, label, notes
+
+    def _cached(self, hit, h: SourceHealth, notes: list[str]):
+        age = time.monotonic() - hit[0]
+        label = {**hit[2], "status": "cached", "health": h.to_dict(),
+                 "reason": f"Showing the copy fetched {age / 60:.0f} min ago because the source is failing ({h.last_error}). "
+                           "Not live: no signals or simulator entries until fresh data returns."}
+        return hit[1], label, notes + ["Source failing; cached copy shown."]
+
+    async def _fetch(self, contract: Contract, tf: Timeframe, days: float, now: datetime, source_used: str):
+        notes: list[str] = []
+        if source_used == "projectx":
+            try:
+                bars = await self.projectx.bars(contract.short_code, tf.seconds // 60, now - timedelta(days=days), now)
+                return bars, contract.short_code, "projectx", notes
+            except ProjectXError as e:
+                notes.append(f"TopstepX API failed ({e}). Showing Yahoo's DELAYED data instead, labeled as such; live TopstepX data is "
+                             "unavailable until the API recovers.")
+        symbol = contract.yahoo_symbol
+        try:
+            raw, n2 = await self.yahoo.get_bars(symbol, tf, now - timedelta(days=days))
+        except Exception as e:  # noqa: BLE001
+            cont = f"{contract.root}=F"
+            notes.append(f"Yahoo has no data for {symbol} ({type(e).__name__}); using the continuous front-month series {cont}, "
+                         "which can differ from your contract around a roll.")
+            symbol = cont
+            raw, n2 = await self.yahoo.get_bars(cont, tf, now - timedelta(days=days))
+        bars = [{"ts": b.ts, "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume} for b in raw]
+        notes += [n for n in n2 if "extended-hours" not in n and "dividend" not in n]
+        return bars, symbol, "yahoo", notes
 
     async def label(self, bars: list[dict], tf: Timeframe, clock: FuturesClock, source: str, symbol: str, now: datetime) -> dict:
         base = {"provider": source, "symbol": symbol, "timeframe": tf.value}

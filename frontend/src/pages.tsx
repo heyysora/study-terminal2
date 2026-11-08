@@ -221,7 +221,7 @@ export function Copilot() {
   const status = usePoll("/screen/status", 5000);
   const targets = usePoll("/screen/targets");
   const plats = usePoll("/screen/platforms");
-  const setPlatform = async (id: string) => { await api("/settings", { method: "PUT", json: { "screen.platform": id } }); plats.reload(); };
+  const setPlatform = async (id: string) => { await api("/settings", { method: "PUT", json: { [plats.data?.setting_key || "screen.platform"]: id } }); plats.reload(); };
   const ai = usePoll("/ai/status");
   const [sel, setSel] = useState<any>(null);
   const [consent, setConsent] = useState(false);
