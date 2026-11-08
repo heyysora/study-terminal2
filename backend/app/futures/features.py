@@ -236,3 +236,26 @@ def sweep_events(df: pd.DataFrame, levels: dict, spec: ProductSpec, lookback: in
                 out.append({"level": name, "price": lv, "side": "below", "ts": r["ts"].isoformat(),
                             "text": f"Swept below {name.upper()} ({lv:g}) and closed back above"})
     return out
+
+
+def regime(F: pd.DataFrame, i: int) -> dict:
+    """Market regime at bar i from information available at its close: structure trend, position vs VWAP,
+    volatility relative to the recent past, and day type once the initial balance is set."""
+    r = F.iloc[i]
+    look = F["atr"].iloc[max(0, i - 600):i + 1].dropna()
+    pct = float((look <= r["atr"]).mean() * 100) if len(look) > 50 and pd.notna(r["atr"]) else None
+    vol = ("unknown" if pct is None else "low" if pct < 20 else "normal" if pct < 80 else "high" if pct < 97 else "extreme")
+    trend = {1: "up", -1: "down", 0: "undetermined"}[int(r["trend"])]
+    vw = "above VWAP" if pd.notna(r["vwap"]) and r["c"] > r["vwap"] else "below VWAP" if pd.notna(r["vwap"]) else "VWAP n/a"
+    day = "initial balance forming"
+    if pd.notna(r.get("ib_h")) and pd.notna(r.get("ib_l")):
+        rng = r["ib_h"] - r["ib_l"]
+        if rng > 0 and (r["c"] > r["ib_h"] + 0.5 * rng or r["c"] < r["ib_l"] - 0.5 * rng):
+            day = "range extension (trend-day behaviour)"
+        elif r["ib_l"] <= r["c"] <= r["ib_h"]:
+            day = "inside the initial balance (rotational)"
+        else:
+            day = "testing outside the initial balance"
+    label = f"{'trending ' + trend if trend != 'undetermined' else 'no clear trend'}, {vol} volatility"
+    return {"label": label, "trend": trend, "vs_vwap": vw, "volatility": vol, "atr_percentile": round(pct, 0) if pct is not None else None,
+            "day_type": day, "as_of": r["ts"].isoformat()}

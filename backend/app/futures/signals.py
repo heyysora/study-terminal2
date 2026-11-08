@@ -94,95 +94,46 @@ def position_advice(F: pd.DataFrame, pos: dict, stop: float | None, spec: Produc
 def evaluate(F: pd.DataFrame, spec: ProductSpec, contract: str, label: dict, evidence: dict, *, now: datetime | None = None,
              position: dict | None = None, position_stop: float | None = None, risk_engine=None, snapshot=None,
              round_turn: float = 0.0, slippage_ticks: float = 1.0, flat_by_min_from_rth: float | None = None,
-             minutes_to_flat: float | None = None, events: dict | None = None, params: SetupParams | None = None) -> dict:
+             minutes_to_flat: float | None = None, events: dict | None = None, params: SetupParams | None = None,
+             F15: pd.DataFrame | None = None, current_price: float | None = None, validated: set | None = None,
+             prev_plan: dict | None = None, pipeline_cfg=None, mode: str = "assisted") -> dict:
+    """The signal shown in the UI: the decision pipeline's outcome, or HOLD/EXIT for an open position."""
+    from .contracts import parse_symbol
+    from .pipeline import run
+
     now = now or datetime.now(timezone.utc)
-    bm = F.attrs.get("bar_minutes", 5)
-    status = label.get("status")
+    bm = F.attrs.get("bar_minutes", 5) if len(F) else 5
+    con = parse_symbol(contract).contract
+    i = len(F) - 1
     out: dict = {"contract": contract, "root": spec.root, "action": "NO TRADE", "reasons": [], "signal": None, "watch": [],
-                 "study_only": [], "developing": [], "data": label, "evaluated_at": now.isoformat(),
+                 "study_only": [], "developing": developing(F, i, spec) if len(F) else [], "data": label, "evaluated_at": now.isoformat(),
                  "market_data_time": F["ts"].iloc[-1].isoformat() if len(F) else None, "timeframe": f"{bm}Min",
                  "sim_note": "Signals feed the paper simulator only. Study Terminal never places real orders."}
-    if F.empty:
-        out["reasons"].append("No market data for this contract.")
-        return out
-    ok, why = completeness(F, bm)
-    i = len(F) - 1
-    out["developing"] = developing(F, i, spec)
-    if not ok:
-        out["reasons"].append(f"Data incomplete: {why} No signals until it's fixed.")
-        return out
-    if status not in TRADABLE and status != "delayed":
-        out["reasons"].append(f"Market data is {status}: {label.get('reason', '')} No signals on stale or unavailable data.")
-        return out
-    p = params or SetupParams()
-    p.flat_by_min_from_rth = flat_by_min_from_rth
-    found, rejected = detect(F, i, spec, p)
-    out["rejected"] = rejected[:6]
-
-    def enrich(s) -> dict:
-        d = s.to_dict()
-        ev = evidence.get(f"{s.name}|{d['direction']}") or {"tier": "none", "trades": 0}
-        d["evidence"] = {k: ev.get(k) for k in ("tier", "tier_text", "trades", "days", "avg_r", "avg_r_ci95", "win_rate")}
-        d["evidence_short"] = TIER_SHORT.get(ev.get("tier", "none"), ev.get("tier"))
-        d["tradeable_evidence"] = ev.get("tier") in TRADE_OK
-        sized = size_for_risk((risk_engine.personal.max_risk_per_trade_usd if risk_engine and risk_engine.personal.enabled
-                               and risk_engine.personal.max_risk_per_trade_usd else 0) or 0, s.entry, s.stop, spec, slippage_ticks, round_turn)
-        d["risk_per_contract_usd"] = sized["total_usd"]
-        d["stop_ticks"] = sized["stop_ticks"]
-        d["reward_risk"] = round(abs(s.target - s.entry) / s.risk_points, 2) if s.risk_points else None
-        d["suggested_contracts"] = sized["contracts"] if risk_engine and risk_engine.personal.max_risk_per_trade_usd else None
-        d["sizing_note"] = sized.get("reason") or ("Sized from your per-trade risk limit, including slippage and fees."
-                                                   if d["suggested_contracts"] is not None else "Set a per-trade risk limit to get a size.")
-        if risk_engine and snapshot is not None:
-            st = risk_engine.evaluate(snapshot)
-            probe = risk_engine.check_entry(snapshot, spec, 1, s.entry, s.stop, [s.target], round_turn, slippage_ticks, s.direction, status=st)
-            caps = [v for v in probe["limits"].values() if v is not None]
-            per = sized["total_usd"]
-            for room in (st["official"].get("mll_remaining"), st["official"].get("dll_remaining"), st["personal"].get("daily_loss_remaining")):
-                if room is not None and per > 0:
-                    caps.append(max(0, int((room - 0.01) // per)))   # stay strictly inside every loss limit
-            if d["suggested_contracts"] is not None:
-                d["suggested_contracts"] = min([d["suggested_contracts"]] + caps)
-            q = d["suggested_contracts"] or 1
-            chk = risk_engine.check_entry(snapshot, spec, q, s.entry, s.stop, [s.target], round_turn, slippage_ticks, s.direction, status=st)
-            if d["suggested_contracts"] == 0:
-                chk["problems"] = chk["problems"] or ["Even one contract would break a limit; skip this one or use a micro contract."]
-                chk["ok"] = False
-            d["risk_check"] = {"ok": chk["ok"], "problems": chk["problems"], "warnings": chk["warnings"]}
-        d["levels_nearby"] = {k: v for k, v in key_levels(F.iloc[i]).items() if abs(v - s.entry) <= 2 * float(F["atr"].iloc[i])}
-        return d
-
-    if status == "delayed":
-        out["study_only"] = [enrich(s) | {"label": "Delayed data: for study only, not a signal"} for s in found]
-        out["reasons"].append(f"Market data is delayed ({label.get('reason', '')}). Setups are shown for study; no signals are given on "
-                              "delayed prices. Connect a live futures feed (Settings > Futures data) for signals.")
-        return out
-    if position and position.get("qty"):
+    if position and position.get("qty") and len(F):
         adv = position_advice(F, position, position_stop, spec, minutes_to_flat)
         out["action"], out["reasons"], out["position"] = adv["action"], adv["reasons"], adv
-        out["watch"] = [enrich(s) for s in found]
         return out
-    if events and events.get("gate"):
-        out["watch"] = [enrich(s) | {"label": "Watch only: scheduled high-impact release"} for s in found]
-        out["reasons"].append(events.get("reason") or "A high-impact economic release is within 15 minutes. No new entries.")
-        return out
-    if not found:
-        out["reasons"].append("No setup confirmed on the last closed bar. NO TRADE is a valid decision.")
-        return out
-    cands = [enrich(s) for s in found]
-    live = [c for c in cands if c["tradeable_evidence"] and c.get("risk_check", {}).get("ok", True)]
-    if live:
-        best = live[0]
-        out["action"] = "LONG" if best["direction"] == "long" else "SHORT"
-        out["signal"] = best
-        out["reasons"] = best["conditions"] + [f"Evidence: {best['evidence_short']}."]
-        out["watch"] = [c for c in cands if c is not best]
-        return out
-    out["watch"] = cands
-    first = cands[0]
-    if not first["tradeable_evidence"]:
-        out["reasons"].append(f"{first['setup']} ({first['direction']}) is confirmed on the chart, but its tested evidence is "
-                              f"'{first['evidence_short']}'. It's shown to watch and learn from, not as a trade.")
-    else:
-        out["reasons"].append("A setup is confirmed but fails your risk checks: " + "; ".join(first.get("risk_check", {}).get("problems", [])))
+    dec = run(F, F15, con, label, evidence, now=now, current_price=current_price, risk_engine=risk_engine, snapshot=snapshot,
+              round_turn=round_turn, slippage_ticks=slippage_ticks, flat_by_min_from_rth=flat_by_min_from_rth, validated=validated,
+              prev_plan=prev_plan, cfg=pipeline_cfg, mode=mode)
+    out["decision"] = dec.to_dict()
+    out["action"] = dec.action
+    out["outcome"] = dec.outcome
+    out["development"] = dec.development
+    out["regime"] = dec.regime
+    out["current_price"] = dec.current_price
+    out["rejected"] = next((st.get("data", {}).get("rejected") for st in dec.steps if st["n"] == 5 and st.get("data")), None) or []
+    failing = next((st for st in dec.steps if st["passed"] is False), None)
+    out["reasons"] = [dec.reason] + ([failing["detail"]] if failing and failing["detail"] != dec.reason else [])
+    if events and events.get("gate") and dec.outcome == "APPROVED":
+        dec.outcome, dec.action = "WATCH_ONLY", "WATCH ONLY"
+        out.update(action="WATCH ONLY", outcome="WATCH_ONLY")
+        out["reasons"].insert(0, events.get("reason") or "A high-impact release is within the event window.")
+    if dec.plan:
+        if dec.outcome == "APPROVED":
+            out["signal"] = dec.plan
+        else:
+            out["watch"] = [dec.plan | {"label": f"{dec.action}: {dec.reason}"}]
+    elif dec.candidates:
+        out["study_only"] = [c | {"label": "Delayed data: for study only, not a signal"} for c in dec.candidates]
     return out

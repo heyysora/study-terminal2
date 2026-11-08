@@ -47,3 +47,13 @@ logged and alerted; screen fusion lists the origin of every value), screen/servi
 TopstepX default in futures mode), frontend platform selector writes the per-mode key; REPLAY label.
 Tests: 8 in tests/test_futures_p2_data.py; full suite 283 passed.
 Not verified: behaviour against a real TopstepX API outage (mock only).
+
+### P3 Risk service and decision pipeline (done)
+Changed: new futures/pipeline.py (13 steps, outcomes APPROVED / WATCH_ONLY / WAIT / REJECTED / INVALIDATED / NO_TRADE, development
+status, deterministic decision id), futures/features.py (regime: structure trend, VWAP side, ATR percentile volatility, day type),
+futures/signals.py (UI signal = pipeline outcome; actions LONG, SHORT, HOLD, EXIT, WATCH ONLY, WAIT FOR CONFIRMATION,
+INVALIDATED, NO TRADE), futures/service.py (evaluate_contract with a completed-bars-only 15-minute frame and the live 1-minute
+price; decisions stored once per bar in futures_decisions; invalidation of the previous plan), futures/paper.py (data-age check in
+the order path; order origin), api /futures/decisions, UI pipeline steps and regime.
+Every simulated futures order still passes through one place: FuturesPaperEngine.preview -> RiskEngine.check_entry.
+Tests: 15 in tests/test_futures_pipeline.py; full suite passes.

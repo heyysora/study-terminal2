@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 
-from ..db.models import FuturesFillRecord, FuturesStateRecord
+from ..db.models import FuturesDecisionRecord, FuturesFillRecord, FuturesStateRecord
 from ..market_data.types import Timeframe
 from . import backtest as fbt
 from . import contracts as fc
@@ -216,9 +216,57 @@ class FuturesService:
         return {"gate": ev.get("gate"), "reason": next((n["text"] for n in ev.get("notes", []) if n["type"] == "macro_window"), None),
                 "notes": ev.get("notes", [])}
 
-    async def analysis(self, sym: str, tf: Timeframe = Timeframe.M5) -> dict:
-        contract, parsed = self.resolve(sym)
+    def validated_strategies(self, root: str) -> set[str] | None:
+        """Strategy keys ('setup|direction') allowed to trade for this product. Filled by strategy research (P5)."""
+        reg = (self.evidence.get(root) or {}).get("validated")
+        return set(reg) if reg is not None else None
+
+    def last_plan(self, contract: str) -> dict | None:
+        """The most recent not-yet-acted plan for this contract today (to detect invalidation before entry)."""
+        from sqlalchemy import select
+        with self.db.session() as s:
+            row = s.scalars(select(FuturesDecisionRecord).where(FuturesDecisionRecord.contract == contract,
+                                                                FuturesDecisionRecord.outcome.in_(["WATCH_ONLY", "WAIT", "APPROVED"]))
+                            .order_by(FuturesDecisionRecord.last_seen.desc()).limit(1)).first()
+            if not row or row.acted:
+                return None
+            d = json.loads(row.data)
+        plan = d.get("plan")
+        if not plan or (datetime.now(timezone.utc) - datetime.fromisoformat(d["evaluated_at"])).total_seconds() > 3 * 3600:
+            return None
+        return plan
+
+    def record_decision(self, dec: dict) -> None:
+        with self.db.session() as s:
+            row = s.get(FuturesDecisionRecord, dec["id"])
+            if row is None:
+                s.add(FuturesDecisionRecord(id=dec["id"], contract=dec["contract"], bar_time=dec["bar_time"], outcome=dec["outcome"],
+                                            mode=dec["mode"], first_seen=dec["evaluated_at"], last_seen=dec["evaluated_at"],
+                                            data=json.dumps(dec, default=str)))
+            else:
+                row.outcome, row.last_seen, row.data = dec["outcome"], dec["evaluated_at"], json.dumps(dec, default=str)
+            s.commit()
+
+    def mark_acted(self, decision_id: str, order_id: str) -> None:
+        with self.db.session() as s:
+            row = s.get(FuturesDecisionRecord, decision_id)
+            if row:
+                row.acted = order_id
+                s.commit()
+
+    def decisions(self, contract: str | None = None, outcome: str | None = None, limit: int = 100) -> list[dict]:
+        from sqlalchemy import select
+        q = select(FuturesDecisionRecord).order_by(FuturesDecisionRecord.last_seen.desc()).limit(min(limit, 1000))
+        if contract:
+            q = q.where(FuturesDecisionRecord.contract == contract)
+        if outcome:
+            q = q.where(FuturesDecisionRecord.outcome == outcome)
+        with self.db.session() as s:
+            return [{**json.loads(r.data), "first_seen": r.first_seen, "last_seen": r.last_seen, "acted": r.acted} for r in s.scalars(q).all()]
+
+    async def evaluate_contract(self, contract: fc.Contract, tf: Timeframe = Timeframe.M5, mode: str = "assisted", record: bool = True):
         F, label, notes, clk = await self.frame(contract, tf)
+        cur, _, clk, _lab1 = await self._ref(contract)            # also feeds the simulator with the newest 1-minute bars
         now = datetime.now(timezone.utc)
         self.refresh_events()
         snap = self.engine.snapshot(now, clk)
@@ -226,11 +274,27 @@ class FuturesService:
         st = risk.evaluate(snap)
         pos = self.engine.positions.get(contract.code)
         stop = next((o.stop_price for o in self.engine.orders.values() if o.active and o.contract == contract.code and o.role == "stop_loss"), None)
+        F15 = None
+        if len(F) and tf == Timeframe.M5:
+            five = [{"ts": r.ts.to_pydatetime(), "open": r.o, "high": r.h, "low": r.l, "close": r.c, "volume": r.v} for r in F.itertuples()]
+            fifteen = resample(five, 15)
+            if fifteen and fifteen[-1]["ts"] + timedelta(minutes=15) > F["ts"].iloc[-1].to_pydatetime() + timedelta(minutes=5):
+                fifteen = fifteen[:-1]                                # still forming
+            F15 = ff.build(ff.bars_to_frame(fifteen, clk), contract.spec, clk, bar_minutes=15) if fifteen else None
         sig = fsig.evaluate(F, contract.spec, contract.code, label, self.evidence.get(contract.root, {}).get("by_setup", {}), now=now,
                             position=asdict(pos) if pos and pos.qty else None, position_stop=stop, risk_engine=risk, snapshot=snap,
                             round_turn=self.engine.round_turn(contract.root), slippage_ticks=self.engine.cfg.slippage_ticks_market,
                             flat_by_min_from_rth=self.flat_minutes(clk), minutes_to_flat=st["official"].get("minutes_to_flat"),
-                            events=self.events())
+                            events=self.events(), F15=F15, current_price=cur if _lab1.get("status") in ("realtime", "near_realtime", "polling") else None,
+                            validated=self.validated_strategies(contract.root), prev_plan=self.last_plan(contract.code), mode=mode)
+        if record and sig.get("decision"):
+            self.record_decision(sig["decision"])
+        return sig, F, label, notes, clk
+
+    async def analysis(self, sym: str, tf: Timeframe = Timeframe.M5) -> dict:
+        contract, parsed = self.resolve(sym)
+        sig, F, label, notes, clk = await self.evaluate_contract(contract, tf)
+        now = datetime.now(timezone.utc)
         self._maybe_alert(contract, sig)
         chart = [{"t": int(r.ts.timestamp()), "o": r.o, "h": r.h, "l": r.l, "c": r.c, "v": r.v} for r in F.tail(400).itertuples()] if len(F) else []
         return {"contract": contract.to_dict(), "parsed": parsed.to_dict(), "spec": contract.spec.to_dict(), "session": clk.state(now),
@@ -267,11 +331,11 @@ class FuturesService:
 
     # ---------------- paper ----------------
 
-    async def _ref(self, contract: fc.Contract) -> tuple[float | None, str, FuturesClock]:
+    async def _ref(self, contract: fc.Contract) -> tuple[float | None, str, FuturesClock, dict]:
         clk = self.clock(contract.root)
         bars, label, _ = await self.data.bars(contract, Timeframe.M1, clk, days=2)
         self._feed(contract, bars, label, clk)
-        return (bars[-1]["close"] if bars else None), label.get("status", "unavailable"), clk
+        return (bars[-1]["close"] if bars else None), label.get("status", "unavailable"), clk, label
 
     def _feed(self, contract: fc.Contract, bars: list[dict], label: dict, clk: FuturesClock) -> None:
         """Feed completed bars the simulator hasn't seen (marks, fills, flat time). The newest bar may still be forming,
@@ -308,19 +372,19 @@ class FuturesService:
 
     async def preview(self, body: dict) -> dict:
         contract, _ = self.resolve(body["contract"])
-        ref, status, clk = await self._ref(contract)
+        ref, status, clk, lab = await self._ref(contract)
         return self.engine.preview(contract.code, body["side"], int(body["qty"]), body.get("type", "market"), body.get("limit_price"),
-                                   body.get("stop_price"), body.get("bracket"), ref, datetime.now(timezone.utc), clk, status) | {
+                                   body.get("stop_price"), body.get("bracket"), ref, datetime.now(timezone.utc), clk, status, lab.get("age_seconds")) | {
                                        "ref_price": ref, "data_status": status}
 
     async def submit(self, body: dict) -> dict:
         if not body.get("confirm"):
             raise PermissionError("Confirm the paper order first (you must review it before it's placed in the simulator).")
         contract, _ = self.resolve(body["contract"])
-        ref, status, clk = await self._ref(contract)
+        ref, status, clk, lab = await self._ref(contract)
         o, pv = self.engine.submit(contract.code, body["side"], int(body["qty"]), body.get("type", "market"), body.get("limit_price"),
                                    body.get("stop_price"), body.get("bracket"), ref, datetime.now(timezone.utc), clk, status,
-                                   signal_id=body.get("signal_id"))
+                                   signal_id=body.get("signal_id"), data_age_seconds=lab.get("age_seconds"))
         self.save()
         self._push()
         return {"order": asdict(o) if o else None, "preview": pv}
@@ -337,7 +401,7 @@ class FuturesService:
         targets = [contract] if contract else [c for c, p in self.engine.positions.items() if p.qty]
         for c in targets:
             con, _ = self.resolve(c)
-            ref, status, clk = await self._ref(con)
+            ref, status, clk, lab = await self._ref(con)
             if status not in ("realtime", "near_realtime", "polling") and not (status == "delayed" and self.engine.cfg.allow_delayed_practice):
                 raise ValueError(f"Can't flatten {c} in the simulator on {status} data. (In replay, use the replay controls.)")
             fills += self.engine.flatten(con.code, now, "Flattened by you", price=ref, ts_basis=f"{status} last price")

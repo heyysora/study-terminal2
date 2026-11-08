@@ -131,6 +131,22 @@ class FuturesFillRecord(Base):
     data: Mapped[str] = mapped_column(Text)
 
 
+class FuturesDecisionRecord(Base):
+    """One decision-pipeline result per (contract, setup, direction, bar). Re-evaluations of the same bar update it."""
+
+    __tablename__ = "futures_decisions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    contract: Mapped[str] = mapped_column(String(16), index=True)
+    bar_time: Mapped[str | None] = mapped_column(String(40), index=True, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(16), index=True)
+    mode: Mapped[str] = mapped_column(String(16))
+    first_seen: Mapped[str] = mapped_column(String(40), index=True)
+    last_seen: Mapped[str] = mapped_column(String(40))
+    acted: Mapped[str | None] = mapped_column(String(64), nullable=True)   # order id when the automation acted on it
+    data: Mapped[str] = mapped_column(Text)
+
+
 class PaperStateRecord(Base):
     """Single row: account balances + open positions (JSON). Rewritten after every change."""
 

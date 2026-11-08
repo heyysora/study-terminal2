@@ -149,7 +149,8 @@ def test_signal_watch_only_without_reliable_evidence_and_long_short_with_it(F):
     from app.futures.paper import FuturesPaperEngine
     snap = FuturesPaperEngine(risk.rules, risk.personal).snapshot(G["ts"].iloc[-1].to_pydatetime(), None)
     out = fsig.evaluate(G, ES, "ESZ26", {"status": "polling"}, {}, risk_engine=risk, snapshot=snap, flat_by_min_from_rth=400)
-    assert out["action"] == "NO TRADE" and out["watch"] and out["watch"][0]["evidence_short"] == "untested"
+    assert out["action"] == "WATCH ONLY" and out["watch"] and out["watch"][0]["evidence_short"] == "untested"
+    assert out["decision"]["outcome"] == "WATCH_ONLY" and out["decision"]["steps"][6]["passed"] is False
     good = {key: {"tier": "reliable", "trades": 150, "days": 40}}
     out = fsig.evaluate(G, ES, "ESZ26", {"status": "polling"}, good, risk_engine=risk, snapshot=snap, flat_by_min_from_rth=400)
     assert out["action"] == ("LONG" if s.direction > 0 else "SHORT")
@@ -160,7 +161,7 @@ def test_signal_watch_only_without_reliable_evidence_and_long_short_with_it(F):
     # a high-impact release window turns it into watch-only
     out = fsig.evaluate(G, ES, "ESZ26", {"status": "polling"}, good, risk_engine=risk, snapshot=snap, flat_by_min_from_rth=400,
                         events={"gate": True, "reason": "CPI in 5 minutes"})
-    assert out["action"] == "NO TRADE" and "CPI" in out["reasons"][0]
+    assert out["action"] == "WATCH ONLY" and "CPI" in out["reasons"][0]
 
 
 def test_open_position_gets_hold_or_exit(F):

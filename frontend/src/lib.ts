@@ -146,7 +146,8 @@ export function actionClass(a?: string) {
   if (!a) return "act";
   if (a === "STRONG BUY") return "act strong";
   if (a === "BUY" || a === "LONG") return "act buy";
-  if (a === "HOLD") return "act wait";
+  if (a === "HOLD" || a === "WAIT FOR CONFIRMATION" || a === "WATCH ONLY") return "act wait";
+  if (a === "INVALIDATED") return "act exit";
   if (a === "EXIT") return "act exit";
   if (a === "SHORT") return "act short";
   if (a === "STRONG SHORT") return "act short strong-short";

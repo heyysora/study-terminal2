@@ -288,3 +288,9 @@ async def projectx_accounts(request: Request):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, str(e)) from e
     return {"accounts": accts, "note": "Read-only balances from TopstepX. Study Terminal can't place or change anything on these accounts."}
+
+
+@router.get("/decisions")
+def decisions(request: Request, contract: str | None = None, outcome: str | None = None, limit: int = 100):
+    """Stored decision-pipeline results, newest first, with every step's reasoning."""
+    return {"decisions": _f(request).decisions(contract, outcome, limit)}

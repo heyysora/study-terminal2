@@ -33,6 +33,19 @@ export function FuturesPlan({ s, decimals = 2, onUse }: { s: any; decimals?: num
   );
 }
 
+export function DecisionSteps({ d }: { d: any }) {
+  if (!d?.steps) return null;
+  return (
+    <details>
+      <summary className="small">Decision pipeline: {d.outcome.replace("_", " ")} · {d.reason}</summary>
+      <table className="small"><tbody>{d.steps.map((s: any) => <tr key={s.n}>
+        <td style={{ width: 22 }} className={s.passed === false ? "down" : s.passed ? "up" : "faint"}>{s.passed === false ? "✗" : s.passed ? "✓" : "–"}</td>
+        <td>{s.n}. {s.step}</td><td className="faint">{s.detail}</td></tr>)}</tbody></table>
+      <div className="small faint">Decision {d.id} · bar {d.bar_time ? etTime(d.bar_time) + " ET" : "—"} · data {d.data?.provider} {d.data?.status} · evaluated {etTime(d.evaluated_at)} ET</div>
+    </details>
+  );
+}
+
 function RiskPanel({ acct, onChange }: { acct: any; onChange: () => void }) {
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -380,6 +393,7 @@ export function Futures({ symbol }: { symbol?: string }) {
                 <div className="small">{sig?.reasons?.join(" ")}</div>
                 {plan && <FuturesPlan s={plan} decimals={dec} onUse={(s) => setPrefill({ ...s })} />}
                 {sig?.position && <div className="note small">{sig.position.reasons.join(" ")}</div>}
+                <DecisionSteps d={sig?.decision} />
                 {sig?.developing?.length > 0 && <div className="small muted">{sig.developing.map((t: string) => <div key={t}>{t}</div>)}</div>}
                 {sig?.rejected?.length > 0 && <details><summary className="small">Setups considered and rejected</summary>{sig.rejected.map((t: string) => <div key={t} className="small faint">{t}</div>)}</details>}
                 <div className="small faint">{sig?.sim_note}</div>

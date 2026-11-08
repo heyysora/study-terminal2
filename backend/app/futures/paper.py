@@ -69,6 +69,7 @@ class FOrder:
     bracket: dict | None = None   # entry only: {"stop": px, "targets": [{"price":, "qty":}]}
     signal_id: str | None = None
     note: str | None = None
+    origin: str = "manual"        # manual | automation | replay | sandbox
 
     @property
     def remaining(self) -> int:
@@ -270,7 +271,7 @@ class FuturesPaperEngine:
 
     def preview(self, contract: str, side: int, qty: int, type_: str, limit_price: float | None, stop_price: float | None,
                 bracket: dict | None, ref_price: float | None, now: datetime, clock: FuturesClock | None = None,
-                data_status: str | None = None) -> dict:
+                data_status: str | None = None, data_age_seconds: float | None = None) -> dict:
         p = fc.parse_symbol(contract)
         if not p or not p.contract:
             return {"ok": False, "problems": [f"'{contract}' isn't a specific futures contract (e.g. MESZ26)."]}
@@ -297,6 +298,9 @@ class FuturesPaperEngine:
             elif data_status not in ("replay",):
                 problems.append(f"Market data for {spec.root} is {data_status}. The simulator only fills on live data. Turn on delayed "
                                 "practice in Settings, use replay, or connect a live futures feed.")
+        lim = self.personal.max_data_age_seconds if self.personal.enabled else None
+        if lim and data_age_seconds is not None and data_status in TRADABLE and data_age_seconds > lim:
+            problems.append(f"Market data is {data_age_seconds:.0f} s old (your limit is {lim:g} s). Entries wait for fresh data.")
         entry_est = {"market": ref_price, "limit": limit_price, "stop": stop_price}.get(type_)
         slip = self.cfg.slippage_ticks_market if type_ == "market" else self.cfg.slippage_ticks_stop if type_ == "stop" else 0
         stop = (bracket or {}).get("stop")
@@ -327,20 +331,20 @@ class FuturesPaperEngine:
     def submit(self, contract: str, side: int, qty: int, type_: str, limit_price: float | None = None, stop_price: float | None = None,
                bracket: dict | None = None, ref_price: float | None = None, now: datetime | None = None,
                clock: FuturesClock | None = None, data_status: str | None = None, signal_id: str | None = None,
-               role: str = "entry") -> tuple[FOrder | None, dict]:
+               role: str = "entry", data_age_seconds: float | None = None, origin: str = "manual") -> tuple[FOrder | None, dict]:
         now = now or datetime.now(timezone.utc)
         if signal_id:
             dup = next((x for x in self.orders.values() if x.signal_id == signal_id and x.status != "rejected"), None)
             if dup:
                 return None, {"ok": False, "duplicate_of": dup.id,
                               "problems": [f"An order for this signal already exists ({dup.id}, {dup.status}). Duplicate entries are refused."]}
-        pv = self.preview(contract, side, qty, type_, limit_price, stop_price, bracket, ref_price, now, clock, data_status)
+        pv = self.preview(contract, side, qty, type_, limit_price, stop_price, bracket, ref_price, now, clock, data_status, data_age_seconds)
         if not pv["ok"]:
             return None, pv
         p = fc.parse_symbol(contract)
         o = FOrder(id=uuid.uuid4().hex[:12], contract=p.contract.code, root=p.root, side=side, qty=qty, type=type_,
                    limit_price=limit_price, stop_price=stop_price, role="exit" if pv["reducing"] and role == "entry" else role,
-                   bracket=bracket, created_at=_iso(now), updated_at=_iso(now), signal_id=signal_id)
+                   bracket=bracket, created_at=_iso(now), updated_at=_iso(now), signal_id=signal_id, origin=origin)
         self.orders[o.id] = o
         self._event("info", f"Paper order: {'BUY' if side > 0 else 'SELL'} {qty} {o.contract} {type_}"
                     + (f" @ {limit_price}" if limit_price else "") + (f" stop {stop_price}" if stop_price else ""), now)
