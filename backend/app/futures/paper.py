@@ -360,6 +360,27 @@ class FuturesPaperEngine:
                         c.status, c.reason = "canceled", "Entry canceled"
         return o
 
+    def modify_stop(self, contract: str, new_stop: float, now: datetime, reason: str, only_tighten: bool = True) -> dict | None:
+        """Move the protective stop of a position. Every change is recorded with its reason; by default a stop can only
+        move in the trade's favour (risk can be reduced, never silently increased)."""
+        pos = self.positions.get(contract)
+        stops = [o for o in self.orders.values() if o.active and o.contract == contract and o.role == "stop_loss"]
+        if not pos or not pos.qty or not stops:
+            return None
+        spec = fc.get(pos.root)
+        new_stop = fc.round_to_tick(new_stop, spec, "down" if pos.qty > 0 else "up")
+        d = 1 if pos.qty > 0 else -1
+        out = None
+        for o in stops:
+            if only_tighten and (new_stop - o.stop_price) * d <= 0:
+                continue
+            old = o.stop_price
+            o.stop_price, o.updated_at = new_stop, _iso(now)
+            o.note = ((o.note + "; ") if o.note else "") + f"stop {old:g} -> {new_stop:g} ({reason})"
+            out = {"contract": contract, "from": old, "to": new_stop, "reason": reason, "at": _iso(now)}
+            self._event("info", f"{contract}: stop moved {old:g} -> {new_stop:g}. Reason: {reason}", now)
+        return out
+
     def flatten(self, contract: str | None, now: datetime, reason: str = "Flattened by you", price: float | None = None,
                 ts_basis: str = "last price") -> list[FFill]:
         out = []

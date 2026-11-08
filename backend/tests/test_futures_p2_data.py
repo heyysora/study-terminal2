@@ -1,7 +1,6 @@
 """Futures data reliability: validation, missing candles, backoff with labeled cache, downtime gaps, platform default."""
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 from app.futures import contracts as fc
 from app.futures.data import FuturesData

@@ -294,3 +294,73 @@ async def projectx_accounts(request: Request):
 def decisions(request: Request, contract: str | None = None, outcome: str | None = None, limit: int = 100):
     """Stored decision-pipeline results, newest first, with every step's reasoning."""
     return {"decisions": _f(request).decisions(contract, outcome, limit)}
+
+
+# ---------------- automation ----------------
+
+def _a(request: Request):
+    return request.app.state.futures.automation
+
+
+@router.get("/automation")
+def automation_status(request: Request):
+    return _a(request).status()
+
+
+class ModeIn(BaseModel):
+    mode: Literal["assisted", "paper_auto", "live"]
+
+
+@router.post("/automation/mode")
+def automation_mode(body: ModeIn, request: Request):
+    try:
+        return _a(request).set_mode(body.mode)
+    except Exception as e:  # noqa: BLE001
+        _err(e)
+
+
+@router.put("/automation/config")
+def automation_config(body: dict, request: Request):
+    try:
+        return _a(request).configure(body)
+    except Exception as e:  # noqa: BLE001
+        _err(e)
+
+
+@router.post("/automation/{action}")
+async def automation_control(action: Literal["start", "pause", "resume", "stop", "emergency-stop", "clear-emergency", "cycle"],
+                             request: Request, body: dict | None = None):
+    a = _a(request)
+    try:
+        if action == "start":
+            return await a.start()
+        if action == "pause":
+            return a.pause()
+        if action == "resume":
+            return await a.resume()
+        if action == "stop":
+            return await a.stop()
+        if action == "emergency-stop":
+            return await a.emergency_stop((body or {}).get("reason") or "Emergency stop pressed")
+        if action == "clear-emergency":
+            return a.clear_emergency((body or {}).get("note", ""))
+        if action == "cycle":                       # run one evaluation pass now (also works while paused/stopped)
+            acts = await a.cycle()
+            return {"actions": acts, **a.status()}
+    except Exception as e:  # noqa: BLE001
+        _err(e)
+
+
+@router.get("/sandbox")
+def sandbox(request: Request):
+    f = request.app.state.futures
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    return {**f.sandbox.summary(now, f.clock("MES")), "label": "Research sandbox: experimental strategies only, never mixed with validated results."}
+
+
+@router.post("/sandbox/reset")
+def sandbox_reset(body: ResetIn, request: Request):
+    if not body.confirm:
+        raise HTTPException(400, "Confirm the sandbox reset.")
+    return request.app.state.futures.reset_sandbox()

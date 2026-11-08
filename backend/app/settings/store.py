@@ -36,7 +36,7 @@ SCHEMA: dict[str, tuple[type, Any]] = {
     "futures.prop": (dict, {}), "futures.personal": (dict, {}), "futures.paper": (dict, {}), "futures.fees": (dict, {}),
     "futures.default_root": (str, "MES"), "futures.watch": (list, ["ES", "NQ", "CL", "GC"]), "futures.data_source": (str, "yahoo"),
     "futures.projectx_live_data": (bool, False), "futures.projectx_read_account": (bool, False), "futures.rth": (dict, {}),
-    "screen.platform": (str, "auto"), "futures.platform": (str, "topstepx"), "screen.read_account_info": (bool, False), "app.market_mode": (str, "equities"),
+    "screen.platform": (str, "auto"), "futures.platform": (str, "topstepx"), "automation.autostart": (bool, True), "screen.read_account_info": (bool, False), "app.market_mode": (str, "equities"),
     "desktop.start_on_login": (bool, False), "desktop.keep_awake_while_monitoring": (bool, False),
 }
 

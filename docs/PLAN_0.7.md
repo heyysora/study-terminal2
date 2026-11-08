@@ -57,3 +57,16 @@ price; decisions stored once per bar in futures_decisions; invalidation of the p
 the order path; order origin), api /futures/decisions, UI pipeline steps and regime.
 Every simulated futures order still passes through one place: FuturesPaperEngine.preview -> RiskEngine.check_entry.
 Tests: 15 in tests/test_futures_pipeline.py; full suite passes.
+
+### P4 Automation engine (done)
+Changed: new futures/automation.py (modes A assisted / B automated paper / C live LOCKED with a verification checklist and no
+order-routing code; start/pause/resume/stop/emergency stop with a required review note to clear; monitor loop over NQ, MNQ, ES,
+MES front contracts; one order per decision id, never acting on an old bar, no entry while a position or entry is working;
+per-strategy management rules: partial at +1R, break-even, ATR trailing stop, max holding time, invalidation exit, entry
+validity window; research sandbox account for strategies that pass everything except validation), futures/paper.py (modify_stop
+records every stop change and only tightens by default), futures/service.py (sandbox engine persisted, both engines fed and
+reconciled, automation state persisted, monitoring resumes after restart and autostarts with the app unless the emergency stop is
+active), api /futures/automation*, /futures/sandbox.
+Tests: 12 in tests/test_futures_automation.py; full suite 310 passed.
+Not verified: a full trading session of automated paper trading on live data (only Yahoo delayed data is available here, and no
+strategy is validated, so mode B currently approves nothing; the sandbox is where experimental strategies run).

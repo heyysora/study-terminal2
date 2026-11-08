@@ -15,11 +15,9 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from ..backtest.stats import TRADE_OK
-from ..signals.engine import TIER_SHORT
-from .contracts import ProductSpec, size_for_risk
+from .contracts import ProductSpec
 from .features import recent_fvgs, sweep_events, volume_profile
-from .setups import SetupParams, detect, developing, key_levels
+from .setups import SetupParams, developing, key_levels
 
 TRADABLE = {"realtime", "near_realtime", "polling", "replay"}
 

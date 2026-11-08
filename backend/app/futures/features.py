@@ -258,4 +258,4 @@ def regime(F: pd.DataFrame, i: int) -> dict:
             day = "testing outside the initial balance"
     label = f"{'trending ' + trend if trend != 'undetermined' else 'no clear trend'}, {vol} volatility"
     return {"label": label, "trend": trend, "vs_vwap": vw, "volatility": vol, "atr_percentile": round(pct, 0) if pct is not None else None,
-            "day_type": day, "as_of": r["ts"].isoformat()}
+            "day_type": day, "atr": round(float(r["atr"]), 4) if pd.notna(r["atr"]) else None, "as_of": r["ts"].isoformat()}

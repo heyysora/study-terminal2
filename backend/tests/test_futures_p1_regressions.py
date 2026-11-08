@@ -32,8 +32,9 @@ class _Svc:
     """Just enough of FuturesService to call its _feed."""
     def __init__(self, e):
         from app.futures.service import FuturesService
-        self.engine = e
+        self.engine, self.sandbox = e, None
         self._feed = FuturesService._feed.__get__(self)
+        self._feed_one = FuturesService._feed_one.__get__(self)
 
 
 def test_c1_restart_applies_stop_hit_while_offline():

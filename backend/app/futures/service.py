@@ -24,7 +24,7 @@ from .risk import SIM_ONLY, PersonalRisk, PropRules, RiskEngine, load_presets
 from .sessions import FuturesClock
 
 log = logging.getLogger(__name__)
-ACCOUNT_ID, REPLAY_ID, EVIDENCE_ID = 1, 2, 3
+ACCOUNT_ID, REPLAY_ID, EVIDENCE_ID, AUTOMATION_ID, SANDBOX_ID = 1, 2, 3, 4, 5
 
 
 def resample(bars: list[dict], minutes: int) -> list[dict]:
@@ -61,6 +61,15 @@ class FuturesService:
             except Exception:  # noqa: BLE001
                 log.exception("futures paper state unreadable; starting fresh")
         self.evidence: dict = self._load(EVIDENCE_ID) or {}
+        self.sandbox = FuturesPaperEngine(self.rules(), self.personal(), self.paper_cfg(), self.fees_default)
+        sb = self._load(SANDBOX_ID)
+        if sb:
+            try:
+                self.sandbox.load_state(sb)
+            except Exception:  # noqa: BLE001
+                log.exception("sandbox state unreadable; starting fresh")
+        from .automation import AutomationEngine, AutomationState
+        self.automation = AutomationEngine(self, AutomationState.from_dict(self._load(AUTOMATION_ID)))
         self.replay: dict | None = None
         self.last_actions: dict[str, str] = {}
         self._task: asyncio.Task | None = None
@@ -84,6 +93,8 @@ class FuturesService:
     def apply(self, changes: dict | None = None) -> None:
         if changes is None or any(k.startswith("futures.") for k in changes):
             self.engine.rules, self.engine.personal, self.engine.cfg = self.rules(), self.personal(), self.paper_cfg()
+            if self.sandbox is not None:
+                self.sandbox.rules, self.sandbox.personal, self.sandbox.cfg = self.rules(), self.personal(), self.paper_cfg()
             if self.projectx:
                 self.projectx.live = bool(self.store.get("futures.projectx_live_data", False))
 
@@ -145,6 +156,12 @@ class FuturesService:
     def save(self) -> None:
         self._persist_fills(self.engine, "practice")
         self._save(ACCOUNT_ID, self.engine.to_state())
+        if self.sandbox is not None:
+            self._persist_fills(self.sandbox, "sandbox")
+            self._save(SANDBOX_ID, self.sandbox.to_state())
+
+    def save_automation(self, state: dict) -> None:
+        self._save(AUTOMATION_ID, state)
 
     def _persist_fills(self, eng: FuturesPaperEngine, account: str) -> None:
         if not eng.new_fills:
@@ -164,7 +181,8 @@ class FuturesService:
             rows = s.scalars(select(FuturesFillRecord).where(FuturesFillRecord.account == account).order_by(FuturesFillRecord.ts)).all()
             out = [FFill(**json.loads(r.data)) for r in rows]
         known = {f.id for f in out}
-        return out + [f for f in self.engine.fills if f.id not in known and account == "practice"]
+        eng = self.engine if account == "practice" else self.sandbox if account == "sandbox" else None
+        return out + ([f for f in eng.fills if f.id not in known] if eng else [])
 
     # ---------------- contracts / sessions ----------------
 
@@ -343,7 +361,11 @@ class FuturesService:
         "reconcile" bars, so stops and targets hit while the app was off are honoured instead of skipped."""
         if not bars:
             return
-        e = self.engine
+        for e in (self.engine, self.sandbox):
+            if e is not None:
+                self._feed_one(e, contract, bars, label, clk)
+
+    def _feed_one(self, e: FuturesPaperEngine, contract: fc.Contract, bars: list[dict], label: dict, clk: FuturesClock) -> None:
         status = label.get("status", "unavailable")
         last = e.last_bar_ts.get(contract.code)
         done = bars[:-1]
@@ -414,9 +436,18 @@ class FuturesService:
             self.set_prop({"starting_balance": float(starting_balance)})
             self.apply()
         self.engine.reset()
+        self.automation.state.managed = {k: v for k, v in self.automation.state.managed.items() if v.get("account") != "practice"}
         self.save()
+        self.automation.save()
         self._push()
         return {"ok": True, "balance": self.engine.balance}
+
+    def reset_sandbox(self) -> dict:
+        self.sandbox.reset()
+        self.automation.state.managed = {k: v for k, v in self.automation.state.managed.items() if v.get("account") != "sandbox"}
+        self.save()
+        self.automation.save()
+        return {"ok": True, "balance": self.sandbox.balance}
 
     def review(self, note: str) -> dict:
         out = self.engine.manual_review(note, datetime.now(timezone.utc))
@@ -475,8 +506,20 @@ class FuturesService:
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._loop())
+        a = self.automation
+        if a.state.status == "running" or (a.state.status == "stopped" and self.store.get("automation.autostart", True)):
+            was = a.state.status
+            await a.start()
+            a._log("info", "Monitoring resumed after a restart; missed bars are reconciled first." if was == "running"
+                   else "Monitoring started with Study Terminal (Settings > automation.autostart).")
+        elif a.state.status == "emergency_stopped":
+            a._log("high", "Study Terminal started with the emergency stop still active; automation stays off until you clear it.")
 
     async def stop(self) -> None:
+        if self.automation._task:
+            self.automation._task.cancel()
+            self.automation._task = None
+        self.save()
         if self._task:
             self._task.cancel()
             self._task = None
@@ -505,7 +548,10 @@ class FuturesService:
                                      key="fut:gap", fingerprint=gap["from"])
             self.refresh_events()
             try:
-                live = {o.contract for o in self.engine.orders.values() if o.active} | {c for c, p in self.engine.positions.items() if p.qty}
+                live = set()
+                for eng in (self.engine, self.sandbox):
+                    if eng is not None:
+                        live |= {o.contract for o in eng.orders.values() if o.active} | {c for c, p in eng.positions.items() if p.qty}
                 for code in live:
                     con, _ = self.resolve(code)
                     await self._ref(con)
