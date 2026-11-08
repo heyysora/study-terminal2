@@ -230,12 +230,15 @@ async def backtest(body: BacktestIn, request: Request):
 class ReplayIn(BaseModel):
     symbol: str
     trade_date: str
+    source_tf: Literal["auto", "1Min", "5Min"] = "auto"
+    auto: bool = False
+    auto_experimental: bool = False
 
 
 @router.post("/replay/start")
 async def replay_start(body: ReplayIn, request: Request):
     try:
-        return await _f(request).replay_start(body.symbol, body.trade_date)
+        return await _f(request).replay_start(body.symbol, body.trade_date, body.source_tf, body.auto, body.auto_experimental)
     except Exception as e:  # noqa: BLE001
         _err(e)
 
@@ -258,6 +261,24 @@ def replay_order(body: OrderIn, request: Request):
         return _f(request).replay_order(_order_dict(body))
     except Exception as e:  # noqa: BLE001
         _err(e)
+
+
+@router.get("/replay")
+def replay_state(request: Request):
+    try:
+        return _f(request).replayer.state()
+    except Exception as e:  # noqa: BLE001
+        _err(e)
+
+
+@router.get("/replay/review")
+def replay_review(request: Request):
+    return _f(request).replayer.review()
+
+
+@router.get("/journal/{account}")
+def journal_account(account: Literal["practice", "sandbox"], request: Request):
+    return _f(request).journal(account)
 
 
 @router.post("/replay/flatten")
@@ -373,3 +394,35 @@ async def research(body: BacktestIn, request: Request):
         return await _f(request).research(body.root, body.days)
     except Exception as e:  # noqa: BLE001
         _err(e)
+
+
+# ---------------- evaluation practice profiles ----------------
+
+class ProfileIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+
+
+@router.get("/risk/profiles")
+def profiles(request: Request):
+    return _f(request).profiles()
+
+
+@router.post("/risk/profiles/save")
+def profile_save(body: ProfileIn, request: Request):
+    try:
+        return _f(request).save_profile(body.name)
+    except Exception as e:  # noqa: BLE001
+        _err(e)
+
+
+@router.post("/risk/profiles/load")
+def profile_load(body: ProfileIn, request: Request):
+    try:
+        return _f(request).load_profile(body.name)
+    except Exception as e:  # noqa: BLE001
+        _err(e)
+
+
+@router.post("/risk/profiles/delete")
+def profile_delete(body: ProfileIn, request: Request):
+    return _f(request).delete_profile(body.name)

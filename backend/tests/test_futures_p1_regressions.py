@@ -168,3 +168,16 @@ def test_max_trades_per_session_and_slippage_limits():
     e2.on_bar("ESZ26", t, 6000, 6000, 6000, 6000, None, "polling", ES)
     o, pv = e2.submit("ESZ26", 1, 1, "market", ref_price=6000, now=t, clock=ES, data_status="polling", bracket={"stop": 5990.0, "targets": []})
     assert o is None and any("slippage" in p for p in pv["problems"])
+
+
+def test_overnight_session_is_not_past_the_flat_time():
+    """Regression (found by the replay tests): an 18:00 CT bar belongs to the next trade date, so it must not be
+    treated as after that calendar day's 15:10 flat time."""
+    e = eng(slippage_ticks_market=0)
+    t = utc("2026-11-11T00:05:00Z")                            # Tue 18:05 CT -> trade date Wed 11-11
+    long_es(e, t)
+    f = e.on_bar("ESZ26", t + timedelta(minutes=5), 6000, 6001, 5999.5, 6000, None, "polling", ES)
+    assert not any(x.role == "flatten" for x in f) and e.positions["ESZ26"].qty == 1
+    st = e.risk_status(t + timedelta(minutes=6), ES)
+    assert not any(b["code"] in ("flat_window", "after_flat") for b in st["blocks"])
+    assert st["official"]["minutes_to_flat"] > 1200

@@ -69,7 +69,9 @@ function RiskPanel({ acct, onChange }: { acct: any; onChange: () => void }) {
           {p.daily_loss_remaining != null && <tr><td>Your daily limit left</td><td className="r">{money(p.daily_loss_remaining)}</td></tr>}
           {o.profit_target && <tr><td>Profit target</td><td className="r">{money(o.profit)} of {money(o.profit_target, 0)} ({num(o.target_progress_pct, 0)}%)</td></tr>}
           {o.best_day_pct != null && <tr><td>Consistency (best day vs target)</td><td className={`r ${o.consistency_ok ? "" : "down"}`}>{num(o.best_day_pct, 0)}%</td></tr>}
-          {o.minutes_to_flat != null && <tr><td>Minutes until you must be flat</td><td className="r">{num(o.minutes_to_flat, 0)}</td></tr>}
+          {o.minutes_to_flat != null && <tr><td>Minutes until you must be flat</td><td className="r">{num(o.minutes_to_flat, 0)}{o.flat_reason ? <span className="small faint"> ({o.flat_reason})</span> : null}</td></tr>}
+          {o.evaluation_status && <tr><td>Evaluation status (practice)</td><td className="r">{o.evaluation_status}</td></tr>}
+          {o.days_traded != null && <tr><td>Trading days completed</td><td className="r">{o.days_traded}{o.winning_days != null ? ` · winning days ${o.winning_days}/${o.winning_days_required}` : ""}</td></tr>}
         </tbody></table>
         {!o.confirmed && o.enabled && <div className="note warn small">These prop-firm rules haven't been confirmed against your own account. Check them in Rules below.</div>}
         {r.warnings?.map((w: any) => <div key={w.code + w.text} className={`note ${w.level === "high" ? "bad" : "warn"} small`}>{w.text}</div>)}
@@ -191,22 +193,51 @@ function LevelsTable({ L, decimals }: { L: any; decimals: number }) {
 
 function Replay({ symbol, spec }: { symbol: string; spec: any }) {
   const [day, setDay] = useState("");
+  const [tf, setTf] = useState("auto");
+  const [auto, setAuto] = useState(false);
+  const [exp, setExp] = useState(false);
   const [st, setSt] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
-  const call = async (path: string, json: any) => { setErr(null); try { setSt(await api(path, { method: "POST", json })); } catch (e: any) { setErr(e.message); } };
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(2);
+  const review = usePoll("/futures/replay/review", 0, [st?.account?.fills?.length]);
+  const call = async (path: string, json?: any, method = "POST") => {
+    setErr(null);
+    try { const r = await api(path, json === undefined && method === "GET" ? {} : { method, json }); setSt(r); return r; }
+    catch (e: any) { setErr(e.message); setPlaying(false); }
+  };
+  useEffect(() => { api("/futures/replay").then(setSt).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!playing) return;
+    const t = setInterval(async () => {
+      const r = await call("/futures/replay/step", { bars: 1 });
+      if (!r || r.progress?.finished) setPlaying(false);
+    }, 1000 / speed);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, speed]);
   const bars = useMemo(() => (st?.chart || []).map((b: any) => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v })), [st]);
   const d = spec?.decimals ?? 2;
+  const rv = review.data;
   return (
     <div className="stack">
-      <Panel title="Replay a past session" sub="practice without live data; a separate simulated account">
+      <Panel title="Replay a past session" sub="signals only see bars already shown; separate account">
         <div className="row">
           <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label="Trade date" />
-          <button className="primary" disabled={!day} onClick={() => call("/futures/replay/start", { symbol, trade_date: day })}>Load {symbol}</button>
-          {st && <>{[1, 5, 15, 60].map((n) => <button key={n} onClick={() => call("/futures/replay/step", { bars: n })}>+{n} bar{n > 1 ? "s" : ""}</button>)}
-            <button onClick={async () => { await api("/futures/replay/flatten", { method: "POST" }); call("/futures/replay/step", { bars: 0 }); }}>Flatten</button></>}
+          <label className="f">Bars<select value={tf} onChange={(e) => setTf(e.target.value)}><option value="auto">Auto</option><option value="1Min">1-minute (last ~7 days)</option><option value="5Min">5-minute (last ~59 days)</option></select></label>
+          <label className="check"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />Automation acts on approved decisions</label>
+          <label className="check"><input type="checkbox" checked={exp} disabled={!auto} onChange={(e) => setExp(e.target.checked)} />…and experimental strategies</label>
+          <button className="primary" disabled={!day} onClick={() => { setPlaying(false); call("/futures/replay/start", { symbol, trade_date: day, source_tf: tf, auto, auto_experimental: exp }); }}>Load {symbol}</button>
         </div>
+        {st && <div className="row" style={{ marginTop: 8 }}>
+          <button onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
+          <label className="f">Speed<select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>{[1, 2, 4, 8].map((x) => <option key={x} value={x}>{x} bar/s</option>)}</select></label>
+          {[1, 5, 15, 60].map((n) => <button key={n} disabled={playing} onClick={() => call("/futures/replay/step", { bars: n })}>+{n}</button>)}
+          <button onClick={async () => { await api("/futures/replay/flatten", { method: "POST" }); call("/futures/replay/step", { bars: 0 }); }}>Flatten</button>
+        </div>}
         {err && <div className="note bad small">{err}</div>}
-        {st && <div className="small muted">{st.contract} · {etDate(st.bar_time)} {ct(st.bar_time)} · bar {st.progress.i} of {st.progress.of} ({st.timeframe}) · last {px(st.last, d)} · {st.note}</div>}
+        {st && <div className="small muted">{st.contract} · {etDate(st.bar_time)} {ct(st.bar_time)} · bar {st.progress.i} of {st.progress.of} ({st.timeframe} bars){st.progress.finished ? " · session finished" : ""} · last {px(st.last, d)}
+          {st.auto ? ` · automation ${st.auto_experimental ? "incl. experimental" : "approved only"}` : ""}. {st.validation}</div>}
       </Panel>
       {st && <>
         <CandleChart bars={bars} lines={levelLines(st.levels)} height={380} />
@@ -214,6 +245,8 @@ function Replay({ symbol, spec }: { symbol: string; spec: any }) {
           <Panel title="Signal at this bar" right={<Action a={st.signal.action} />}>
             <div className="small">{st.signal.reasons.join(" ")}</div>
             {(st.signal.signal || st.signal.watch?.[0]) && <FuturesPlan s={st.signal.signal || st.signal.watch[0]} decimals={d} />}
+            <DecisionSteps d={st.signal.decision} />
+            {st.auto_log?.length > 0 && <div className="small">{st.auto_log.slice(0, 5).map((x: any, i: number) => <div key={i}>{etTime(x.at)} ET {x.setup} {x.direction}: {x.result}{x.experimental ? " (experimental)" : ""}</div>)}</div>}
           </Panel>
           <Panel title="Replay account">
             <div className="levels"><div><div className="k">Balance</div><div className="v">{money(st.account.balance)}</div></div>
@@ -223,6 +256,12 @@ function Replay({ symbol, spec }: { symbol: string; spec: any }) {
         </div>
         <Ticket contract={st.contract} spec={spec} replay onDone={() => call("/futures/replay/step", { bars: 0 })} />
       </>}
+      {rv?.summary?.trades > 0 && <Panel title="Replay results (all sessions)" sub={rv.comparison_note}>
+        <table className="small"><thead><tr><th /><th className="r">Trades</th><th className="r">Net</th><th className="r">Win %</th><th className="r">Avg R</th><th className="r">PF</th><th className="r">Max DD</th></tr></thead>
+          <tbody>{[["All", rv.summary], ["Automated", rv.automated], ["Manual", rv.manual]].map(([k, m]: any) => <tr key={k}><td>{k}</td><td className="r">{m.trades}</td>
+            <td className={`r ${sign(m.net)}`}>{money(m.net)}</td><td className="r">{m.win_rate ?? "—"}</td><td className="r">{num(m.avg_r, 2)}</td><td className="r">{m.profit_factor ?? "—"}</td><td className="r">{money(m.max_drawdown)}</td></tr>)}</tbody></table>
+        {rv.summary.sample_warning && <div className="small faint">{rv.summary.sample_warning}</div>}
+      </Panel>}
     </div>
   );
 }
@@ -317,8 +356,28 @@ export function FuturesRules({ info, onChange }: { info: any; onChange: () => vo
           <button onClick={() => put("/futures/risk/personal", pers)}>Save my limits</button>
         </div>
       </Panel>
+      <Profiles onChange={onChange} />
       {msg && <div className="note">{msg}</div>}
     </div>
+  );
+}
+
+function Profiles({ onChange }: { onChange: () => void }) {
+  const p = usePoll("/futures/risk/profiles");
+  const [name, setName] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const act = async (path: string, n: string) => { try { await api(`/futures/risk/profiles/${path}`, { method: "POST", json: { name: n } }); p.reload(); onChange(); setMsg("Done."); } catch (e: any) { setMsg(e.message); } };
+  return (
+    <Panel title="Saved account profiles" sub={`active: ${p.data?.active || "—"}`}>
+      <div className="stack small">
+        <div className="row"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Combine 50K" aria-label="Profile name" />
+          <button onClick={() => act("save", name)} disabled={!name.trim()}>Save current rules and limits</button></div>
+        {Object.entries(p.data?.profiles || {}).map(([k, v]: any) => <div key={k} className="spread"><span>{k} <span className="faint">({v.prop.label}, saved {etDate(v.saved_at)})</span></span>
+          <span className="row"><button className="small" onClick={() => act("load", k)}>Load</button><button className="ghost small" onClick={() => act("delete", k)}>Delete</button></span></div>)}
+        <div className="faint">Loading a profile with a different account size asks you to reset the simulated account, so results from different rules never mix.</div>
+        {msg && <div className="note">{msg}</div>}
+      </div>
+    </Panel>
   );
 }
 

@@ -35,7 +35,7 @@
       "max_loss_limit": 2000, "mll_type": "eod_trailing", "mll_lock_balance": 0,
       "daily_loss_limit": null, "daily_loss_limit_optional_value": 1000, "dll_behavior": "soft_lockout",
       "profit_target": null, "consistency_pct": null, "consistency_basis": "total_profit",
-      "max_minis": null, "micro_ratio": 10, "scaling_plan": true,
+      "max_minis": null, "micro_ratio": 10, "scaling_plan": true, "winning_day_usd": 150, "winning_days_required": 5,
       "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
     },
     {
@@ -44,7 +44,7 @@
       "max_loss_limit": 3000, "mll_type": "eod_trailing", "mll_lock_balance": 0,
       "daily_loss_limit": null, "daily_loss_limit_optional_value": 2000, "dll_behavior": "soft_lockout",
       "profit_target": null, "consistency_pct": null, "consistency_basis": "total_profit",
-      "max_minis": null, "micro_ratio": 10, "scaling_plan": true,
+      "max_minis": null, "micro_ratio": 10, "scaling_plan": true, "winning_day_usd": 150, "winning_days_required": 5,
       "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
     },
     {
@@ -53,7 +53,7 @@
       "max_loss_limit": 4500, "mll_type": "eod_trailing", "mll_lock_balance": 0,
       "daily_loss_limit": null, "daily_loss_limit_optional_value": 3000, "dll_behavior": "soft_lockout",
       "profit_target": null, "consistency_pct": null, "consistency_basis": "total_profit",
-      "max_minis": null, "micro_ratio": 10, "scaling_plan": true,
+      "max_minis": null, "micro_ratio": 10, "scaling_plan": true, "winning_day_usd": 150, "winning_days_required": 5,
       "flat_by_ct": "15:10", "no_new_entries_after_ct": "15:08", "trade_day_start_ct": "17:00"
     },
     {
@@ -80,7 +80,9 @@
     "The Daily Loss Limit is optional at checkout for the Trading Combine and Express Funded Account. It is off in these presets; turn it on and set the amount only if your account has it.",
     "Express Funded Accounts use a Scaling Plan instead of a fixed maximum position size. The plan's tiers are not included; enter your current tier's limit as Max contracts.",
     "Some third-party sources describe a restriction on opening positions around CPI releases. Study Terminal could not confirm this on an official Topstep page, so it is not enforced; the economic calendar still warns you before CPI.",
-    "Topstep describes purposefully trading maximum position size into major news as prohibited conduct."
+    "Topstep describes purposefully trading maximum position size into major news as prohibited conduct.",
+    "Express Funded payout eligibility (Standard path): 5 winning days of $150 or more, as summarized by third-party guides of Topstep's payout policy. Shown as progress only; confirm on help.topstep.com.",
+    "The current Trading Combine parameters list no minimum number of trading days. Set one under Rules if your account has it."
   ],
   "fees": {
     "_about": "Round-turn dollars per contract on TopstepX (NFA + exchange + commission). Exchange fees change; edit these in Settings. Products without a verified number fall back to the commission only and are flagged.",

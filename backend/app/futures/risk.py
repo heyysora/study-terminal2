@@ -48,6 +48,9 @@ class PropRules:
     no_new_entries_after_ct: str | None = "15:08"
     trade_day_start_ct: str = "17:00"
     scaling_plan: bool = False
+    min_trading_days: int | None = None          # minimum days with trades before the target counts (None = no minimum)
+    winning_day_usd: float | None = None         # a "winning day" for payout paths (e.g. $150 on Express Funded Standard)
+    winning_days_required: int | None = None
     confirmed: bool = False
     confirmed_at: str | None = None
     enabled: bool = True
@@ -120,6 +123,8 @@ class AccountSnapshot:
     session_close: datetime | None = None          # today's actual close (earlier on holidays)
     trades_today: int = 0                          # entries already taken this trade date
     events: list = field(default_factory=list)     # [(name, datetime)] upcoming high-impact releases
+    days_traded: int = 0
+    winning_days: int = 0
 
     @property
     def equity(self) -> float:
@@ -162,17 +167,20 @@ def next_trade_day_start(now: datetime, start_ct: str = "17:00") -> datetime:
     return cand
 
 
-def effective_flat(rules: PropRules, now: datetime, session_close: datetime | None) -> tuple[datetime | None, datetime | None, str]:
-    """(flat_by, no_new_entries_after, why) for the trade date containing `now`. Topstep: flat by the firm's time or
-    the product's own close, whichever comes first, so holiday early closes pull the flat time earlier."""
-    now_ct = now.astimezone(CT)
+def effective_flat(rules: PropRules, now: datetime, session_close: datetime | None,
+                   trade_date=None) -> tuple[datetime | None, datetime | None, str]:
+    """(flat_by, no_new_entries_after, why) for the trade date containing `now`. The flat time belongs to the TRADE date
+    (a Tuesday 18:00 CT bar is Wednesday's session, flat by Wednesday 15:10). Topstep: flat by the firm's time or the
+    product's own close, whichever comes first, so holiday early closes pull the flat time earlier."""
+    from datetime import date as _date
+    day = (_date.fromisoformat(trade_date) if isinstance(trade_date, str) else trade_date) or now.astimezone(CT).date()
     flat = stop_new = None
     why = ""
     if rules.enabled and rules.flat_by_ct:
-        flat = datetime.combine(now_ct.date(), parse_hhmm(rules.flat_by_ct), tzinfo=CT)
-        lead = (flat - datetime.combine(now_ct.date(), parse_hhmm(rules.no_new_entries_after_ct or rules.flat_by_ct), tzinfo=CT))
+        flat = datetime.combine(day, parse_hhmm(rules.flat_by_ct), tzinfo=CT)
+        lead = (flat - datetime.combine(day, parse_hhmm(rules.no_new_entries_after_ct or rules.flat_by_ct), tzinfo=CT))
         why = f"{rules.firm} flat-by {rules.flat_by_ct} CT"
-        if session_close is not None and session_close.astimezone(CT).date() == now_ct.date():
+        if session_close is not None and session_close.astimezone(CT).date() == day:
             close_flat = session_close.astimezone(CT) - timedelta(minutes=2)
             if close_flat < flat:
                 flat, why = close_flat, f"early close today ({session_close.astimezone(CT):%H:%M} CT): flat 2 minutes before"
@@ -246,6 +254,11 @@ class RiskEngine:
                         if used >= th:
                             warn("dll_near", f"{used:.0%} of today's Daily Loss Limit is used (${left:,.2f} left).", "high" if th >= 0.75 else "medium")
                             break
+            # Evaluation status (practice): failed / target reached / in progress
+            official["days_traded"] = s.days_traded
+            if r.winning_day_usd:
+                official.update({"winning_days": s.winning_days, "winning_day_usd": r.winning_day_usd,
+                                 "winning_days_required": r.winning_days_required})
             # Position limit
             if r.max_minis:
                 official.update({"max_minis": r.max_minis, "max_micros": r.max_minis * r.micro_ratio})
@@ -264,8 +277,24 @@ class RiskEngine:
                 if pct is not None and pct > r.consistency_pct:
                     warn("consistency", f"Your best day (${best:,.2f}) is {pct:.0f}% of the {'profit target' if r.consistency_basis == 'profit_target' else 'total profit'}; "
                          f"the consistency target is {r.consistency_pct:.0f}% or less. More trading days are needed before it counts.", "low")
+            profit_now = s.equity - r.starting_balance
+            failed = bool(s.locks.get("mll_breached")) or any(b["code"] == "mll_breached" for b in blocks) or (
+                r.dll_behavior == "account_fail" and any(b["code"] == "dll_hit" for b in blocks))
+            days_ok = not r.min_trading_days or s.days_traded >= r.min_trading_days
+            cons_ok = official.get("consistency_ok", True)
+            if failed:
+                ev_status = "failed: Maximum Loss Limit reached" if s.locks.get("mll_breached") or any(b["code"] == "mll_breached" for b in blocks) else "failed: daily loss limit"
+            elif r.profit_target and profit_now >= r.profit_target:
+                ev_status = ("target reached" if days_ok and cons_ok else
+                             "target reached, but " + ", ".join(x for x, ok in (("the consistency target isn't met", cons_ok),
+                                                                                (f"only {s.days_traded} of {r.min_trading_days} trading days", days_ok)) if not ok))
+            elif r.winning_day_usd and r.winning_days_required:
+                ev_status = f"{s.winning_days} of {r.winning_days_required} winning days (${r.winning_day_usd:,.0f}+)"
+            else:
+                ev_status = "in progress"
+            official["evaluation_status"] = ev_status
             # Flat time (earlier of the firm's time and the product's close, e.g. holiday early halts)
-            flat, stop_new, why = effective_flat(r, s.now, s.session_close)
+            flat, stop_new, why = effective_flat(r, s.now, s.session_close, s.trade_date)
             if flat and s.trade_date:
                 if now_ct < flat:
                     mins = (flat - now_ct).total_seconds() / 60

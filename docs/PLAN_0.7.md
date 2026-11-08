@@ -82,3 +82,16 @@ Real-data result (NQ, MNQ, ES, MES, 2026-08-31 to 2026-11-06): no strategy valid
 intervals include zero; ES/MES slightly negative. Mode B therefore approves nothing; the sandbox is where these run.
 Tests: 4 in tests/test_futures_research.py.
 Not verified: results beyond Yahoo's ~59-day window (no longer history is available without a paid source).
+
+### P6 Evaluation practice + P7 Replay (done)
+P6: evaluation status (in progress / target reached / target reached but consistency or trading days missing / failed), trading
+days completed, winning-day progress for Express Funded payout paths ($150, 5 days, labeled "confirm"), optional minimum trading
+days, saved account profiles (rules + personal limits) with reset when the account changes.
+P7: new futures/replay.py: sessions persist across restarts (bars, orders, positions), 1- or 5-minute source bars, signals from
+completed 5-minute bars only, 15-minute confirmation, optional automation on approved (and opt-in experimental) decisions with one
+order per decision, review stats with automated vs manual replay trades; new futures/journal.py shared by practice, sandbox and
+replay (round trips, automated vs manual comparison, futures mistake checks); fills record their origin.
+Regression found and fixed: P1's holiday-aware flat time used the calendar date, so overnight bars (after 17:00 CT) were treated as
+past the flat time and flattened. The flat time now belongs to the trade date; test added.
+UI: replay play/pause/speed, timeframe, automation toggles, results; Rules tab shows evaluation status and profiles.
+Tests: 7 in tests/test_futures_p6_p7.py + 1 regression; full suite 322 passed.

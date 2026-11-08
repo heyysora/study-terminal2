@@ -76,7 +76,9 @@ class FuturesService:
                 log.exception("sandbox state unreadable; starting fresh")
         from .automation import AutomationEngine, AutomationState
         self.automation = AutomationEngine(self, AutomationState.from_dict(self._load(AUTOMATION_ID)))
-        self.replay: dict | None = None
+        from .replay import Replayer
+        self.replayer = Replayer(self)
+        self.replayer.restore(self._load(REPLAY_ID))
         self.last_actions: dict[str, str] = {}
         self._task: asyncio.Task | None = None
         self._bt_running: set[str] = set()
@@ -127,6 +129,35 @@ class FuturesService:
         self.store.update({"futures.prop": r.to_dict()})
         self._account_change(cur, r)
         return r.to_dict()
+
+    def profiles(self) -> dict:
+        return {"profiles": self.store.get("futures.profiles") or {}, "active": self.rules().label}
+
+    def save_profile(self, name: str) -> dict:
+        name = name.strip()[:60]
+        if not name:
+            raise ValueError("Give the profile a name.")
+        prof = dict(self.store.get("futures.profiles") or {})
+        prof[name] = {"prop": self.rules().to_dict(), "personal": self.personal().to_dict(), "saved_at": datetime.now(timezone.utc).isoformat()}
+        self.store.update({"futures.profiles": prof})
+        return self.profiles()
+
+    def load_profile(self, name: str) -> dict:
+        prof = (self.store.get("futures.profiles") or {}).get(name)
+        if not prof:
+            raise KeyError(f"No profile named {name}")
+        cur = self.rules()
+        new = PropRules.from_dict(prof["prop"])
+        self.store.update({"futures.prop": new.to_dict(), "futures.personal": prof["personal"]})
+        self._account_change(cur, new)
+        self.apply()
+        return {**self.profiles(), "loaded": name}
+
+    def delete_profile(self, name: str) -> dict:
+        prof = dict(self.store.get("futures.profiles") or {})
+        prof.pop(name, None)
+        self.store.update({"futures.profiles": prof})
+        return self.profiles()
 
     def _account_change(self, old: PropRules, new: PropRules) -> None:
         """A different account size or drawdown rule means a different account. A fresh account is re-based silently;
@@ -465,48 +496,12 @@ class FuturesService:
         root = next((p.root for p in self.engine.positions.values() if p.qty), self.store.get("futures.default_root", "MES"))
         return self.engine.summary(now, self.clock(fc.parse_symbol(root, allow_bare_root=True).root))
 
-    def journal(self) -> dict:
-        """Round trips from futures paper fills, net of fees, with R when the entry had a bracket stop."""
-        trips, cur = [], {}
-        orders = self.engine.orders
-        for f in self.all_fills("practice"):
-            t = cur.get(f.contract)
-            if t is None:
-                o = orders.get(f.order_id)
-                stop = (o.bracket or {}).get("stop") if o else None
-                t = cur[f.contract] = {"contract": f.contract, "root": f.root, "direction": "long" if f.side > 0 else "short", "opened": f.ts,
-                                       "qty": 0, "max_qty": 0, "entry_value": 0.0, "exit_value": 0.0, "exit_qty": 0, "fees": 0.0,
-                                       "realized": 0.0, "stop": stop, "signal_id": o.signal_id if o else None, "exits": []}
-            t["fees"] += f.fee
-            sgn = 1 if t["direction"] == "long" else -1
-            if f.side == sgn:
-                t["qty"] += f.qty
-                t["max_qty"] = max(t["max_qty"], t["qty"])
-                t["entry_value"] += f.price * f.qty
-            else:
-                t["qty"] -= f.qty
-                t["exit_value"] += f.price * f.qty
-                t["exit_qty"] += f.qty
-                t["realized"] += f.realized
-                t["exits"].append(f.role)
-            if t["qty"] <= 0:
-                spec = fc.get(t["root"])
-                entry = t["entry_value"] / max(t["max_qty"], 1)
-                net = round(t["realized"] - t["fees"], 2)
-                risk = abs(fc.ticks_between(entry, t["stop"], spec)) * spec.tick_value * t["max_qty"] if t["stop"] else None
-                trips.append({"contract": t["contract"], "direction": t["direction"], "contracts": t["max_qty"], "opened": t["opened"], "closed": f.ts,
-                              "entry": round(entry, spec.decimals + 2), "exit": round(t["exit_value"] / max(t["exit_qty"], 1), spec.decimals + 2),
-                              "gross": round(t["realized"], 2), "fees": round(t["fees"], 2), "net": net, "stop": t["stop"],
-                              "r": round(net / risk, 2) if risk else None, "exit_reason": t["exits"][-1] if t["exits"] else None,
-                              "signal_id": t["signal_id"], "trade_date": f.trade_date})
-                del cur[f.contract]
-        n = len(trips)
-        wins = sum(1 for t in trips if t["net"] > 0)
-        return {"trades": trips[::-1], "summary": {"trades": n, "net": round(sum(t["net"] for t in trips), 2),
-                                                    "win_rate": round(100 * wins / n, 1) if n else None,
-                                                    "fees": round(sum(t["fees"] for t in trips), 2),
-                                                    "sample_warning": "Fewer than 30 trades: results say little yet." if n < 30 else None},
-                "review_log": self.engine.review_log[::-1]}
+    def journal(self, account: str = "practice") -> dict:
+        """Round trips from futures simulator fills, net of fees, with R when the entry had a bracket stop."""
+        from .journal import journal_report
+        eng = self.engine if account == "practice" else self.sandbox
+        return {**journal_report(self.all_fills(account), eng.orders, self.decisions(limit=500)), "account": account,
+                "review_log": eng.review_log[::-1]}
 
     # ---------------- background ----------------
 
@@ -631,86 +626,19 @@ class FuturesService:
         finally:
             self._bt_running.discard(spec.root)
 
-    # ---------------- replay ----------------
+    # ---------------- replay (see replay.py) ----------------
 
-    async def replay_start(self, sym: str, trade_date: str) -> dict:
-        contract, _ = self.resolve(sym, date.fromisoformat(trade_date))
-        clk = self.clock(contract.root)
-        w = clk.window(date.fromisoformat(trade_date))
-        if not w:
-            raise ValueError(f"{contract.root} didn't trade on {trade_date} (weekend or holiday).")
-        age = (datetime.now(timezone.utc) - w.open).days
-        tf = Timeframe.M1 if age <= 6 else Timeframe.M5
-        if age > 58:
-            raise ValueError("Yahoo only keeps about 59 days of intraday futures bars; pick a more recent date.")
-        hist_start = (clk.prev_window(w.trade_date) or w).open - timedelta(days=4)
-        raw, _ = await self.data.yahoo.get_bars(contract.yahoo_symbol, tf, hist_start, w.close + timedelta(minutes=1))
-        bars = [{"ts": b.ts, "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume} for b in raw]
-        if not any(w.contains(b["ts"]) for b in bars):
-            raise ValueError(f"No {contract.code} bars for {trade_date} from Yahoo.")
-        start_i = next(i for i, b in enumerate(bars) if w.contains(b["ts"]))
-        eng = FuturesPaperEngine(self.engine.rules, self.engine.personal, FuturesPaperConfig(**{**self.engine.cfg.to_dict()}), self.fees_default)
-        self.replay = {"contract": contract.code, "root": contract.root, "trade_date": trade_date, "bars": bars, "i": start_i, "start_i": start_i,
-                       "tf": tf.value, "engine": eng, "end_ts": w.close}
-        return await self.replay_step(0)
+    async def replay_start(self, sym: str, trade_date: str, source_tf: str = "auto", auto: bool = False, auto_experimental: bool = False) -> dict:
+        return await self.replayer.start(sym, trade_date, source_tf, auto, auto_experimental)
 
     async def replay_step(self, n: int = 1) -> dict:
-        rp = self.replay
-        if not rp:
-            raise ValueError("No replay running.")
-        clk = self.clock(rp["root"])
-        eng: FuturesPaperEngine = rp["engine"]
-        for _ in range(max(0, n)):
-            if rp["i"] >= len(rp["bars"]) - 1 or rp["bars"][rp["i"] + 1]["ts"] >= rp["end_ts"]:
-                break
-            rp["i"] += 1
-            b = rp["bars"][rp["i"]]
-            eng.on_bar(rp["contract"], b["ts"], b["open"], b["high"], b["low"], b["close"], b["volume"], "replay", clk)
-        seen = rp["bars"][:rp["i"] + 1]
-        minutes = 1 if rp["tf"] == "1Min" else 5
-        five = resample(seen, 5) if minutes == 1 else seen
-        if minutes == 1 and five and five[-1]["ts"] + timedelta(minutes=5) > seen[-1]["ts"] + timedelta(minutes=1):
-            five = five[:-1]   # the last 5-minute bar is still forming
-        F = ff.build(ff.bars_to_frame(five, clk), fc.get(rp["root"]), clk)
-        now = seen[-1]["ts"] + timedelta(minutes=minutes)
-        spec = fc.get(rp["root"])
-        risk = RiskEngine(eng.rules, eng.personal)
-        snap = eng.snapshot(now, clk)
-        pos = eng.positions.get(rp["contract"])
-        stop = next((o.stop_price for o in eng.orders.values() if o.active and o.role == "stop_loss"), None)
-        sig = fsig.evaluate(F, spec, rp["contract"], {"status": "replay", "reason": "Replaying a past session"},
-                            self.evidence.get(rp["root"], {}).get("by_setup", {}), now=now,
-                            position=asdict(pos) if pos and pos.qty else None, position_stop=stop, risk_engine=risk, snapshot=snap,
-                            round_turn=eng.round_turn(rp["root"]), slippage_ticks=eng.cfg.slippage_ticks_market,
-                            flat_by_min_from_rth=self.flat_minutes(clk))
-        return {"contract": rp["contract"], "trade_date": rp["trade_date"], "bar_time": seen[-1]["ts"].isoformat(), "timeframe": rp["tf"],
-                "progress": {"i": rp["i"] - rp["start_i"], "of": sum(1 for b in rp["bars"] if b["ts"] < rp["end_ts"]) - rp["start_i"]},
-                "last": seen[-1]["close"], "levels": fsig.levels_snapshot(F, spec) if len(F) else {}, "signal": sig,
-                "account": eng.summary(now, clk),
-                "chart": [{"t": int(b["ts"].timestamp()), "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"], "v": b["volume"]}
-                          for b in five[-300:]],
-                "note": "Replay: a past session bar by bar. Fills use the replayed bars; this account is separate from your practice account."}
+        return self.replayer.step(n)
 
     def replay_order(self, body: dict) -> dict:
-        rp = self.replay
-        if not rp:
-            raise ValueError("No replay running.")
-        if not body.get("confirm"):
-            raise PermissionError("Confirm the replay order first.")
-        eng: FuturesPaperEngine = rp["engine"]
-        b = rp["bars"][rp["i"]]
-        now = b["ts"] + timedelta(minutes=1 if rp["tf"] == "1Min" else 5)
-        o, pv = eng.submit(rp["contract"], body["side"], int(body["qty"]), body.get("type", "market"), body.get("limit_price"), body.get("stop_price"),
-                           body.get("bracket"), b["close"], now, self.clock(rp["root"]), "replay")
-        return {"order": asdict(o) if o else None, "preview": pv}
+        return self.replayer.order(body)
 
     def replay_flatten(self) -> dict:
-        rp = self.replay
-        if not rp:
-            raise ValueError("No replay running.")
-        b = rp["bars"][rp["i"]]
-        fills = rp["engine"].flatten(rp["contract"], b["ts"], "Flattened by you (replay)", price=b["close"], ts_basis="replay bar close")
-        return {"fills": [asdict(f) for f in fills]}
+        return self.replayer.flatten()
 
     # ---------------- screen (TopstepX or futures on TradingView) ----------------
 

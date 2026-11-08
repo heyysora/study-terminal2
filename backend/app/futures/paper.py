@@ -97,6 +97,7 @@ class FFill:
     role: str
     realized: float = 0.0
     fee_note: str | None = None
+    origin: str = "manual"
 
 
 @dataclass
@@ -230,7 +231,10 @@ class FuturesPaperEngine:
                                mll_floor=self.mll_floor, daily_results=dict(self.daily), consecutive_losses=consec,
                                open_mini_equivalent=self.open_mini_eq(), open_risk_usd=risk, unprotected=missing, locks=self.locks,
                                rth=clock.is_rth(now) if clock else True, session_close=w.close if w else None,
-                               trades_today=self.entries_today.get(td or "", 0), events=list(self.upcoming_events))
+                               trades_today=self.entries_today.get(td or "", 0), events=list(self.upcoming_events),
+                               days_traded=len({d for d, n in self.entries_today.items() if n and d}),
+                               winning_days=sum(1 for d, v in {**self.daily, **({td: day} if td else {})}.items()
+                                                if self.rules.winning_day_usd and v >= self.rules.winning_day_usd))
 
     def risk_status(self, now: datetime, clock: FuturesClock | None = None) -> dict:
         return RiskEngine(self.rules, self.personal).evaluate(self.snapshot(now, clock))
@@ -453,7 +457,7 @@ class FuturesPaperEngine:
             pos.mark, pos.mark_ts, pos.mark_status = c, _iso(ts), status
         self._check_mll(ts)
         if w and self.cfg.auto_flatten and any(p.qty for p in self.positions.values()):
-            flat, _, why = effective_flat(self.rules, ts, w.close)
+            flat, _, why = effective_flat(self.rules, ts, w.close, w.trade_date)
             if flat and ts.astimezone(fc.CT) >= flat and ts < w.close:
                 fills += self.flatten(contract, ts, f"Flattened at {flat.astimezone(fc.CT):%H:%M} CT ({why})", price=c)
         if w:
@@ -518,7 +522,8 @@ class FuturesPaperEngine:
         if td:
             self.day_realized[td] = round(self.day_realized.get(td, 0.0) + realized - fee, 2)
         f = FFill(id=uuid.uuid4().hex[:12], order_id=od.id, contract=od.contract, root=od.root, side=od.side, qty=qty, price=price,
-                  ts=_iso(ts), trade_date=td, fee=fee, slippage_ticks=slip_ticks, basis=basis, role=od.role, realized=realized, fee_note=fee_note)
+                  ts=_iso(ts), trade_date=td, fee=fee, slippage_ticks=slip_ticks, basis=basis, role=od.role, realized=realized, fee_note=fee_note,
+                  origin=od.origin)
         self.fills.append(f)
         self.new_fills.append(f)
         if od.role == "entry" and od.filled_qty == 0:
