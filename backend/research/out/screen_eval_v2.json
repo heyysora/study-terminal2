@@ -1,0 +1,2001 @@
+{
+ "rows": [
+  {
+   "file": "tv_AAPL_1_light_1600x900.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.47,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 342.35,
+     "truth": 342.37,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.001
+    }
+   },
+   "read": {
+    "ticker": "AAPL",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 342.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AAPL",
+    "interval": "1",
+    "price": null,
+    "page_title": "AAPL 342.37 \u25bc \u22120.52%"
+   }
+  },
+  {
+   "file": "tv_AAPL_1_light_1600x900.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 2.13,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 342.35,
+     "truth": 342.37,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.001
+    }
+   },
+   "read": {
+    "ticker": "AAPL",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Min",
+    "visible_price": 342.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AAPL",
+    "interval": "1",
+    "price": null,
+    "page_title": "AAPL 342.37 \u25bc \u22120.52%"
+   }
+  },
+  {
+   "file": "tv_AAPL_15_dark_1920x1080.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 2.31,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 342.35,
+     "truth": 342.37,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.013
+    }
+   },
+   "read": {
+    "ticker": "AAPL",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 342.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AAPL",
+    "interval": "15",
+    "price": null,
+    "page_title": "AAPL 342.37 \u25bc \u22120.52%"
+   }
+  },
+  {
+   "file": "tv_AAPL_15_dark_1920x1080.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 2.27,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 342.35,
+     "truth": 342.37,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.013
+    }
+   },
+   "read": {
+    "ticker": "AAPL",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "15Min",
+    "visible_price": 342.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AAPL",
+    "interval": "15",
+    "price": null,
+    "page_title": "AAPL 342.37 \u25bc \u22120.52%"
+   }
+  },
+  {
+   "file": "tv_AAPL_D_light_1366x768.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 6.69,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 342.37,
+     "truth": 342.37,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 11,
+     "max_error_pct": 0.059
+    }
+   },
+   "read": {
+    "ticker": "AAPL",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Day",
+    "visible_price": 342.37,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "AAPL",
+    "interval": "D",
+    "price": null,
+    "page_title": "AAPL 342.37 \u25bc \u22120.52%"
+   }
+  },
+  {
+   "file": "tv_AAPL_D_light_1366x768.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 6.2,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 342.37,
+     "truth": 342.37,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 11,
+     "max_error_pct": 0.059
+    }
+   },
+   "read": {
+    "ticker": "AAPL",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Day",
+    "visible_price": 342.37,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "AAPL",
+    "interval": "D",
+    "price": null,
+    "page_title": "AAPL 342.37 \u25bc \u22120.52%"
+   }
+  },
+  {
+   "file": "tv_NVDA_5_dark_1920x1080.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 8.67,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 186.69,
+     "truth": 186.64,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 30,
+     "max_error_pct": 0.034
+    }
+   },
+   "read": {
+    "ticker": "NVDA",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 186.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NVDA",
+    "interval": "5",
+    "price": null,
+    "page_title": "NVDA 186.64 \u25b2 +2.78%"
+   }
+  },
+  {
+   "file": "tv_NVDA_5_dark_1920x1080.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 8.17,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 186.69,
+     "truth": 186.64,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 30,
+     "max_error_pct": 0.034
+    }
+   },
+   "read": {
+    "ticker": "NVDA",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "5Min",
+    "visible_price": 186.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NVDA",
+    "interval": "5",
+    "price": null,
+    "page_title": "NVDA 186.64 \u25b2 +2.78%"
+   }
+  },
+  {
+   "file": "tv_NVDA_60_light_1366x768.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 6.66,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 186.69,
+     "truth": 186.64,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 15,
+     "max_error_pct": 0.059
+    }
+   },
+   "read": {
+    "ticker": "NVDA",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Hour",
+    "visible_price": 186.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NVDA",
+    "interval": "60",
+    "price": null,
+    "page_title": "NVDA 186.64 \u25b2 +2.78%"
+   }
+  },
+  {
+   "file": "tv_NVDA_60_light_1366x768.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 6.74,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 186.69,
+     "truth": 186.64,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 15,
+     "max_error_pct": 0.059
+    }
+   },
+   "read": {
+    "ticker": "NVDA",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Hour",
+    "visible_price": 186.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NVDA",
+    "interval": "60",
+    "price": null,
+    "page_title": "NVDA 186.64 \u25b2 +2.78%"
+   }
+  },
+  {
+   "file": "tv_NVDA_1_dark_1280x720.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 7.59,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 186.69,
+     "truth": 186.64,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.003
+    }
+   },
+   "read": {
+    "ticker": "NVDA",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 186.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NVDA",
+    "interval": "1",
+    "price": null,
+    "page_title": "NVDA 186.64 \u25b2 +2.78%"
+   }
+  },
+  {
+   "file": "tv_NVDA_1_dark_1280x720.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 7.4,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 186.69,
+     "truth": 186.64,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.003
+    }
+   },
+   "read": {
+    "ticker": "NVDA",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Min",
+    "visible_price": 186.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NVDA",
+    "interval": "1",
+    "price": null,
+    "page_title": "NVDA 186.64 \u25b2 +2.78%"
+   }
+  },
+  {
+   "file": "tv_TSLA_15_light_1366x768.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 7.17,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 358.26,
+     "truth": 358.22,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.063
+    }
+   },
+   "read": {
+    "ticker": "TSLA",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 358.26,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "TSLA",
+    "interval": "15",
+    "price": null,
+    "page_title": "TSLA 358.22 \u25b2 +4.23%"
+   }
+  },
+  {
+   "file": "tv_TSLA_15_light_1366x768.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 6.89,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 358.26,
+     "truth": 358.22,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.063
+    }
+   },
+   "read": {
+    "ticker": "TSLA",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "15Min",
+    "visible_price": 358.26,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "TSLA",
+    "interval": "15",
+    "price": null,
+    "page_title": "TSLA 358.22 \u25b2 +4.23%"
+   }
+  },
+  {
+   "file": "tv_TSLA_D_dark_1280x720.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 7.8,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 358.22,
+     "truth": 358.22,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.051
+    }
+   },
+   "read": {
+    "ticker": "TSLA",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Day",
+    "visible_price": 358.22,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "TSLA",
+    "interval": "D",
+    "price": null,
+    "page_title": "TSLA 358.22 \u25b2 +4.23%"
+   }
+  },
+  {
+   "file": "tv_TSLA_D_dark_1280x720.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 7.8,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 358.22,
+     "truth": 358.22,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.051
+    }
+   },
+   "read": {
+    "ticker": "TSLA",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Day",
+    "visible_price": 358.22,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "TSLA",
+    "interval": "D",
+    "price": null,
+    "page_title": "TSLA 358.22 \u25b2 +4.23%"
+   }
+  },
+  {
+   "file": "tv_TSLA_5_light_1600x900.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.37,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 358.26,
+     "truth": 358.22,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 26,
+     "max_error_pct": 0.024
+    }
+   },
+   "read": {
+    "ticker": "TSLA",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 358.26,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "TSLA",
+    "interval": "5",
+    "price": null,
+    "page_title": "TSLA 358.22 \u25b2 +4.23%"
+   }
+  },
+  {
+   "file": "tv_TSLA_5_light_1600x900.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 2.42,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 358.26,
+     "truth": 358.22,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 26,
+     "max_error_pct": 0.024
+    }
+   },
+   "read": {
+    "ticker": "TSLA",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "5Min",
+    "visible_price": 358.26,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "TSLA",
+    "interval": "5",
+    "price": null,
+    "page_title": "TSLA 358.22 \u25b2 +4.23%"
+   }
+  },
+  {
+   "file": "tv_SPY_60_dark_1280x720.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 7.57,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 735.39,
+     "truth": 735.29,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 12,
+     "max_error_pct": 0.014
+    }
+   },
+   "read": {
+    "ticker": "SPY",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Hour",
+    "visible_price": 735.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "SPY",
+    "interval": "60",
+    "price": null,
+    "page_title": "SPY 735.29 \u25b2 +0.31%"
+   }
+  },
+  {
+   "file": "tv_SPY_60_dark_1280x720.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 7.42,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 735.39,
+     "truth": 735.29,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 12,
+     "max_error_pct": 0.014
+    }
+   },
+   "read": {
+    "ticker": "SPY",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Hour",
+    "visible_price": 735.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "SPY",
+    "interval": "60",
+    "price": null,
+    "page_title": "SPY 735.29 \u25b2 +0.31%"
+   }
+  },
+  {
+   "file": "tv_SPY_1_light_1600x900.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.25,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 735.39,
+     "truth": 735.29,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.001
+    }
+   },
+   "read": {
+    "ticker": "SPY",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 735.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "SPY",
+    "interval": "1",
+    "price": null,
+    "page_title": "SPY 735.29 \u25b2 +0.31%"
+   }
+  },
+  {
+   "file": "tv_SPY_1_light_1600x900.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 2.25,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 735.39,
+     "truth": 735.29,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.001
+    }
+   },
+   "read": {
+    "ticker": "SPY",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Min",
+    "visible_price": 735.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "SPY",
+    "interval": "1",
+    "price": null,
+    "page_title": "SPY 735.29 \u25b2 +0.31%"
+   }
+  },
+  {
+   "file": "tv_SPY_15_dark_1920x1080.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 2.44,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 735.39,
+     "truth": 735.29,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 25,
+     "max_error_pct": 0.013
+    }
+   },
+   "read": {
+    "ticker": "SPY",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 735.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "SPY",
+    "interval": "15",
+    "price": null,
+    "page_title": "SPY 735.29 \u25b2 +0.31%"
+   }
+  },
+  {
+   "file": "tv_SPY_15_dark_1920x1080.png",
+   "folder": "tvset_a",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 2.49,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 735.39,
+     "truth": 735.29,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 25,
+     "max_error_pct": 0.013
+    }
+   },
+   "read": {
+    "ticker": "SPY",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "15Min",
+    "visible_price": 735.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "SPY",
+    "interval": "15",
+    "price": null,
+    "page_title": "SPY 735.29 \u25b2 +0.31%"
+   }
+  },
+  {
+   "file": "tv_AMD_D_light_1600x900.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 8.3,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "unknown",
+    "price": "correct",
+    "price_detail": {
+     "read": 449.04,
+     "truth": 449.04,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.191
+    }
+   },
+   "read": {
+    "ticker": "AMD",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": null,
+    "visible_price": 449.04,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [
+     "timeframe"
+    ],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AMD",
+    "interval": "D",
+    "price": null,
+    "page_title": "AMD 449.04 \u25b2 +11.04%"
+   }
+  },
+  {
+   "file": "tv_AMD_D_light_1600x900.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 7.71,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "unknown",
+    "price": "correct",
+    "price_detail": {
+     "read": 449.04,
+     "truth": 449.04,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.191
+    }
+   },
+   "read": {
+    "ticker": "AMD",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": null,
+    "visible_price": 449.04,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [
+     "timeframe"
+    ],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AMD",
+    "interval": "D",
+    "price": null,
+    "page_title": "AMD 449.04 \u25b2 +11.04%"
+   }
+  },
+  {
+   "file": "tv_AMD_5_dark_1920x1080.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 3.05,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 449.03,
+     "truth": 449.04,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 26,
+     "max_error_pct": 0.051
+    }
+   },
+   "read": {
+    "ticker": "AMD",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 449.03,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AMD",
+    "interval": "5",
+    "price": null,
+    "page_title": "AMD 449.04 \u25b2 +11.04%"
+   }
+  },
+  {
+   "file": "tv_AMD_5_dark_1920x1080.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 2.9,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 449.03,
+     "truth": 449.04,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 26,
+     "max_error_pct": 0.051
+    }
+   },
+   "read": {
+    "ticker": "AMD",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "5Min",
+    "visible_price": 449.03,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AMD",
+    "interval": "5",
+    "price": null,
+    "page_title": "AMD 449.04 \u25b2 +11.04%"
+   }
+  },
+  {
+   "file": "tv_AMD_60_light_1366x768.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 6.97,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 449.03,
+     "truth": 449.04,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 12,
+     "max_error_pct": 0.076
+    }
+   },
+   "read": {
+    "ticker": "AMD",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Hour",
+    "visible_price": 449.03,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "AMD",
+    "interval": "60",
+    "price": null,
+    "page_title": "AMD 449.04 \u25b2 +11.04%"
+   }
+  },
+  {
+   "file": "tv_AMD_60_light_1366x768.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 7.16,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 449.03,
+     "truth": 449.04,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 12,
+     "max_error_pct": 0.076
+    }
+   },
+   "read": {
+    "ticker": "AMD",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Hour",
+    "visible_price": 449.03,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "AMD",
+    "interval": "60",
+    "price": null,
+    "page_title": "AMD 449.04 \u25b2 +11.04%"
+   }
+  },
+  {
+   "file": "tv_JPM_1_dark_1920x1080.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 2.56,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 334.49,
+     "truth": 334.49,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.002
+    }
+   },
+   "read": {
+    "ticker": "JPM",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 334.49,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "JPM",
+    "interval": "1",
+    "price": null,
+    "page_title": "JPM 334.49 \u25bc \u22120.84%"
+   }
+  },
+  {
+   "file": "tv_JPM_1_dark_1920x1080.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 2.49,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 334.49,
+     "truth": 334.49,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.002
+    }
+   },
+   "read": {
+    "ticker": "JPM",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Min",
+    "visible_price": 334.49,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "JPM",
+    "interval": "1",
+    "price": null,
+    "page_title": "JPM 334.49 \u25bc \u22120.84%"
+   }
+  },
+  {
+   "file": "tv_JPM_15_light_1366x768.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 7.04,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 334.49,
+     "truth": 334.49,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 16,
+     "max_error_pct": 0.012
+    }
+   },
+   "read": {
+    "ticker": "JPM",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 334.49,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "JPM",
+    "interval": "15",
+    "price": null,
+    "page_title": "JPM 334.49 \u25bc \u22120.84%"
+   }
+  },
+  {
+   "file": "tv_JPM_15_light_1366x768.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 7.03,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 334.49,
+     "truth": 334.49,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 16,
+     "max_error_pct": 0.012
+    }
+   },
+   "read": {
+    "ticker": "JPM",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "15Min",
+    "visible_price": 334.49,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "JPM",
+    "interval": "15",
+    "price": null,
+    "page_title": "JPM 334.49 \u25bc \u22120.84%"
+   }
+  },
+  {
+   "file": "tv_JPM_D_dark_1280x720.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 7.56,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 334.49,
+     "truth": 334.49,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 16,
+     "max_error_pct": 0.058
+    }
+   },
+   "read": {
+    "ticker": "JPM",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Day",
+    "visible_price": 334.49,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "JPM",
+    "interval": "D",
+    "price": null,
+    "page_title": "JPM 334.49 \u25bc \u22120.84%"
+   }
+  },
+  {
+   "file": "tv_JPM_D_dark_1280x720.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 7.4,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 334.49,
+     "truth": 334.49,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 16,
+     "max_error_pct": 0.058
+    }
+   },
+   "read": {
+    "ticker": "JPM",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Day",
+    "visible_price": 334.49,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "JPM",
+    "interval": "D",
+    "price": null,
+    "page_title": "JPM 334.49 \u25bc \u22120.84%"
+   }
+  },
+  {
+   "file": "tv_MSFT_5_light_1366x768.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 7.2,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 530.7,
+     "truth": 530.61,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 13,
+     "max_error_pct": 0.006
+    }
+   },
+   "read": {
+    "ticker": "MSFT",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 530.7,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MSFT",
+    "interval": "5",
+    "price": null,
+    "page_title": "MSFT 530.61 \u25bc \u22120.99%"
+   }
+  },
+  {
+   "file": "tv_MSFT_5_light_1366x768.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 7.09,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 530.7,
+     "truth": 530.61,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 13,
+     "max_error_pct": 0.006
+    }
+   },
+   "read": {
+    "ticker": "MSFT",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "5Min",
+    "visible_price": 530.7,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MSFT",
+    "interval": "5",
+    "price": null,
+    "page_title": "MSFT 530.61 \u25bc \u22120.99%"
+   }
+  },
+  {
+   "file": "tv_MSFT_60_dark_1280x720.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 7.55,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 530.7,
+     "truth": 530.61,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.028
+    }
+   },
+   "read": {
+    "ticker": "MSFT",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Hour",
+    "visible_price": 530.7,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MSFT",
+    "interval": "60",
+    "price": null,
+    "page_title": "MSFT 530.61 \u25bc \u22120.99%"
+   }
+  },
+  {
+   "file": "tv_MSFT_60_dark_1280x720.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 7.16,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 530.7,
+     "truth": 530.61,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 17,
+     "max_error_pct": 0.028
+    }
+   },
+   "read": {
+    "ticker": "MSFT",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Hour",
+    "visible_price": 530.7,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MSFT",
+    "interval": "60",
+    "price": null,
+    "page_title": "MSFT 530.61 \u25bc \u22120.99%"
+   }
+  },
+  {
+   "file": "tv_MSFT_1_light_1600x900.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 7.4,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 530.7,
+     "truth": 530.61,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 25,
+     "max_error_pct": 0.002
+    }
+   },
+   "read": {
+    "ticker": "MSFT",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 530.7,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MSFT",
+    "interval": "1",
+    "price": null,
+    "page_title": "MSFT 530.61 \u25bc \u22120.99%"
+   }
+  },
+  {
+   "file": "tv_MSFT_1_light_1600x900.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 7.28,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 530.7,
+     "truth": 530.61,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 25,
+     "max_error_pct": 0.002
+    }
+   },
+   "read": {
+    "ticker": "MSFT",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Min",
+    "visible_price": 530.7,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MSFT",
+    "interval": "1",
+    "price": null,
+    "page_title": "MSFT 530.61 \u25bc \u22120.99%"
+   }
+  },
+  {
+   "file": "tv_XOM_15_dark_1280x720.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 7.58,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 165.87,
+     "truth": 165.87,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 12,
+     "max_error_pct": 0.016
+    }
+   },
+   "read": {
+    "ticker": "XOM",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 165.87,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "XOM",
+    "interval": "15",
+    "price": null,
+    "page_title": "XOM 165.87 \u25b2 +0.34%"
+   }
+  },
+  {
+   "file": "tv_XOM_15_dark_1280x720.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 7.78,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 165.87,
+     "truth": 165.87,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 12,
+     "max_error_pct": 0.016
+    }
+   },
+   "read": {
+    "ticker": "XOM",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "15Min",
+    "visible_price": 165.87,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "XOM",
+    "interval": "15",
+    "price": null,
+    "page_title": "XOM 165.87 \u25b2 +0.34%"
+   }
+  },
+  {
+   "file": "tv_XOM_D_light_1600x900.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.35,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 165.87,
+     "truth": 165.87,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.06
+    }
+   },
+   "read": {
+    "ticker": "XOM",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Day",
+    "visible_price": 165.87,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "XOM",
+    "interval": "D",
+    "price": null,
+    "page_title": "XOM 165.87 \u25b2 +0.34%"
+   }
+  },
+  {
+   "file": "tv_XOM_D_light_1600x900.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 2.3,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 165.87,
+     "truth": 165.87,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.06
+    }
+   },
+   "read": {
+    "ticker": "XOM",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Day",
+    "visible_price": 165.87,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "XOM",
+    "interval": "D",
+    "price": null,
+    "page_title": "XOM 165.87 \u25b2 +0.34%"
+   }
+  },
+  {
+   "file": "tv_XOM_5_dark_1920x1080.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 2.64,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 165.87,
+     "truth": 165.87,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.012
+    }
+   },
+   "read": {
+    "ticker": "XOM",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 165.87,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "XOM",
+    "interval": "5",
+    "price": null,
+    "page_title": "XOM 165.87 \u25b2 +0.34%"
+   }
+  },
+  {
+   "file": "tv_XOM_5_dark_1920x1080.png",
+   "folder": "tvset_b",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 2.66,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 165.87,
+     "truth": 165.87,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.012
+    }
+   },
+   "read": {
+    "ticker": "XOM",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "5Min",
+    "visible_price": 165.87,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "XOM",
+    "interval": "5",
+    "price": null,
+    "page_title": "XOM 165.87 \u25b2 +0.34%"
+   }
+  }
+ ],
+ "summary": {
+  "tradingview / pixels_only": {
+   "ticker": {
+    "correct": 24
+   },
+   "timeframe": {
+    "correct": 23,
+    "unknown": 1
+   },
+   "price": {
+    "correct": 24
+   },
+   "axis": {
+    "correct": 24
+   }
+  },
+  "tradingview / with_title": {
+   "ticker": {
+    "correct": 24
+   },
+   "timeframe": {
+    "correct": 23,
+    "unknown": 1
+   },
+   "price": {
+    "correct": 24
+   },
+   "axis": {
+    "correct": 24
+   }
+  }
+ },
+ "seconds_per_frame": 5.53
+}

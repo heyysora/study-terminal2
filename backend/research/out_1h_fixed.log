@@ -1,0 +1,1 @@
+wf_1Hour_720_fixed.json 137.7 s | {'trades': 74, 'days': 48, 'avg_r': 0.29, 'total_r': 21.49, 'avg_r_ci95': [-0.893, 1.413], 'win_rate': 25.7, 'win_rate_ci95': [17.1, 36.7], 'folds_positive': '4/21', 'tier': 'inconclusive', 'tier_text': "Out-of-sample results can't be told apart from luck."}

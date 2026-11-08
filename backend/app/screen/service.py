@@ -171,13 +171,18 @@ class ScreenService:
         if not sym:
             out["status"] = "I can't read a ticker on this screen reliably, so I won't guess. Make the symbol visible or use a supported layout."
             return out
-        q = await self.monitor.quote(sym)
+        sym, q, how = await self._confirm_ticker(obs)
+        out["ticker"] = sym
         last, label = q.get("last"), q.get("label") or {}
         if not last:
             out["status"] = f"'{sym}' was read from the screen but market data has no quote for it. It may be misread, or not a US stock."
             out["ticker_confirmed"] = False
             return out
-        out["ticker_confirmed"] = True
+        out["ticker_confirmed"] = how != "unconfirmed"
+        out["ticker_confirmation"] = how
+        if how == "unconfirmed":
+            out["checks"].append({"check": "ticker", "ok": False,
+                                  "detail": f"Read '{sym}' from the screen but its market price doesn't match the price on screen; it may be misread."})
         out["market_price"], out["market_label"] = last["price"], label
         if self.signals:
             self.signals.focus = {sym}
@@ -208,6 +213,30 @@ class ScreenService:
             except Exception as e:
                 out["status"] = f"Analysis unavailable: {e}"
         return out
+
+    async def _confirm_ticker(self, obs: dict) -> tuple[str, dict, str]:
+        """A ticker read from the window title is trusted. One read by OCR is confirmed against market data:
+        among the on-screen candidates, the one whose real price matches the price on screen wins."""
+        sym = obs["ticker"]
+        if (obs.get("ticker_confidence") or 0) >= 0.9:
+            return sym, await self.monitor.quote(sym), "window title"
+        vp = obs.get("visible_price")
+        cands = list(dict.fromkeys([sym] + (obs.get("ticker_candidates") or [])))[:4]
+        first: tuple[str, dict] | None = None
+        for c in cands:
+            try:
+                q = await self.monitor.quote(c)
+            except Exception:  # noqa: BLE001 - unknown symbol / provider error: try the next candidate
+                continue
+            last = q.get("last")
+            if not last:
+                continue
+            first = first or (c, q)
+            if vp is not None and abs(vp / last["price"] - 1) <= 0.01:
+                return c, q, "price on screen matches market data"
+        if first:
+            return first[0], first[1], "unconfirmed" if vp is not None else "market data has this symbol (no on-screen price to cross-check)"
+        return sym, {}, "unconfirmed"
 
     async def analyze_upload(self, png_bytes: bytes, title: str = "") -> dict:
         """Analyze a screenshot you provide (works on any OS). Not stored."""

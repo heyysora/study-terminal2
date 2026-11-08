@@ -74,6 +74,7 @@ UI_WORDS = {"USD", "NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "OTC", "CBOE", "VOL
             "OBV", "ROC", "ADD", "UTC", "NEW", "YES", "NO", "OK", "ALL", "TV", "IBKR", "TOS", "TRADINGVIEW", "WEBULL", "UNNAMED",
             "INDICATORS", "SAVE", "SHARE", "PUBLISH", "REPLAY", "GOOGLE", "CHROME", "EDGE", "FIREFOX"}
 
+EXCHANGE_WORDS = {"NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "CBOE", "OTC", "NYSEARCA", "IEX", "CME", "COMEX", "NYMEX", "CBOT"}
 TF_PATTERNS = [
     (re.compile(r"^(\d{1,3})\s?(m|min|mins|minute|minutes)$", re.I), lambda m: int(m.group(1))),
     (re.compile(r"^(\d{1,2})\s?(h|hr|hour|hours)$", re.I), lambda m: int(m.group(1)) * 60),
@@ -95,7 +96,7 @@ def tf_from_text(s: str) -> tuple[Timeframe | None, str | None]:
     if m0 and any(c.isdigit() for c in m0.group(1)):
         s = m0.group(1).replace("O", "0").replace("o", "0") + m0.group(2)  # OCR reads '30' as '3O'
     minutes = None
-    if s.isdigit() and int(s) in (1, 2, 3, 5, 10, 15, 30, 45, 60, 120, 240):
+    if s.isascii() and s.isdigit() and int(s) in (1, 2, 3, 5, 10, 15, 30, 45, 60, 120, 240):
         minutes = int(s)  # TradingView's bare-number intervals are minutes
     for pat, fn in TF_PATTERNS:
         m = pat.match(s)
@@ -186,21 +187,37 @@ def recognize(title: str, header_tokens: list[Token], platform: str) -> Recognit
     # timeframe + ticker from header text
     texts = []
     for t in header_tokens:
-        txt = re.sub(r"(?<=[A-Za-z])\.(?=\d)|(?<=\d)\.(?=[A-Za-z])|(?:^|\s)\.|\.(?:\s|$)", " ", t.text)  # 'AMD.3 .NASDAQ' (OCR'd middle dots)
+        txt = re.sub(r"(?<!\d)\.|\.(?!\d)", " ", t.text)  # OCR reads the legend's middle dots as '.': 'AMD.3.NASDAQ', 'Inc.1D.NASDAQ'; decimals stay
         for x in re.split(r"[\s·•|,;:]+", txt):
             x = x.strip(".")
             if x:
                 texts.append(x)
+    # Timeframe. Toolbars often show several interval buttons (only one is selected), so a timeframe sitting in
+    # the chart legend ("Apple Inc · 5 · NASDAQ": followed by an exchange name) wins. Several different
+    # candidates with no legend to settle it -> unknown, not a guess.
+    hits = []
     for i, x in enumerate(texts):
         tf, note = tf_from_text(x)
-        if tf and r.timeframe is None:
-            r.timeframe, r.timeframe_note, r.timeframe_source = tf, note, "on-screen text"
+        if tf:
+            nxt = texts[i + 1].upper() if i + 1 < len(texts) else ""
+            hits.append((tf, note, nxt in EXCHANGE_WORDS or nxt.startswith("CBOE")))
+    legend = [h for h in hits if h[2]]
+    distinct = {h[0] for h in hits}
+    if legend:
+        r.timeframe, r.timeframe_note, r.timeframe_source = legend[0][0], legend[0][1], "chart legend"
+    elif len(distinct) == 1:
+        r.timeframe, r.timeframe_note, r.timeframe_source = hits[0][0], hits[0][1], "on-screen text"
+    elif len(distinct) > 1:
+        r.timeframe_note = (f"Several timeframe labels are visible ({', '.join(sorted(t.value for t in distinct))}) and I can't tell "
+                            "which one is selected.")
     cands = []
     for x in texts:
         x2 = x.split(":")[-1].strip("·|,()").upper() if ":" in x else x.strip("·|,()")
         if re.fullmatch(r"[A-Z]{1,5}(\.[A-Z])?", x2) and x2 not in UI_WORDS:
             cands.append(x2)
-    r.ticker_candidates = list(dict.fromkeys(cands))[:5]
+    # single letters are mostly OCR noise (icons read as 'Q', 'O'): rank them last
+    cands = sorted(dict.fromkeys(cands), key=lambda c: len(c.split(".")[0]) == 1)
+    r.ticker_candidates = cands[:5]
     if r.ticker is None and r.ticker_candidates:
         r.ticker, r.ticker_confidence, r.ticker_source = r.ticker_candidates[0], 0.5, "on-screen text (needs market-data confirmation)"
     return r
@@ -229,9 +246,11 @@ class AxisFit:
         return (price - self.intercept) / self.slope
 
 
-def fit_price_axis(tokens: list[Token], width: int) -> AxisFit | None:
-    """Price = a*y + b from numeric labels on the right-hand price axis (robust Theil-Sen fit)."""
-    pts = [(t.cy, v, t) for t in tokens if t.cx > width * 0.8 and (v := parse_number(t.text)) is not None]
+def fit_price_axis(tokens: list[Token], width: int, x_min: float | None = None) -> AxisFit | None:
+    """Price = a*y + b from numeric labels on a price axis (robust Theil-Sen fit). By default only tokens in
+    the right-most 20% are used; find_price_axis() searches every column instead."""
+    lo = width * 0.8 if x_min is None else x_min
+    pts = [(t.cy, v, t) for t in tokens if t.cx > lo and (v := parse_number(t.text)) is not None]
     if len(pts) < 3:
         return None
     pts.sort()
@@ -252,22 +271,67 @@ def fit_price_axis(tokens: list[Token], width: int) -> AxisFit | None:
                    float(min(p[2].x0 for p in pts)))
 
 
-def last_price_tag(img: np.ndarray, tokens: list[Token], width: int) -> tuple[float | None, float | None]:
-    """The colored box on the price axis holding the current price (green/red/blue background)."""
+def find_price_axis(tokens: list[Token], width: int, height: int) -> tuple[AxisFit | None, list[Token]]:
+    """Find the price axis wherever it is (TradingView puts a watchlist to its right): group numeric labels
+    into columns by horizontal position, fit each column, and keep the column that behaves like an axis -
+    at least 4 labels that fit one straight price line, spread over a quarter of the screen height."""
+    nums = sorted((t for t in tokens if parse_number(t.text) is not None and t.cx > width * 0.35), key=lambda t: t.cx)
+    tol = max(18.0, 25.0 * width / 1600)
+    cols: list[list[Token]] = []
+    for t in nums:
+        if cols and t.cx - np.mean([c.cx for c in cols[-1]]) <= tol:
+            cols[-1].append(t)
+        else:
+            cols.append([t])
+    best, best_toks, best_key = None, [], (-1, 0.0)
+    for col in cols:
+        if len(col) < 4:
+            continue
+        fit = fit_price_axis(col, width, x_min=-1)
+        if fit is None or fit.n < 4:
+            continue
+        span = max(t.cy for t in col) - min(t.cy for t in col)
+        if span < 0.25 * height:
+            continue
+        key = (fit.n, -fit.max_resid_pct)
+        if key > best_key:
+            best, best_toks, best_key = fit, col, key
+    return best, best_toks
+
+
+TAG_FILL = 0.42
+
+
+def last_price_tag(img: np.ndarray, tokens: list[Token], width: int, axis: AxisFit | None = None,
+                   axis_tokens: list[Token] | None = None) -> tuple[float | None, float | None]:
+    """The colored box on the price axis holding the current price (green/red/blue background).
+    With a fitted axis, a candidate must sit in the axis column and agree with the axis at its height
+    (other colored boxes - volume tags, alerts, watchlist cells - are rejected)."""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     best, best_s = None, 0.0
+    if axis is not None and axis_tokens:
+        xs0, xs1 = min(t.x0 for t in axis_tokens) - 30, max(t.x1 for t in axis_tokens) + 30
+        vals = sorted(parse_number(t.text) for t in axis_tokens)
+        step = float(np.median(np.diff(vals))) if len(vals) > 1 else abs(axis.slope) * 40
     for t in tokens:
-        if t.cx <= width * 0.8:
+        if axis is not None and axis_tokens:
+            if not (xs0 <= t.cx <= xs1):
+                continue
+        elif t.cx <= width * 0.8:
             continue
         v = parse_number(t.text)
         if v is None:
+            continue
+        if axis is not None and abs(axis.price_at(t.cy) - v) > max(1.5 * step, 0.004 * abs(v)):
             continue
         y0, y1, x0, x1 = int(max(t.y0 - 2, 0)), int(t.y1 + 2), int(max(t.x0 - 4, 0)), int(min(t.x1 + 4, width))
         patch = hsv[y0:y1, x0:x1]
         if patch.size == 0:
             continue
-        sat = float(np.percentile(patch[:, :, 1], 75))
-        if sat > 90 and sat > best_s:
+        # a real tag fills its box with color (only the digits aren't); a grid label merely touching a tag is
+        # colored in a strip along one edge. Score = share of strongly colored pixels.
+        sat = float((patch[:, :, 1] > 90).mean())
+        if sat >= TAG_FILL and sat > best_s:
             best, best_s = (v, t.cy), sat
     return best if best else (None, None)
 
@@ -382,13 +446,15 @@ def analyze_image(img: np.ndarray, title: str = "", process: str | None = None) 
     # dedicated header pass: small legend text needs more canvas than the full-frame pass gives it
     header = [t for t in tokens if t.cy < header_h]
     header = _header_cascade(img[:header_h], header, title, platform)
-    axis_x = int(w * 0.8)
-    axis_tokens = [t for t in tokens if t.cx > axis_x]
-    if fit_price_axis(axis_tokens, w) is None:  # retry the axis strip on its own
-        axis_tokens = ocr(img[:, axis_x:], (axis_x, 0), pad=32)
+    axis, axis_col = find_price_axis(tokens, w, h)
+    extra: list[Token] = []
+    if axis is None:  # small axis labels can be lost in the downscaled pass: re-read the right half at full size
+        x0 = int(w * 0.45)
+        extra = ocr(img[:, x0:], (x0, 0), pad=32, _retry=False)
+        axis, axis_col = find_price_axis(extra, w, h)
     rec = recognize(title, header, platform)
-    axis = fit_price_axis(axis_tokens, w)
-    tag_price, tag_y = last_price_tag(img, axis_tokens, w)
+    axis_tokens = axis_col
+    tag_price, tag_y = last_price_tag(img, tokens + extra, w, axis, axis_col) if axis else (None, None)
     visible_price, price_source = tag_price, "price-axis tag"
     if visible_price is None and rec.title_price is not None:
         visible_price, price_source = rec.title_price, "window title"

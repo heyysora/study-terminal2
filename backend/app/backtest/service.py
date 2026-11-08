@@ -84,7 +84,11 @@ class BacktestService:
 
     def _run_sync(self, kind: str, frames: dict, cfg: BacktestConfig, req: dict) -> dict:
         if kind == "walk_forward":
-            wf = walk_forward(frames, cfg, self.clock, req.get("grid"), int(req.get("train_sessions", 20)), int(req.get("test_sessions", 5)))
+            grid = req.get("grid")
+            fixed = bool(grid) and all(len(v) == 1 for v in grid.values())
+            # a single fixed parameter set needs no training trades: there is nothing to choose
+            wf = walk_forward(frames, cfg, self.clock, grid, int(req.get("train_sessions", 20)), int(req.get("test_sessions", 5)),
+                              min_trades=0 if fixed else int(req.get("min_train_trades", 8)))
             trades = wf["oos_trades"]
             return {"metrics": wf["oos_metrics"], "equity": wf["oos_equity"], "trades": trades, "folds": wf["folds"],
                     "by_setup": breakdown(trades, "setup"), "by_regime": breakdown(trades, "regime"),

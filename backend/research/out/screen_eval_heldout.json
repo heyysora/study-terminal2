@@ -1,0 +1,1373 @@
+{
+ "rows": [
+  {
+   "file": "ho_GOOGL_30_2560x1440.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "2560x1440",
+   "mode": "pixels_only",
+   "seconds": 3.21,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 284.71,
+     "truth": 284.78,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 38,
+     "max_error_pct": 0.039
+    }
+   },
+   "read": {
+    "ticker": "GOOGL",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "30Min",
+    "visible_price": 284.71,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "GOOGL",
+    "interval": "30",
+    "price": null,
+    "page_title": "GOOGL 284.78 \u25b2 +0.78%"
+   }
+  },
+  {
+   "file": "ho_GOOGL_30_2560x1440.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "2560x1440",
+   "mode": "with_title",
+   "seconds": 2.71,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 284.71,
+     "truth": 284.78,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 38,
+     "max_error_pct": 0.039
+    }
+   },
+   "read": {
+    "ticker": "GOOGL",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "30Min",
+    "visible_price": 284.71,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "GOOGL",
+    "interval": "30",
+    "price": null,
+    "page_title": "GOOGL 284.78 \u25b2 +0.78%"
+   }
+  },
+  {
+   "file": "ho_AMZN_240_1440x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1440x900",
+   "mode": "pixels_only",
+   "seconds": 2.2,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 259.35,
+     "truth": 259.3,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.034
+    }
+   },
+   "read": {
+    "ticker": "AMZN",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "4Hour",
+    "visible_price": 259.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AMZN",
+    "interval": "240",
+    "price": null,
+    "page_title": "AMZN 259.30 \u25bc \u22120.35%"
+   }
+  },
+  {
+   "file": "ho_AMZN_240_1440x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1440x900",
+   "mode": "with_title",
+   "seconds": 2.14,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 259.35,
+     "truth": 259.3,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.034
+    }
+   },
+   "read": {
+    "ticker": "AMZN",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "4Hour",
+    "visible_price": 259.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AMZN",
+    "interval": "240",
+    "price": null,
+    "page_title": "AMZN 259.30 \u25bc \u22120.35%"
+   }
+  },
+  {
+   "file": "ho_META_5_1920x1080.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "2400x1350",
+   "mode": "pixels_only",
+   "seconds": 2.66,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 610.21,
+     "truth": 610.15,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 27,
+     "max_error_pct": 0.013
+    }
+   },
+   "read": {
+    "ticker": "META",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 610.21,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "META",
+    "interval": "5",
+    "price": null,
+    "page_title": "META 610.15 \u25b2 +0.84%"
+   }
+  },
+  {
+   "file": "ho_META_5_1920x1080.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "2400x1350",
+   "mode": "with_title",
+   "seconds": 2.55,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 610.21,
+     "truth": 610.15,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 27,
+     "max_error_pct": 0.013
+    }
+   },
+   "read": {
+    "ticker": "META",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "5Min",
+    "visible_price": 610.21,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "META",
+    "interval": "5",
+    "price": null,
+    "page_title": "META 610.15 \u25b2 +0.84%"
+   }
+  },
+  {
+   "file": "ho_NFLX_15_1366x768.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 6.98,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 63.39,
+     "truth": 63.41,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 13,
+     "max_error_pct": 0.025
+    }
+   },
+   "read": {
+    "ticker": "NFLX",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 63.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NFLX",
+    "interval": "15",
+    "price": null,
+    "page_title": "NFLX 63.41 \u25bc \u22123.28%"
+   }
+  },
+  {
+   "file": "ho_NFLX_15_1366x768.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 6.58,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 63.39,
+     "truth": 63.41,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 13,
+     "max_error_pct": 0.025
+    }
+   },
+   "read": {
+    "ticker": "NFLX",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "15Min",
+    "visible_price": 63.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "NFLX",
+    "interval": "15",
+    "price": null,
+    "page_title": "NFLX 63.41 \u25bc \u22123.28%"
+   }
+  },
+  {
+   "file": "ho_COIN_60_1600x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.39,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 134.74,
+     "truth": 134.76,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.061
+    }
+   },
+   "read": {
+    "ticker": "COIN",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Hour",
+    "visible_price": 134.74,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "COIN",
+    "interval": "60",
+    "price": null,
+    "page_title": "COIN 134.76 \u25bc \u22121.51%"
+   }
+  },
+  {
+   "file": "ho_COIN_60_1600x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 2.17,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 134.74,
+     "truth": 134.76,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.061
+    }
+   },
+   "read": {
+    "ticker": "COIN",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Hour",
+    "visible_price": 134.74,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "COIN",
+    "interval": "60",
+    "price": null,
+    "page_title": "COIN 134.76 \u25bc \u22121.51%"
+   }
+  },
+  {
+   "file": "ho_PLTR_1_1920x1080.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 2.41,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 160.39,
+     "truth": 160.38,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 26,
+     "max_error_pct": 0.001
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 160.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "PLTR",
+    "interval": "1",
+    "price": null,
+    "page_title": "PLTR 160.38 \u25b2 +3.48%"
+   }
+  },
+  {
+   "file": "ho_PLTR_1_1920x1080.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 2.41,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 160.39,
+     "truth": 160.38,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 26,
+     "max_error_pct": 0.001
+    }
+   },
+   "read": {
+    "ticker": "PLTR",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Min",
+    "visible_price": 160.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "PLTR",
+    "interval": "1",
+    "price": null,
+    "page_title": "PLTR 160.38 \u25b2 +3.48%"
+   }
+  },
+  {
+   "file": "ho_IWM_D_1280x800.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1280x800",
+   "mode": "pixels_only",
+   "seconds": 9.22,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 273.67,
+     "truth": 273.67,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 20,
+     "max_error_pct": 0.025
+    }
+   },
+   "read": {
+    "ticker": "IWM",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Day",
+    "visible_price": 273.67,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "IWM",
+    "interval": "D",
+    "price": null,
+    "page_title": "IWM 273.67 \u25b2 +0.99%"
+   }
+  },
+  {
+   "file": "ho_IWM_D_1280x800.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1280x800",
+   "mode": "with_title",
+   "seconds": 8.57,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 273.67,
+     "truth": 273.67,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 20,
+     "max_error_pct": 0.025
+    }
+   },
+   "read": {
+    "ticker": "IWM",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Day",
+    "visible_price": 273.67,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "IWM",
+    "interval": "D",
+    "price": null,
+    "page_title": "IWM 273.67 \u25b2 +0.99%"
+   }
+  },
+  {
+   "file": "ho_QQQ_5_2560x1440.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "3840x2160",
+   "mode": "pixels_only",
+   "seconds": 2.99,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "unknown",
+    "price_detail": {
+     "read": null,
+     "truth": 656.1,
+     "source": null
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 29,
+     "max_error_pct": 0.008
+    }
+   },
+   "read": {
+    "ticker": "QQQ",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": null,
+    "visible_price_source": null,
+    "could_not_recognize": [
+     "visible price"
+    ],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "QQQ",
+    "interval": "5",
+    "price": null,
+    "page_title": "QQQ 656.10 \u25b2 +1.4%"
+   }
+  },
+  {
+   "file": "ho_QQQ_5_2560x1440.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "3840x2160",
+   "mode": "with_title",
+   "seconds": 2.88,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 656.1,
+     "truth": 656.1,
+     "source": "window title"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 29,
+     "max_error_pct": 0.008
+    }
+   },
+   "read": {
+    "ticker": "QQQ",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "5Min",
+    "visible_price": 656.1,
+    "visible_price_source": "window title",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "QQQ",
+    "interval": "5",
+    "price": null,
+    "page_title": "QQQ 656.10 \u25b2 +1.4%"
+   }
+  },
+  {
+   "file": "ho_BA_15_1440x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1440x900",
+   "mode": "pixels_only",
+   "seconds": 2.18,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 173.35,
+     "truth": 173.4,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.016
+    }
+   },
+   "read": {
+    "ticker": "BA",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 173.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "BA",
+    "interval": "15",
+    "price": null,
+    "page_title": "BA 173.40 \u25b2 +0.52%"
+   }
+  },
+  {
+   "file": "ho_BA_15_1440x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1440x900",
+   "mode": "with_title",
+   "seconds": 2.1,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 173.35,
+     "truth": 173.4,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.016
+    }
+   },
+   "read": {
+    "ticker": "BA",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "15Min",
+    "visible_price": 173.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "BA",
+    "interval": "15",
+    "price": null,
+    "page_title": "BA 173.40 \u25b2 +0.52%"
+   }
+  },
+  {
+   "file": "ho_UBER_30_1920x1080.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "pixels_only",
+   "seconds": 2.24,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 68.6,
+     "truth": 68.59,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.031
+    }
+   },
+   "read": {
+    "ticker": "UBER",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "30Min",
+    "visible_price": 68.6,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "UBER",
+    "interval": "30",
+    "price": null,
+    "page_title": "UBER 68.59 \u25bc \u22120.28%"
+   }
+  },
+  {
+   "file": "ho_UBER_30_1920x1080.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1920x1080",
+   "mode": "with_title",
+   "seconds": 2.26,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 68.6,
+     "truth": 68.59,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 18,
+     "max_error_pct": 0.031
+    }
+   },
+   "read": {
+    "ticker": "UBER",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "30Min",
+    "visible_price": 68.6,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "UBER",
+    "interval": "30",
+    "price": null,
+    "page_title": "UBER 68.59 \u25bc \u22120.28%"
+   }
+  },
+  {
+   "file": "ho_MU_240_1366x768.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "pixels_only",
+   "seconds": 6.94,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 690.35,
+     "truth": 690.0,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 14,
+     "max_error_pct": 0.1
+    }
+   },
+   "read": {
+    "ticker": "MU",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "4Hour",
+    "visible_price": 690.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MU",
+    "interval": "240",
+    "price": null,
+    "page_title": "MU 690.00 \u25b2 +5.12%"
+   }
+  },
+  {
+   "file": "ho_MU_240_1366x768.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1366x768",
+   "mode": "with_title",
+   "seconds": 6.91,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 690.35,
+     "truth": 690.0,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 14,
+     "max_error_pct": 0.1
+    }
+   },
+   "read": {
+    "ticker": "MU",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "4Hour",
+    "visible_price": 690.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": []
+   },
+   "label": {
+    "symbol": "MU",
+    "interval": "240",
+    "price": null,
+    "page_title": "MU 690.00 \u25b2 +5.12%"
+   }
+  },
+  {
+   "file": "ho_AVGO_D_1600x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.2,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 293.69,
+     "truth": 293.69,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.091
+    }
+   },
+   "read": {
+    "ticker": "AVGO",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Day",
+    "visible_price": 293.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AVGO",
+    "interval": "D",
+    "price": null,
+    "page_title": "AVGO 293.69 \u25b2 +0.74%"
+   }
+  },
+  {
+   "file": "ho_AVGO_D_1600x900.png",
+   "folder": "tvset_ho",
+   "platform": "tradingview",
+   "theme": "light",
+   "size": "1600x900",
+   "mode": "with_title",
+   "seconds": 2.16,
+   "score": {
+    "ticker": "correct",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 293.69,
+     "truth": 293.69,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.091
+    }
+   },
+   "read": {
+    "ticker": "AVGO",
+    "ticker_confidence": 0.95,
+    "ticker_source": "window title (tradingview)",
+    "timeframe": "1Day",
+    "visible_price": 293.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AVGO",
+    "interval": "D",
+    "price": null,
+    "page_title": "AVGO 293.69 \u25b2 +0.74%"
+   }
+  },
+  {
+   "file": "wd_AAPL_5.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.97,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 342.35,
+     "truth": 342.37,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 16,
+     "max_error_pct": 0.008
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 342.35,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AAPL",
+    "interval": "5",
+    "price": 342.37,
+    "page_title": null
+   }
+  },
+  {
+   "file": "wd_TSLA_15.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 1.08,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 358.26,
+     "truth": 358.22,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.056
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 358.26,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "TSLA",
+    "interval": "15",
+    "price": 358.22,
+    "page_title": null
+   }
+  },
+  {
+   "file": "wd_SPY_1.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 1.2,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "WRONG",
+    "price": "correct",
+    "price_detail": {
+     "read": 735.39,
+     "truth": 735.29,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 14,
+     "max_error_pct": 0.001
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "30Min",
+    "visible_price": 735.39,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "SPY",
+    "interval": "1",
+    "price": 735.29,
+    "page_title": null
+   }
+  },
+  {
+   "file": "wd_NVDA_60.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 1.06,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 186.69,
+     "truth": 186.64,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 19,
+     "max_error_pct": 0.025
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Hour",
+    "visible_price": 186.69,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "NVDA",
+    "interval": "60",
+    "price": 186.64,
+    "page_title": null
+   }
+  },
+  {
+   "file": "wd_JPM_D.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 1.22,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "WRONG",
+    "price": "WRONG",
+    "price_detail": {
+     "read": 336.0,
+     "truth": 334.49,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 28,
+     "max_error_pct": 0.056
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 336.0,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "JPM",
+    "interval": "D",
+    "price": 334.49,
+    "page_title": null
+   }
+  },
+  {
+   "file": "wd_AMD_30.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 2.8,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "WRONG",
+    "price": "correct",
+    "price_detail": {
+     "read": 449.03,
+     "truth": 449.04,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 23,
+     "max_error_pct": 0.068
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "1Min",
+    "visible_price": 449.03,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "AMD",
+    "interval": "30",
+    "price": 449.04,
+    "page_title": null
+   }
+  },
+  {
+   "file": "wd_MSFT_5.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 1.21,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 530.7,
+     "truth": 530.61,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 24,
+     "max_error_pct": 0.013
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "5Min",
+    "visible_price": 530.7,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "MSFT",
+    "interval": "5",
+    "price": 530.61,
+    "page_title": null
+   }
+  },
+  {
+   "file": "wd_XOM_15.png",
+   "folder": "tvset_wd",
+   "platform": "tradingview",
+   "theme": "dark",
+   "size": "1600x900",
+   "mode": "pixels_only",
+   "seconds": 1.14,
+   "score": {
+    "ticker": "WRONG",
+    "timeframe": "correct",
+    "price": "correct",
+    "price_detail": {
+     "read": 165.87,
+     "truth": 165.87,
+     "source": "price-axis tag"
+    },
+    "axis": "correct",
+    "axis_detail": {
+     "points": 15,
+     "max_error_pct": 0.016
+    }
+   },
+   "read": {
+    "ticker": "Q",
+    "ticker_confidence": 0.5,
+    "ticker_source": "on-screen text (needs market-data confirmation)",
+    "timeframe": "15Min",
+    "visible_price": 165.87,
+    "visible_price_source": "price-axis tag",
+    "could_not_recognize": [],
+    "indicators_visible": [
+     "Volume"
+    ]
+   },
+   "label": {
+    "symbol": "XOM",
+    "interval": "15",
+    "price": 165.87,
+    "page_title": null
+   }
+  }
+ ],
+ "summary": {
+  "tradingview / pixels_only": {
+   "ticker": {
+    "correct": 11,
+    "WRONG": 9
+   },
+   "timeframe": {
+    "correct": 17,
+    "WRONG": 3
+   },
+   "price": {
+    "correct": 18,
+    "unknown": 1,
+    "WRONG": 1
+   },
+   "axis": {
+    "correct": 20
+   }
+  },
+  "tradingview / with_title": {
+   "ticker": {
+    "correct": 12
+   },
+   "timeframe": {
+    "correct": 12
+   },
+   "price": {
+    "correct": 12
+   },
+   "axis": {
+    "correct": 12
+   }
+  }
+ },
+ "seconds_per_frame": 3.18
+}
