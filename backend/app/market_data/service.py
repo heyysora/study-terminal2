@@ -28,6 +28,7 @@ from ..db.session import Database
 from .freshness import FreshnessTracker
 from .providers.base import MarketDataProvider, ProviderError, ProviderRateLimited, StreamState, SymbolNotFound, TickStream
 from .types import Bar, DataStatus, LabeledValue, Tick, Timeframe
+from .validation import validate_bars
 
 log = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ class MarketMonitor:
         self.monitoring_enabled = True
         self.paused_reason: str | None = None
         self.sleep_events: list[dict] = []
+        self.quality: dict[str, dict] = {}   # symbol -> validation report of today's polled 1-minute bars
 
     # ---------------- lifecycle ----------------
 
@@ -155,6 +157,10 @@ class MarketMonitor:
         self.tracker.poll_succeeded(now)
         self.polls += 1
         for sym, bars in data.items():
+            bars, report = validate_bars(bars, 60)
+            self.quality[sym] = report.to_dict()
+            if report.dropped:
+                self._event("warning", "data_quality", f"{sym}: {report.summary()} in polled 1-minute bars")
             if not bars:
                 continue
             last_seen = self._last_bar_ts.get(sym)
@@ -321,6 +327,7 @@ class MarketMonitor:
                 "label": self.label(sym).model_dump(mode="json"),
                 "feed_info": fi.model_dump(mode="json") if fi else None,
                 "signals": {"allowed": ok, "reason": why, "fastest_timeframe": min_tf},
+                "quality": self.quality.get(sym),
             })
         return out
 
@@ -335,6 +342,9 @@ class MarketMonitor:
 
     async def bars(self, symbol: str, timeframe: Timeframe, start: datetime, end: datetime | None = None):
         bars, notes = await self.provider.get_bars(symbol, timeframe, start, end)
+        bars, report = validate_bars(bars, timeframe.seconds if timeframe != Timeframe.D1 else None)
+        if not report.ok:
+            notes = [*notes, f"Data quality: {report.summary()}."]
         await asyncio.to_thread(self._upsert_bars, bars)
         label = LabeledValue(status=DataStatus.HISTORICAL, reason="Historical query; the newest bar may still be forming",
                              provider=self.provider.info.name, source=bars[0].source if bars else None)

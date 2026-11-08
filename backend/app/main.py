@@ -25,6 +25,7 @@ from .core.market_clock import MarketClock
 from .db.session import Database
 from .education.service import EducationService
 from .logging_setup import configure_logging
+from .market_data.health import FeedHealthWatcher
 from .market_data.providers.base import MarketDataProvider, ProviderError
 from .market_data.providers.registry import create_provider
 from .market_data.service import MarketMonitor
@@ -106,6 +107,9 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                                          image_png=png if s.assistant.provider.supports_vision else None,
                                          level=store.get("learning.level", "beginner"))
 
+        health = FeedHealthWatcher(monitor, alerts, paper.positions)
+        s.health = health
+
         screen = ScreenService(monitor, signals, store, broadcaster, screen_ai)
         s.screen = screen
 
@@ -142,11 +146,13 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         if start_loops:
             await signals.start()
             await scanner.start()
+            await health.start()
         try:
             yield
         finally:
             if screen.state != "off":
                 await screen.stop()
+            await health.stop()
             await scanner.stop()
             await signals.stop()
             await paper.stop()

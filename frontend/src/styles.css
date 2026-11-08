@@ -173,3 +173,10 @@ details[open] > summary { color: var(--text); }
 .quiz-opt.sel { border-color: var(--brass); }
 .quiz-opt.right { border-color: var(--up); } .quiz-opt.wrong { border-color: var(--down); }
 .progress { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; } .progress > i { display: block; height: 100%; background: var(--brass); }
+
+/* data provenance */
+.stamp { font-family: var(--data); font-size: 11.5px; color: var(--muted); }
+.stamp-row { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 7px 12px; border-top: 1px solid var(--rule);
+  font-family: var(--data); font-size: 11.5px; color: var(--muted); }
+.stamp-row .k { color: var(--faint, #5d6a7b); text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; margin-right: 4px; }
+.stamp-row.warn { color: var(--brass); }

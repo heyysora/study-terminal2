@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Action, CandleChart, Meter, OrderTicket, Panel, SignalCard, type Overlay, type PriceLine } from "./components";
+import { Action, CandleChart, ChartStamp, Meter, OrderTicket, Panel, QuoteStamp, SignalCard, type Overlay, type PriceLine } from "./components";
 import { TIMEFRAMES, api, etTime, money, num, pct, sign, tfShort, useLive, usePoll } from "./lib";
 
 // ======================= Dashboard =======================
@@ -39,7 +39,7 @@ export function Dashboard() {
                   <tr key={s.symbol} className="click" onClick={() => (location.hash = `#/chart/${s.symbol}`)}>
                     <td className="sym">{s.symbol}</td>
                     <td className="r num">{last ? num(last.price) : "—"}{last?.change_pct != null && <span className={`small ${sign(last.change_pct)}`}> {pct(last.change_pct, 1)}</span>}</td>
-                    <td><Meter status={(lv.label || s.label)?.status} reason={(lv.label || s.label)?.reason} /></td>
+                    <td><Meter status={(lv.label || s.label)?.status} reason={(lv.label || s.label)?.reason} /> <QuoteStamp compact label={lv.label || s.label} /></td>
                     <td>{sg ? <Action a={sg.action} /> : <span className="faint small">—</span>}</td>
                   </tr>);
               })}
@@ -153,7 +153,10 @@ export function ChartPage({ symbol: routeSym }: { symbol?: string }) {
           <div className="seg" role="group" aria-label="Timeframe">{TIMEFRAMES.map((t) => <button type="button" key={t} className={tf === t ? "on" : ""} onClick={() => setTf(t)}>{tfShort(t)}</button>)}</div>
           <label className="check small"><input type="checkbox" checked={ext} onChange={(e) => setExt(e.target.checked)} />Extended hours</label>
         </form>
-        <div className="row"><span className="num" style={{ fontSize: 22, fontWeight: 600 }}>{num(lv?.last?.price ?? snap?.price)}</span><Meter big withText status={label?.status} reason={label?.reason} /></div>
+        <div className="stack" style={{ gap: 2, alignItems: "flex-end" }}>
+          <div className="row"><span className="num" style={{ fontSize: 22, fontWeight: 600 }}>{num(lv?.last?.price ?? snap?.price)}</span><Meter big withText status={label?.status} reason={label?.reason} /></div>
+          {lv?.label ? <QuoteStamp label={lv.label} /> : <span className="stamp">Not monitored live: price shown is the last closed bar</span>}
+        </div>
       </div>
       {label && label.status !== "near_realtime" && label.status !== "realtime" && <div className="note warn">{label.reason}</div>}
       <div className="cols c-chart">
@@ -161,6 +164,7 @@ export function ChartPage({ symbol: routeSym }: { symbol?: string }) {
           <section className="panel">
             {an.error ? <div className="empty">{an.error}</div> : !an.data ? <div className="empty">Loading {sym}…</div> :
               <CandleChart bars={an.data.chart.bars} overlays={overlays} lines={lines} daily={tf === "1Day"} />}
+            {an.data && <ChartStamp data={an.data.data} />}
           </section>
           {snap?.notes?.length > 0 && <div className="note small">{snap.notes.slice(0, 3).join(" ")}</div>}
           <Panel title="Explain this chart" sub="plain-language read of the data above">
@@ -299,7 +303,7 @@ export function Copilot() {
                 {fu.status && <div className="note warn">{fu.status}</div>}
                 {fu.discrepancy && <div className="note bad">{fu.discrepancy}</div>}
                 {fu.stale_screen && <div className="note warn">{fu.stale_screen}</div>}
-                {fu.market_price != null && <div className="row"><span>Market data {money(fu.market_price)}</span><Meter withText status={fu.market_label?.status} reason={fu.market_label?.reason} />
+                {fu.market_price != null && <div className="row"><span>Market data {money(fu.market_price)}</span><Meter withText status={fu.market_label?.status} reason={fu.market_label?.reason} /> <QuoteStamp label={fu.market_label} />
                   {fu.visible_price != null && <span className="muted">screen {money(fu.visible_price)} ({pct(fu.price_diff_pct)})</span>}</div>}
                 {fu.best_signal ? <SignalCard s={fu.best_signal} onTrade={() => (location.hash = `#/chart/${fu.ticker}`)} /> :
                   fu.reasons && <div className="muted">{fu.reasons.join(" ")}</div>}
@@ -415,7 +419,7 @@ export function Paper() {
                   const adv = sigs.data?.positions?.[p.symbol];
                   return (<tr key={p.symbol}>
                     <td className="sym"><a href={`#/chart/${p.symbol}`}>{p.symbol}</a></td><td>{p.side}</td><td className="r">{Math.abs(p.qty)}</td>
-                    <td className="r">{num(p.avg_price)}</td><td className="r">{num(p.mark)}</td><td><Meter status={p.mark_label?.status} reason={p.mark_label?.reason} /></td>
+                    <td className="r">{num(p.avg_price)}</td><td className="r">{num(p.mark)}</td><td><Meter status={p.mark_label?.status} reason={p.mark_label?.reason} /> <QuoteStamp compact label={p.mark_label} /></td>
                     <td className={`r ${sign(p.unrealized_pnl)}`}>{money(p.unrealized_pnl)}</td><td className="r">{num(p.stop_loss)}</td><td className="r">{num(p.take_profit)}</td>
                     <td title={adv?.reasons?.join(" ")}>{adv ? <Action a={adv.action} /> : <span className="faint small">—</span>}</td>
                     <td><button className="ghost" onClick={() => close(p.symbol)}>Close</button></td></tr>);

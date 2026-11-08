@@ -181,6 +181,7 @@ def evaluate(
     calibration: dict | None = None,
     model_probability: Any = None,
     lookback_bars: int = 8,
+    suspect: set[str] | None = None,
 ) -> dict:
     """All current setup ideas for one symbol/timeframe, plus the single best action."""
     p = params or SetupParams()
@@ -238,6 +239,10 @@ def evaluate(
         if losing and action in ("BUY", "STRONG BUY", "SHORT", "WAIT FOR CONFIRMATION"):
             action = "POTENTIAL BUY" if long else "POTENTIAL SHORT"
             risks.insert(0, f"This setup LOST money in out-of-sample testing ({cal['note']}) - shown for learning, not as a trade.")
+        if suspect and ts.isoformat() in suspect:
+            action = "NO TRADE"
+            risks.insert(0, "The signal bar looks like a bad print (a one-bar spike that immediately reversed). "
+                            "Not trading off possibly bad data.")
         if p.target_r < min_rr:
             action = "NO TRADE"
             risks.append(f"Reward:risk {p.target_r}:1 is below your minimum {min_rr}:1.")

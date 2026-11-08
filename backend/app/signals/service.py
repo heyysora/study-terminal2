@@ -75,10 +75,13 @@ class SignalService:
         tick = self.monitor.tracker.latest(symbol)
         live = tick.price if tick else None
         gate = self.monitor.signals_allowed(symbol) if tick else (True, "using last closed bar (symbol not monitored live)", tf.value)
+        if ff.served_from_cache:
+            gate = (False, f"chart data could not be refreshed ({ff.refresh_error}); an older cached copy is shown", None)
         eq = self.paper.engine.equity()
         ev = evaluate(symbol, ff, live_price=live, params=self.params, market=mc, mtf=mtf, equity=eq,
                       risk_pct=self.paper.risk.max_per_trade_pct, min_rr=self.paper.risk.min_reward_risk, data_gate=gate,
-                      calibration=self.backtests.calibration)
+                      calibration=self.backtests.calibration,
+                      suspect=set((ff.quality or {}).get("suspect", [])))
         enabled = set(self.settings.get("signals.enabled_setups", []) or [])
         if enabled:
             ev["signals"] = [s for s in ev["signals"] if s["setup"] in enabled]
@@ -89,6 +92,7 @@ class SignalService:
                 s["confidence"]["model_probability"] = self.models.predict(feats, s["setup"], s["direction"]) or {
                     "available": False, "note": (self.models.meta or {}).get("reason", "No model trained yet.")}
         ev["mtf"] = mtf
+        ev["data"] = self.analysis.data_info(ff)
         ev["data_label"] = self.monitor.label(symbol).model_dump(mode="json") if tick else None
         ev["evaluated_at"] = datetime.now(timezone.utc).isoformat()
         return ev, snap, ff

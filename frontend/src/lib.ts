@@ -129,11 +129,18 @@ export const etTime = (iso: string | number) => etFmt.format(typeof iso === "num
 export const etDate = (iso: string | number) => etDay.format(typeof iso === "number" ? new Date(iso * 1000) : new Date(iso));
 
 export const STATUS_LEVEL: Record<string, number> = {
-  realtime: 5, near_realtime: 4, polling: 3, delayed: 2, historical: 1, stale: 1, unavailable: 0,
+  realtime: 5, near_realtime: 4, polling: 3, delayed: 2, historical: 1, cached: 1, stale: 1, unavailable: 0,
 };
 export const STATUS_TEXT: Record<string, string> = {
   realtime: "Real-time", near_realtime: "Near real-time", polling: "Polling", delayed: "Delayed",
-  historical: "Market closed", stale: "Stale", unavailable: "Unavailable",
+  historical: "Historical", cached: "Cached copy", stale: "Stale", unavailable: "Unavailable",
+};
+const etSecFmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+export const etTimeSec = (iso: string) => etSecFmt.format(new Date(iso));
+/** "4s", "3m", "2h" */
+export const ago = (seconds?: number | null) => seconds == null ? "—" : seconds < 90 ? `${Math.round(seconds)}s` : seconds < 5400 ? `${Math.round(seconds / 60)}m` : `${Math.round(seconds / 3600)}h`;
+export const SOURCE_TEXT: Record<string, string> = {
+  "yahoo-stream": "Yahoo stream", "yahoo-poll": "Yahoo 1-min poll", "yahoo-history": "Yahoo history",
 };
 export function actionClass(a?: string) {
   if (!a) return "act";

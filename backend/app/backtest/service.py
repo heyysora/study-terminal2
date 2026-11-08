@@ -15,6 +15,7 @@ from ..db.models import BacktestRunRecord, SetupStatRecord
 from ..db.session import Database
 from ..market_data.providers.base import MarketDataProvider, ProviderError
 from ..market_data.types import Timeframe
+from ..market_data.validation import validate_bars
 from ..signals.setups import SetupParams
 from .engine import BacktestConfig, breakdown, metrics, run
 from .walkforward import combine_equity, optimize, walk_forward
@@ -35,8 +36,15 @@ class BacktestService:
         for s in symbols:
             try:
                 bars, n = await self.provider.get_bars(s, tf, datetime.now(timezone.utc) - timedelta(days=days))
+                if tf != Timeframe.D1:  # drop the still-forming bar: a backtest must only see closed bars
+                    now = datetime.now(timezone.utc)
+                    bars = [b for b in bars if b.ts + timedelta(seconds=tf.seconds) <= now]
+                bars, rep = validate_bars(bars, tf.seconds if tf != Timeframe.D1 else None)
                 frames[s] = build(bars, tf)
+                frames[s].quality = rep.to_dict()
                 notes += [f"{s}: {x}" for x in n[:1]]
+                if not rep.ok:
+                    notes.append(f"{s}: data quality - {rep.summary()}")
             except ProviderError as e:
                 notes.append(f"{s}: skipped ({e})")
         return frames, notes

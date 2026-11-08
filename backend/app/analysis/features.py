@@ -9,6 +9,8 @@ used solely for premarket high/low, because Yahoo reports their volume as 0.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -29,6 +31,12 @@ class FeatureFrame:
     timeframe: Timeframe
     intraday: bool
     notes: list[str]
+    quality: dict | None = None          # validation report (market_data/validation.py)
+    provider: str | None = None
+    source: str | None = None
+    fetched_at: datetime | None = None   # wall-clock time the bars were fetched
+    served_from_cache: bool = False      # True when a refresh failed and an older copy is being shown
+    refresh_error: str | None = None
 
 
 def bars_to_df(bars: list[Bar]) -> pd.DataFrame:

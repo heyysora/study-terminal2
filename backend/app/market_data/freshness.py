@@ -115,7 +115,8 @@ class FreshnessTracker:
 
         def lv(status: DataStatus, reason: str, source: str | None = None) -> LabeledValue:
             return LabeledValue(status=status, reason=reason, provider=self.provider.name, source=source,
-                                age_seconds=round(age, 1) if age is not None else None, volume_note=VOLUME_NOTE)
+                                age_seconds=round(age, 1) if age is not None else None, volume_note=VOLUME_NOTE,
+                                data_time=latest.ts if latest else None, received_at=latest.received_at if latest else None)
 
         if self.paused:
             return lv(DataStatus.UNAVAILABLE, f"Monitoring paused ({self.paused}) - prices are not being watched")

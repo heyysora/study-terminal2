@@ -18,6 +18,8 @@ class DataStatus(str, Enum):
                    bars). Lags by up to poll interval + bar length. Never called live.
     DELAYED        The source itself says the data is delayed (e.g. 15 minutes).
     HISTORICAL     A historical query, or the market is closed.
+    CACHED         The app's saved copy, served because a fresh fetch failed (or was not
+                   attempted). Shown with the time it was fetched. Never used for signals.
     STALE          Should be updating but hasn't been within the allowed window.
     UNAVAILABLE    No data: provider down, rate-limited, symbol unknown, or not loaded yet.
     """
@@ -27,6 +29,7 @@ class DataStatus(str, Enum):
     POLLING = "polling"
     DELAYED = "delayed"
     HISTORICAL = "historical"
+    CACHED = "cached"
     STALE = "stale"
     UNAVAILABLE = "unavailable"
 
@@ -123,3 +126,5 @@ class LabeledValue(BaseModel):
     source: str | None = None
     age_seconds: float | None = None
     volume_note: str | None = None
+    data_time: datetime | None = None     # when the source says the newest price happened
+    received_at: datetime | None = None   # when this app received it

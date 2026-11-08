@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   CandlestickSeries, ColorType, HistogramSeries, IChartApi, ISeriesApi, LineSeries, LineStyle, createChart,
 } from "lightweight-charts";
-import { STATUS_LEVEL, STATUS_TEXT, actionClass, api, money, num, pct } from "./lib";
+import { SOURCE_TEXT, STATUS_LEVEL, STATUS_TEXT, actionClass, ago, api, etDate, etTimeSec, money, num, pct } from "./lib";
 
 /** Signal meter: how live the data is. 5 = real-time ... 0 = unavailable. */
 export function Meter({ status, big, withText, reason }: { status?: string; big?: boolean; withText?: boolean; reason?: string }) {
@@ -13,6 +13,36 @@ export function Meter({ status, big, withText, reason }: { status?: string; big?
       <span className={`meter l${lvl}${big ? " big" : ""}`} aria-label={`Data: ${text}`}><i /><i /><i /><i /><i /></span>
       {withText && <span className="small muted">{text}</span>}
     </span>
+  );
+}
+
+/** Where a quote came from and when: "Yahoo stream, 14:32:05 ET, 3s ago". Shown next to live prices. */
+export function QuoteStamp({ label, compact }: { label?: any; compact?: boolean }) {
+  if (!label) return <span className="stamp">No quote yet</span>;
+  const src = SOURCE_TEXT[label.source] || label.source || label.provider;
+  const t = label.data_time ? etTimeSec(label.data_time) : null;
+  if (compact) return <span className="stamp" title={`${src}. ${label.reason}`}>{t ?? "—"}</span>;
+  return (
+    <span className="stamp" title={label.reason}>
+      {src}{t && <>, price time {t} ET</>}{label.age_seconds != null && <>, {ago(label.age_seconds)} old</>}
+    </span>
+  );
+}
+
+/** Provenance of a chart's bars: source, fetch time, newest closed bar, validation result. */
+export function ChartStamp({ data }: { data?: any }) {
+  if (!data) return null;
+  const q = data.quality;
+  const bad = data.status === "cached" || (q && !q.ok);
+  return (
+    <div className={`stamp-row${bad ? " warn" : ""}`}>
+      <span><span className="k">Bars</span> {SOURCE_TEXT[data.source] || data.source || data.provider}</span>
+      <span><span className="k">Status</span> {STATUS_TEXT[data.status] || data.status}</span>
+      {data.fetched_at && <span><span className="k">Fetched</span> {etTimeSec(data.fetched_at)} ET ({ago(data.fetched_age_seconds)} ago)</span>}
+      {data.last_closed_bar && <span><span className="k">Newest closed bar</span> {etDate(data.last_closed_bar)} {etTimeSec(data.last_closed_bar).slice(0, 5)} ET</span>}
+      <span><span className="k">Checks</span> {q ? q.summary : "not run"}</span>
+      {data.status === "cached" && <span className="down">{data.reason}</span>}
+    </div>
   );
 }
 
