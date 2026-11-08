@@ -21,10 +21,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
 from . import contracts as fc
-from .risk import AccountSnapshot, PersonalRisk, PropRules, RiskEngine, mini_equivalent, next_eod_floor, next_intraday_floor
+from .risk import AccountSnapshot, PersonalRisk, PropRules, RiskEngine, effective_flat, mini_equivalent, next_eod_floor, next_intraday_floor
 from .sessions import FuturesClock
 
 TRADABLE = {"realtime", "near_realtime", "polling"}
+# "reconcile": historical bars replayed after a restart/sleep so stops and targets hit while offline are honoured
+FILL_ALWAYS = {"replay", "reconcile"}
 
 
 @dataclass
@@ -138,13 +140,21 @@ class FuturesPaperEngine:
         self.review_log: list[dict] = []
         self.events: list[dict] = []
         self.created_at = _iso(now or datetime.now(timezone.utc))
+        self.entries_today: dict[str, int] = {}
+        self.session_equity: dict | None = None       # {"td", "equity", "ts"}: last value seen inside the session
+        self.pending_flatten: dict[str, str] = {}      # contract -> reason, done on the next fillable bar
+        self.last_bar_ts: dict[str, str] = {}          # contract -> newest bar fed (restart reconciliation)
+        self.new_fills: list[FFill] = []               # not yet persisted to the fills table
+        self.upcoming_events: list = []                # [(name, datetime)] set by the service
 
     def to_state(self) -> dict:
         return {"balance": self.balance, "fees_paid": self.fees_paid, "orders": [asdict(o) for o in self.orders.values()],
                 "fills": [asdict(f) for f in self.fills[-2000:]], "positions": [asdict(p) for p in self.positions.values()],
                 "daily": self.daily, "day_realized": self.day_realized, "trades_today": self.trades_today,
                 "mll_floor": self.mll_floor, "equity_high": self.equity_high, "current_trade_date": self.current_trade_date,
-                "locks": self.locks, "review_log": self.review_log[-200:], "events": self.events[-300:], "created_at": self.created_at}
+                "locks": self.locks, "review_log": self.review_log[-200:], "events": self.events[-300:], "created_at": self.created_at,
+                "entries_today": self.entries_today, "session_equity": self.session_equity, "pending_flatten": self.pending_flatten,
+                "last_bar_ts": self.last_bar_ts}
 
     def load_state(self, st: dict) -> None:
         self.balance, self.fees_paid = st["balance"], st.get("fees_paid", 0.0)
@@ -157,6 +167,8 @@ class FuturesPaperEngine:
         self.current_trade_date = st.get("current_trade_date")
         self.locks, self.review_log = st.get("locks", {}), st.get("review_log", [])
         self.events, self.created_at = st.get("events", []), st.get("created_at", "")
+        self.entries_today, self.session_equity = st.get("entries_today", {}), st.get("session_equity")
+        self.pending_flatten, self.last_bar_ts = st.get("pending_flatten", {}), st.get("last_bar_ts", {})
 
     def _event(self, level: str, text: str, ts: datetime | None = None) -> None:
         self.events.append({"at": _iso(ts or datetime.now(timezone.utc)), "level": level, "text": text})
@@ -212,10 +224,12 @@ class FuturesPaperEngine:
                 consec += 1
             else:
                 break
+        w = clock.window_at(now) if clock else None
         return AccountSnapshot(now=now, trade_date=td, balance=self.balance, unrealized=unreal, day_pnl=round(day, 2),
                                mll_floor=self.mll_floor, daily_results=dict(self.daily), consecutive_losses=consec,
                                open_mini_equivalent=self.open_mini_eq(), open_risk_usd=risk, unprotected=missing, locks=self.locks,
-                               rth=clock.is_rth(now) if clock else True)
+                               rth=clock.is_rth(now) if clock else True, session_close=w.close if w else None,
+                               trades_today=self.entries_today.get(td or "", 0), events=list(self.upcoming_events))
 
     def risk_status(self, now: datetime, clock: FuturesClock | None = None) -> dict:
         return RiskEngine(self.rules, self.personal).evaluate(self.snapshot(now, clock))
@@ -228,14 +242,23 @@ class FuturesPaperEngine:
             prev = self.current_trade_date
             if prev is not None:
                 self.close_trade_date(prev, now)
+                if self.rules.enabled and self.rules.flat_by_ct and any(p.qty for p in self.positions.values()):
+                    self.locks["flat_violation"] = prev
+                    self._event("high", f"A position was still open when trade date {prev} ended (past the flat-by time). On a real "
+                                "Topstep account that breaks the trading-hours rule.", now)
+                    if self.cfg.auto_flatten:
+                        for c, p in self.positions.items():
+                            if p.qty:
+                                self.pending_flatten[c] = "Carried past the flat-by time; flattened at the first fillable price"
             self.current_trade_date = trade_date
-            self.locks = {k: v for k, v in self.locks.items() if k in ("mll_breached", "consecutive")}
-            self.locks.pop("consecutive", None)
+            # daily locks end with the trade date; the Maximum Loss Limit and reset locks don't
+            self.locks = {k: v for k, v in self.locks.items() if k in ("mll_breached", "reset_required", "flat_violation")}
 
     def close_trade_date(self, td: str, now: datetime) -> None:
         net = round(self.day_realized.get(td, 0.0), 2)
         self.daily[td] = net
-        eod = self.balance + self.unrealized()
+        se = self.session_equity
+        eod = se["equity"] if se and se.get("td") == td else self.balance + self.unrealized()
         old = self.mll_floor
         self.mll_floor = next_eod_floor(self.rules, self.mll_floor, eod)
         msg = f"Trade date {td} closed: net ${net:,.2f}, end-of-day balance ${eod:,.2f}."
@@ -306,6 +329,11 @@ class FuturesPaperEngine:
                clock: FuturesClock | None = None, data_status: str | None = None, signal_id: str | None = None,
                role: str = "entry") -> tuple[FOrder | None, dict]:
         now = now or datetime.now(timezone.utc)
+        if signal_id:
+            dup = next((x for x in self.orders.values() if x.signal_id == signal_id and x.status != "rejected"), None)
+            if dup:
+                return None, {"ok": False, "duplicate_of": dup.id,
+                              "problems": [f"An order for this signal already exists ({dup.id}, {dup.status}). Duplicate entries are refused."]}
         pv = self.preview(contract, side, qty, type_, limit_price, stop_price, bracket, ref_price, now, clock, data_status)
         if not pv["ok"]:
             return None, pv
@@ -352,52 +380,59 @@ class FuturesPaperEngine:
 
     def on_bar(self, contract: str, ts: datetime, o: float, h: float, lo: float, c: float, volume: float | None,
                status: str, clock: FuturesClock | None = None) -> list[FFill]:
-        """Feed one bar (or one price as o=h=l=c). Updates marks, fills working orders, applies flat time."""
+        """Feed one bar (or one price as o=h=l=c). Updates marks, fills working orders, applies flat time.
+        Fills (including forced exits) happen only on fillable data: live/polled, replay, reconciliation after a restart,
+        or delayed data with practice mode on. On anything else the mark updates for display and nothing fills."""
         pos = self.positions.get(contract)
         if pos:
             pos.mark, pos.mark_ts, pos.mark_status = c, _iso(ts), status
+        w = clock.window_at(ts) if clock else None
         if clock:
-            w = clock.window_at(ts)
             self.on_clock(ts, w.trade_date.isoformat() if w else None)
-        can_fill = status in TRADABLE or status == "replay" or (status == "delayed" and self.cfg.allow_delayed_practice)
+        self.last_bar_ts[contract] = max(self.last_bar_ts.get(contract, ""), _iso(ts))
+        can_fill = status in TRADABLE or status in FILL_ALWAYS or (status == "delayed" and self.cfg.allow_delayed_practice)
         fills: list[FFill] = []
-        if can_fill:
-            basis = {"replay": "replayed historical bar", "delayed": "DELAYED price (practice mode)"}.get(status, f"{status} market data")
-            budget = None if not volume else max(1, int(volume * self.cfg.participation))
-            work = sorted([x for x in self.orders.values() if x.active and x.contract == contract],
-                          key=lambda x: (0 if x.role == "stop_loss" else 1 if x.role in ("take_profit", "exit", "flatten") else 2, x.created_at))
-            for od in work:
-                if not od.active:
+        if not can_fill:
+            return fills
+        basis = {"replay": "replayed historical bar", "delayed": "DELAYED price (practice mode)",
+                 "reconcile": "historical bar processed after downtime"}.get(status, f"{status} market data")
+        if contract in self.pending_flatten and pos and pos.qty:
+            fills += self.flatten(contract, ts, self.pending_flatten.pop(contract), price=o, ts_basis=f"bar open ({basis})")
+        budget = None if not volume else max(1, int(volume * self.cfg.participation))
+        work = sorted([x for x in self.orders.values() if x.active and x.contract == contract],
+                      key=lambda x: (0 if x.role == "stop_loss" else 1 if x.role in ("take_profit", "exit", "flatten") else 2, x.created_at))
+        for od in work:
+            if not od.active:
+                continue
+            px = self._match(od, o, h, lo, fc.get(od.root))
+            if px is None:
+                continue
+            qty = od.remaining if budget is None else min(od.remaining, budget)
+            if od.role in ("stop_loss", "take_profit", "exit"):
+                pq = self.positions.get(contract)
+                qty = min(qty, abs(pq.qty) if pq else 0)
+                if qty <= 0:
+                    od.status, od.reason = "canceled", "No position left to close"
                     continue
-                px = self._match(od, o, h, lo, fc.get(od.root))
-                if px is None:
-                    continue
-                qty = od.remaining if budget is None else min(od.remaining, budget)
-                if od.role in ("stop_loss", "take_profit", "exit"):
-                    pq = self.positions.get(contract)
-                    qty = min(qty, abs(pq.qty) if pq else 0)
-                    if qty <= 0:
-                        od.status, od.reason = "canceled", "No position left to close"
-                        continue
-                slip = self.cfg.slippage_ticks_market if od.type == "market" else self.cfg.slippage_ticks_stop if od.type == "stop" else 0
-                capped = budget is not None and qty < od.remaining
-                f = self._fill(od, px, qty, ts, basis + (f"; partial: capped at {self.cfg.participation:.0%} of bar volume" if capped else ""), slip)
-                if f:
-                    fills.append(f)
-                    if budget is not None:
-                        budget -= qty
-                        if budget <= 0:
-                            break
-        if pos is None:
-            pos = self.positions.get(contract)
-            if pos:
-                pos.mark, pos.mark_ts, pos.mark_status = c, _iso(ts), status
+            slip = self.cfg.slippage_ticks_market if od.type == "market" else self.cfg.slippage_ticks_stop if od.type == "stop" else 0
+            capped = budget is not None and qty < od.remaining
+            f = self._fill(od, px, qty, ts, basis + (f"; partial: capped at {self.cfg.participation:.0%} of bar volume" if capped else ""), slip)
+            if f:
+                fills.append(f)
+                if budget is not None:
+                    budget -= qty
+                    if budget <= 0:
+                        break
+        pos = self.positions.get(contract)
+        if pos:
+            pos.mark, pos.mark_ts, pos.mark_status = c, _iso(ts), status
         self._check_mll(ts)
-        if clock and self.cfg.auto_flatten and self.rules.enabled and self.rules.flat_by_ct and any(p.qty for p in self.positions.values()):
-            t = ts.astimezone(fc.CT)
-            flat = fc.parse_hhmm(self.rules.flat_by_ct)
-            if t.time() >= flat and t.time() < fc.parse_hhmm(self.rules.trade_day_start_ct) and t.weekday() < 5:
-                fills += self.flatten(contract, ts, f"Flattened at {self.rules.flat_by_ct} CT ({self.rules.firm} flat-by rule)", price=c)
+        if w and self.cfg.auto_flatten and any(p.qty for p in self.positions.values()):
+            flat, _, why = effective_flat(self.rules, ts, w.close)
+            if flat and ts.astimezone(fc.CT) >= flat and ts < w.close:
+                fills += self.flatten(contract, ts, f"Flattened at {flat.astimezone(fc.CT):%H:%M} CT ({why})", price=c)
+        if w:
+            self.session_equity = {"td": w.trade_date.isoformat(), "equity": round(self.balance + self.unrealized(), 2), "ts": _iso(ts)}
         return fills
 
     def _match(self, od: FOrder, o: float, h: float, lo: float, spec: fc.ProductSpec) -> float | None:
@@ -460,10 +495,15 @@ class FuturesPaperEngine:
         f = FFill(id=uuid.uuid4().hex[:12], order_id=od.id, contract=od.contract, root=od.root, side=od.side, qty=qty, price=price,
                   ts=_iso(ts), trade_date=td, fee=fee, slippage_ticks=slip_ticks, basis=basis, role=od.role, realized=realized, fee_note=fee_note)
         self.fills.append(f)
+        self.new_fills.append(f)
+        if od.role == "entry" and od.filled_qty == 0:
+            self.entries_today[td or ""] = self.entries_today.get(td or "", 0) + 1
         od.filled_qty += qty
         od.avg_fill = price if od.avg_fill is None else (od.avg_fill * (od.filled_qty - qty) + price * qty) / od.filled_qty
         od.status = "filled" if od.remaining == 0 else "partial"
         od.updated_at = _iso(ts)
+        if td:
+            self.session_equity = {"td": td, "equity": round(self.balance + self.unrealized(), 2), "ts": _iso(ts)}
         if finished is not None:   # a round trip ended: it counts toward the consecutive-loss rule
             self.trades_today.setdefault(td or "", []).append(finished)
         self._after_fill(od, f, ts)

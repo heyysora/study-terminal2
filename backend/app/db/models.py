@@ -120,6 +120,17 @@ class FuturesStateRecord(Base):
     data: Mapped[str] = mapped_column(Text)
 
 
+class FuturesFillRecord(Base):
+    """Every futures simulator fill, kept permanently (the state blob only keeps recent ones)."""
+
+    __tablename__ = "futures_fills"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    account: Mapped[str] = mapped_column(String(16), index=True)   # practice | replay | sandbox
+    ts: Mapped[str] = mapped_column(String(40), index=True)
+    data: Mapped[str] = mapped_column(Text)
+
+
 class PaperStateRecord(Base):
     """Single row: account balances + open positions (JSON). Rewritten after every change."""
 

@@ -87,6 +87,10 @@ class PersonalRisk:
     rth_only: bool = False
     no_trade_windows_ct: list[list[str]] = field(default_factory=list)   # [["08:25","08:35"], ...]
     warn_at: list[float] = field(default_factory=lambda: [0.5, 0.75, 0.9])
+    max_trades_per_session: int | None = 6
+    max_slippage_ticks: float | None = 4          # refuse entries whose expected slippage exceeds this
+    event_block_minutes: int | None = 15          # no new entries this many minutes before/after a high-impact release
+    max_data_age_seconds: float | None = 180      # live data older than this blocks entries (fillable data only)
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "PersonalRisk":
@@ -113,6 +117,9 @@ class AccountSnapshot:
     unprotected: list[str]
     locks: dict
     rth: bool = True
+    session_close: datetime | None = None          # today's actual close (earlier on holidays)
+    trades_today: int = 0                          # entries already taken this trade date
+    events: list = field(default_factory=list)     # [(name, datetime)] upcoming high-impact releases
 
     @property
     def equity(self) -> float:
@@ -153,6 +160,24 @@ def next_trade_day_start(now: datetime, start_ct: str = "17:00") -> datetime:
     if cand.weekday() == 4:      # Friday 17:00 is not an open; next is Sunday
         cand += timedelta(days=2)
     return cand
+
+
+def effective_flat(rules: PropRules, now: datetime, session_close: datetime | None) -> tuple[datetime | None, datetime | None, str]:
+    """(flat_by, no_new_entries_after, why) for the trade date containing `now`. Topstep: flat by the firm's time or
+    the product's own close, whichever comes first, so holiday early closes pull the flat time earlier."""
+    now_ct = now.astimezone(CT)
+    flat = stop_new = None
+    why = ""
+    if rules.enabled and rules.flat_by_ct:
+        flat = datetime.combine(now_ct.date(), parse_hhmm(rules.flat_by_ct), tzinfo=CT)
+        lead = (flat - datetime.combine(now_ct.date(), parse_hhmm(rules.no_new_entries_after_ct or rules.flat_by_ct), tzinfo=CT))
+        why = f"{rules.firm} flat-by {rules.flat_by_ct} CT"
+        if session_close is not None and session_close.astimezone(CT).date() == now_ct.date():
+            close_flat = session_close.astimezone(CT) - timedelta(minutes=2)
+            if close_flat < flat:
+                flat, why = close_flat, f"early close today ({session_close.astimezone(CT):%H:%M} CT): flat 2 minutes before"
+        stop_new = flat - max(lead, timedelta(minutes=2))
+    return flat, stop_new, why
 
 
 def mini_equivalent(spec: ProductSpec, qty: int, rules: PropRules) -> float:
@@ -239,21 +264,27 @@ class RiskEngine:
                 if pct is not None and pct > r.consistency_pct:
                     warn("consistency", f"Your best day (${best:,.2f}) is {pct:.0f}% of the {'profit target' if r.consistency_basis == 'profit_target' else 'total profit'}; "
                          f"the consistency target is {r.consistency_pct:.0f}% or less. More trading days are needed before it counts.", "low")
-            # Flat time
-            if r.flat_by_ct and s.trade_date:
-                flat = datetime.combine(now_ct.date(), parse_hhmm(r.flat_by_ct), tzinfo=CT)
-                stop_new = datetime.combine(now_ct.date(), parse_hhmm(r.no_new_entries_after_ct or r.flat_by_ct), tzinfo=CT)
+            # Flat time (earlier of the firm's time and the product's close, e.g. holiday early halts)
+            flat, stop_new, why = effective_flat(r, s.now, s.session_close)
+            if flat and s.trade_date:
                 if now_ct < flat:
                     mins = (flat - now_ct).total_seconds() / 60
                     official["minutes_to_flat"] = round(mins, 1)
+                    official["flat_by"] = flat.isoformat()
+                    official["flat_reason"] = why
                     if now_ct >= stop_new:
-                        block("flat_window", f"It's after {r.no_new_entries_after_ct} CT; positions must be flat by {r.flat_by_ct} CT. "
-                              "No new entries until the next session.", "official", reset_at)
+                        block("flat_window", f"Positions must be flat by {flat:%H:%M} CT ({why}). No new entries until the next session.",
+                              "official", reset_at)
                     elif mins <= 20:
-                        warn("flat_soon", f"{mins:.0f} minutes until you must be flat ({r.flat_by_ct} CT).", "high" if mins <= 10 else "medium")
+                        warn("flat_soon", f"{mins:.0f} minutes until you must be flat ({flat:%H:%M} CT, {why}).", "high" if mins <= 10 else "medium")
                 elif now_ct.time() < parse_hhmm(r.trade_day_start_ct) and now_ct.weekday() < 5:
-                    block("after_flat", f"Between {r.flat_by_ct} CT and {r.trade_day_start_ct} CT positions must be flat; trading resumes at "
-                          f"{r.trade_day_start_ct} CT.", "official", reset_at)
+                    block("after_flat", f"Past the flat-by time ({flat:%H:%M} CT, {why}); trading resumes at {r.trade_day_start_ct} CT.",
+                          "official", reset_at)
+            if s.locks.get("reset_required"):
+                block("reset_required", s.locks["reset_required"], "official", review=True)
+            if s.locks.get("flat_violation") and s.locks["flat_violation"] == s.trade_date:
+                warn("flat_violation", "A position was still open after the flat-by time on this trade date. On a real Topstep account that "
+                     "breaks the trading-hours rule.", "high")
         # ---------------- personal ----------------
         personal: dict = {"enabled": p.enabled}
         if p.enabled:
@@ -277,6 +308,16 @@ class RiskEngine:
             if p.daily_profit_target_usd and s.day_pnl >= p.daily_profit_target_usd:
                 block("profit_target_day", f"You reached your daily profit goal (${p.daily_profit_target_usd:,.0f}). Your rule is to stop here.",
                       "personal", reset_at)
+            if p.max_trades_per_session and s.trades_today >= p.max_trades_per_session:
+                block("max_trades", f"{s.trades_today} entries already this session (your limit is {p.max_trades_per_session}).", "personal", reset_at)
+            if p.event_block_minutes:
+                for name, when in s.events:
+                    mins = (when - s.now).total_seconds() / 60
+                    if -p.event_block_minutes <= mins <= p.event_block_minutes:
+                        block("event_window", f"{name} {'in ' + str(int(mins)) + ' min' if mins > 0 else str(int(-mins)) + ' min ago'}: no new entries "
+                              f"within {p.event_block_minutes} minutes of a high-impact release (your setting).", "personal")
+                    elif 0 < mins <= 60:
+                        warn("event_soon", f"{name} in {int(mins)} minutes.", "medium")
             if p.max_open_risk_usd and s.open_risk_usd is not None:
                 personal["open_risk_remaining"] = round(p.max_open_risk_usd - s.open_risk_usd, 2)
             t = now_ct.time()
@@ -332,6 +373,8 @@ class RiskEngine:
                     "limits": limits, "risk": None, "sim_only_note": SIM_ONLY}
         if (side > 0 and stop >= entry) or (side < 0 and stop <= entry):
             problems.append("The stop is on the wrong side of the entry.")
+        if p.enabled and p.max_slippage_ticks is not None and slippage_ticks > p.max_slippage_ticks:
+            problems.append(f"Expected slippage ({slippage_ticks:g} ticks) is above your maximum ({p.max_slippage_ticks:g}).")
         per = risk_per_contract(entry, stop, spec, slippage_ticks, round_turn_cost)
         total = per["total_usd"] * qty
         risk = {**per, "contracts": qty, "trade_risk_usd": round(total, 2)}

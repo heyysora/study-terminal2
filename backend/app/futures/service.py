@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 
-from ..db.models import FuturesStateRecord
+from ..db.models import FuturesFillRecord, FuturesStateRecord
 from ..market_data.types import Timeframe
 from . import backtest as fbt
 from . import contracts as fc
@@ -62,7 +62,6 @@ class FuturesService:
         self.evidence: dict = self._load(EVIDENCE_ID) or {}
         self.replay: dict | None = None
         self.last_actions: dict[str, str] = {}
-        self._fed: dict[str, str] = {}
         self._task: asyncio.Task | None = None
         self._bt_running: set[str] = set()
 
@@ -86,19 +85,44 @@ class FuturesService:
             if self.projectx:
                 self.projectx.live = bool(self.store.get("futures.projectx_live_data", False))
 
+    RULE_FIELDS = ("starting_balance", "max_loss_limit", "mll_type", "mll_lock_balance", "daily_loss_limit", "dll_behavior", "profit_target",
+                   "consistency_pct", "consistency_basis", "max_minis", "micro_ratio", "flat_by_ct", "no_new_entries_after_ct",
+                   "trade_day_start_ct", "account_type", "account_size", "enabled")
+    ACCOUNT_FIELDS = ("starting_balance", "max_loss_limit", "mll_type", "mll_lock_balance", "account_type", "account_size")
+
     def set_prop(self, d: dict, confirm: bool = False) -> dict:
-        r = PropRules.from_dict({**self.rules().to_dict(), **d})
+        cur = self.rules()
+        r = PropRules.from_dict({**cur.to_dict(), **{k: v for k, v in d.items() if k not in ("confirmed", "confirmed_at")}})
+        changed = [k for k in self.RULE_FIELDS if getattr(r, k) != getattr(cur, k)]
         if confirm:
             r.confirmed, r.confirmed_at = True, datetime.now(timezone.utc).isoformat()
-        elif d:
-            r.confirmed = bool(d.get("confirmed", False)) and r.confirmed
+        elif changed:
+            r.confirmed, r.confirmed_at = False, None    # a confirmation covers the exact numbers you checked, nothing else
         self.store.update({"futures.prop": r.to_dict()})
+        self._account_change(cur, r)
         return r.to_dict()
 
     def use_preset(self, preset_id: str) -> dict:
+        cur = self.rules()
         r = PropRules.from_preset(preset_id)
         self.store.update({"futures.prop": r.to_dict()})
+        self._account_change(cur, r)
         return r.to_dict()
+
+    def _account_change(self, old: PropRules, new: PropRules) -> None:
+        """A different account size or drawdown rule means a different account. A fresh account is re-based silently;
+        one with history needs an explicit reset so old P&L never mixes with new rules."""
+        if all(getattr(old, k) == getattr(new, k) for k in self.ACCOUNT_FIELDS):
+            return
+        e = self.engine
+        fresh = not e.fills and not any(p.qty for p in e.positions.values()) and e.balance == old.starting_balance
+        e.rules = new
+        if fresh:
+            e.reset()
+        else:
+            e.locks["reset_required"] = (f"The account rules changed ({old.label} -> {new.label}). Reset the simulated account to start "
+                                         "under the new rules; until then new entries are blocked.")
+        self.save()
 
     # ---------------- persistence ----------------
 
@@ -117,7 +141,28 @@ class FuturesService:
             s.commit()
 
     def save(self) -> None:
+        self._persist_fills(self.engine, "practice")
         self._save(ACCOUNT_ID, self.engine.to_state())
+
+    def _persist_fills(self, eng: FuturesPaperEngine, account: str) -> None:
+        if not eng.new_fills:
+            return
+        rows, eng.new_fills = eng.new_fills, []
+        with self.db.session() as s:
+            for f in rows:
+                if s.get(FuturesFillRecord, f.id) is None:
+                    s.add(FuturesFillRecord(id=f.id, account=account, ts=f.ts, data=json.dumps(asdict(f), default=str)))
+            s.commit()
+
+    def all_fills(self, account: str = "practice") -> list:
+        from sqlalchemy import select
+
+        from .paper import FFill
+        with self.db.session() as s:
+            rows = s.scalars(select(FuturesFillRecord).where(FuturesFillRecord.account == account).order_by(FuturesFillRecord.ts)).all()
+            out = [FFill(**json.loads(r.data)) for r in rows]
+        known = {f.id for f in out}
+        return out + [f for f in self.engine.fills if f.id not in known and account == "practice"]
 
     # ---------------- contracts / sessions ----------------
 
@@ -173,6 +218,7 @@ class FuturesService:
         contract, parsed = self.resolve(sym)
         F, label, notes, clk = await self.frame(contract, tf)
         now = datetime.now(timezone.utc)
+        self.refresh_events()
         snap = self.engine.snapshot(now, clk)
         risk = RiskEngine(self.engine.rules, self.engine.personal)
         st = risk.evaluate(snap)
@@ -226,20 +272,35 @@ class FuturesService:
         return (bars[-1]["close"] if bars else None), label.get("status", "unavailable"), clk
 
     def _feed(self, contract: fc.Contract, bars: list[dict], label: dict, clk: FuturesClock) -> None:
-        """Feed bars the simulator hasn't seen yet (marks, fills, flat time). The last bar may still be forming,
-        so it only updates the mark."""
+        """Feed completed bars the simulator hasn't seen (marks, fills, flat time). The newest bar may still be forming,
+        so it only updates the mark. After a restart or sleep, the bars missed in between are processed as
+        "reconcile" bars, so stops and targets hit while the app was off are honoured instead of skipped."""
         if not bars:
             return
-        last = self._fed.get(contract.code)
+        e = self.engine
         status = label.get("status", "unavailable")
-        new = [b for b in bars[:-1] if last is None or b["ts"].isoformat() > last]
+        last = e.last_bar_ts.get(contract.code)
+        done = bars[:-1]
         if last is None:
-            new = new[-1:]          # first look: don't replay history into working orders
+            new = done[-1:]                      # never seen this contract: start from now, don't replay history
+            gap_bars: list = []
+        else:
+            new = [b for b in done if b["ts"].isoformat() > last]
+            step = (bars[-1]["ts"] - bars[-2]["ts"]) if len(bars) >= 2 else timedelta(minutes=1)
+            first_new = new[0]["ts"] if new else None
+            gap = first_new is not None and (first_new - datetime.fromisoformat(last)) > 3 * step
+            busy = any(p.qty for c, p in e.positions.items() if c == contract.code) or any(
+                o.active for o in e.orders.values() if o.contract == contract.code)
+            gap_bars = new[:-1] if gap or (busy and len(new) > 3) else []
         for b in new:
-            self.engine.on_bar(contract.code, b["ts"], b["open"], b["high"], b["low"], b["close"], b["volume"], status, clk)
-            self._fed[contract.code] = b["ts"].isoformat()
+            st = "reconcile" if b in gap_bars else status
+            e.on_bar(contract.code, b["ts"], b["open"], b["high"], b["low"], b["close"], b["volume"], st, clk)
+        if gap_bars:
+            e._event("info", f"{contract.code}: processed {len(gap_bars)} bars from {gap_bars[0]['ts']:%Y-%m-%d %H:%M} to "
+                     f"{gap_bars[-1]['ts']:%H:%M} UTC that arrived while Study Terminal was offline or asleep, so stops and targets hit "
+                     "in that time are applied.", datetime.now(timezone.utc))
         lb = bars[-1]
-        pos = self.engine.positions.get(contract.code)
+        pos = e.positions.get(contract.code)
         if pos:
             pos.mark, pos.mark_ts, pos.mark_status = lb["close"], lb["ts"].isoformat(), status
 
@@ -287,7 +348,6 @@ class FuturesService:
             self.set_prop({"starting_balance": float(starting_balance)})
             self.apply()
         self.engine.reset()
-        self._fed.clear()
         self.save()
         self._push()
         return {"ok": True, "balance": self.engine.balance}
@@ -306,7 +366,7 @@ class FuturesService:
         """Round trips from futures paper fills, net of fees, with R when the entry had a bracket stop."""
         trips, cur = [], {}
         orders = self.engine.orders
-        for f in self.engine.fills:
+        for f in self.all_fills("practice"):
             t = cur.get(f.contract)
             if t is None:
                 o = orders.get(f.order_id)
@@ -357,9 +417,20 @@ class FuturesService:
         if self.projectx:
             await self.projectx.aclose()
 
+    def refresh_events(self) -> None:
+        """High-impact releases in the next 2 days, as (name, datetime), for the risk layer's event window."""
+        if not self.news:
+            return
+        try:
+            from ..news.sources import event_datetime
+            self.engine.upcoming_events = [(e["event"], event_datetime(e)) for e in self.news.upcoming(2) if e.get("importance") == "high"]
+        except Exception:  # noqa: BLE001
+            log.exception("could not read the economic calendar for futures risk")
+
     async def _loop(self) -> None:
         while True:
             await asyncio.sleep(20)
+            self.refresh_events()
             try:
                 live = {o.contract for o in self.engine.orders.values() if o.active} | {c for c, p in self.engine.positions.items() if p.qty}
                 for code in live:
