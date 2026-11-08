@@ -1,5 +1,4 @@
 """Every Stage 2-10 API through the real app, with a fake provider serving synthetic bars."""
-import asyncio
 import io
 from datetime import date
 
@@ -8,7 +7,6 @@ import httpx
 import pytest
 
 from app.main import create_app
-from app.market_data.types import Timeframe
 
 from .chart_image import render
 from .fakes import FakeProvider, always_open_clock

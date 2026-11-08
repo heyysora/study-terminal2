@@ -1,74 +1,49 @@
-# Feature Status
+# Features and limitations (0.5.0)
 
-✅ built and tested here · 🟡 built, needs verification on your Windows PC or during market hours · ⬜ not built
+✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
-## Stage 1 + migration: foundation and market data ✅
-No brokerage and no keys. Yahoo provider (history, polling, streaming) behind a swappable provider interface. Honest freshness labels. Local NYSE calendar. Watchlists, SQLite, WebSocket push. Details in [docs/MIGRATION_FROM_ALPACA.md](docs/MIGRATION_FROM_ALPACA.md).
+## Completed
 
-## Stage 2: technical analysis ✅
-| Feature | Status |
-|---|---|
-| EMA 9/21/50/200, SMA 20/50/200 | ✅ |
-| RSI (Wilder, TradingView-matching), MACD, stochastic, ROC, relative strength vs SPY via multi-timeframe and market context | ✅ |
-| VWAP (session), time-of-day relative volume, volume profile (POC/VAH/VAL), OBV, volume spikes, buying/selling pressure estimate | ✅ |
-| ATR, Bollinger Bands, historical volatility, intraday range | ✅ |
-| Candles: engulfing, doji, hammer, shooting star, pin bars, inside bar, breakout candles | ✅ |
-| Structure: swing highs/lows, HH/HL/LH/LL, support/resistance clustering, previous-day high/low/close, premarket high/low, opening range, liquidity sweeps, consolidation, RSI divergences | ✅ |
-| Timeframes 1m–1D (4h built locally from hourly), user-selectable, alignment summary | ✅ |
-| Every feature is causal (no look-ahead); enforced by tests | ✅ |
+| Area | Feature | Status |
+|---|---|---|
+| Market data | Yahoo stream + 1-min polling, no keys, swappable provider interface | ✅ |
+| | Status per quote and chart: Near real-time / Polling / Delayed / Historical / **Cached** / Stale / Unavailable, with source, price time and age | ✅ |
+| | Bar validation (impossible bars dropped, rounding repaired, one-bar spikes flagged, missing regular-session candles counted) | ✅ |
+| | Feed-health alerts (stream down > 60 s, provider failing, stale price on an open position) and recovery alerts; automatic reconnect with backoff | ✅ |
+| | Rate limiting (60/min, back-off on 429), exchange calendar incl. holidays and **early closes** everywhere | ✅ |
+| | Provider research and how to add one ([docs/DATA_PROVIDERS.md](docs/DATA_PROVIDERS.md)) | ✅ |
+| | US stocks streamed during market hours | 🟡 never observed from the build environment (weekend); crypto streaming verified |
+| Signals | 10 setups, full plans, lifecycle, position sizing | ✅ |
+| | Evidence tiers from out-of-sample results with day-clustered 95% intervals; BUY/SHORT only on "reliable" evidence; clearly losing setups = NO TRADE; STRONG needs regime record too | ✅ |
+| | Watch-only for 15 min around FOMC/CPI/jobs/GDP/PCE; earnings and post-earnings notes | ✅ |
+| Backtesting | Walk-forward (optimized and fixed-rules), per-direction/regime calibration, diagnostics across 17 dimensions, MFE/MAE, stop/target/entry mechanics, costs | ✅ |
+| | Real-data studies: 5-min, 15-min, 1-hour, 20 symbols ([docs/BACKTEST_RESULTS.md](docs/BACKTEST_RESULTS.md)) | ✅ |
+| Journal (Stage 11) | Automatic trade and signal records, conditions at entry, confidence components, plan checks, notes, tags | ✅ |
+| | Mistake detection (8 patterns) with cost vs clean trades; performance dashboard with filters | ✅ |
+| News | Yahoo headlines with reported/unconfirmed/opinion and relevance labels, earnings dates and surprises, analyst actions, FOMC (live), BEA (live), BLS (bundled) | ✅ verified live against Yahoo, the Fed and BEA |
+| | Scanner catalyst tags; signal event gate; news alerts | ✅ |
+| Screen copilot | Ticker, timeframe, price, axis from pixels and window title; cross-check against market data; price-confirmed OCR tickers | ✅ on 60 real TradingView screenshots (blind set: 0 wrong answers) |
+| | Windows window/monitor capture | 🟡 Windows only |
+| | Webull, thinkorswim, IBKR | 🟡 untested (no screenshots available); harness ready: `scripts\screen-eval.ps1` |
+| AI mentor | Labelled answers from analysis, signals, evidence, journal, news, signal log; 18 intents | ✅ |
+| | Claude / Ollama wording | 🟡 written, untested (no key or local model here) |
+| Desktop (Stage 12) | Installer (Inno Setup), Start menu, desktop shortcut, icon, uninstall with keep-data choice, data folder separate from program | 🟡 written; the PyInstaller bundle was built and self-tested on Linux, the Windows build and installer were not run |
+| | Single instance, clean shutdown, error message boxes, logs folder from tray and Settings, start-on-login (off by default) | 🟡 Windows behaviour unverified; clean shutdown verified on Linux |
+| | Tray, toasts, sound, hotkey, WebView2 window | 🟡 run `scripts\verify-windows.ps1` |
+| Chrome extension | Optional, token-paired, TradingView tabs only, title + address only | ✅ end-to-end in real Chrome with a real TradingView tab |
+| Earlier stages | Analysis, scanner, paper trading, risk limits, alerts, learning centre | ✅ (see previous releases) |
 
-## Stage 3: scanner ✅
-Universe from your watchlists plus Yahoo's market-wide lists (gainers, losers, most active, small-cap gainers). Filters: price, % move, average volume, dollar liquidity, market cap, RVOL, volatility, premarket move, setup quality. Transparent ranking. Automatic every 3 minutes in premarket and regular hours, or on demand. Verified against live Yahoo lists.
+## Remaining limitations
 
-## Stage 4: signal engine ✅
-| Feature | Status |
-|---|---|
-| Actions: STRONG BUY, BUY, POTENTIAL BUY, WAIT FOR CONFIRMATION, SHORT, POTENTIAL SHORT, NO TRADE; for positions: HOLD, TAKE PARTIAL PROFITS, SELL, EXIT POSITION, COVER SHORT | ✅ |
-| 10 setups: VWAP reclaim/rejection, opening-range breakout/breakdown, level breakout/breakdown, trend pullback long/short, failed breakdown/breakout | ✅ |
-| All 20 required signal fields, including position size, invalidation, confirmation, risks, and the beginner explanation | ✅ |
-| Lifecycle: developing → approaching → confirmed → extended (don't chase) / invalidated / expired | ✅ |
-| Confidence kept as three separate things: out-of-sample history, model estimate, checklist score. Plus "certainty: not knowable". | ✅ |
-| STRONG BUY requires positive out-of-sample history; setups that lost money out-of-sample are capped at POTENTIAL | ✅ |
-| Signals disabled on delayed/stale/closed data; polled data limited to 5-minute+ setups | ✅ |
-| Market regime context from SPY, including high-risk conditions | ✅ |
-
-## Stage 5: interface ✅ / 🟡
-Dashboard, chart workspace (candles, volume, VWAP/EMA overlays, key levels, entry/stop/target lines, NY time axis), live copilot, scanner, paper trading, backtest/ML, learning center, alerts, settings. Always-visible status strip. Verified by rendering real-data screenshots in headless Chrome. 🟡 Not yet viewed inside the Windows WebView2 window.
-
-## Stage 6: screen intelligence ✅ / 🟡
-| Feature | Status |
-|---|---|
-| Window/monitor picker, consent gate, pause/resume/stop, frames never saved | ✅ |
-| Ticker (window title + OCR, confirmed against market data), timeframe, visible price, price-axis reading | ✅ 18/18 rendered test charts |
-| Drawn horizontal lines → prices, recent candle colors, visible indicators, on-screen position text (unverified) | ✅ on rendered charts |
-| Login/password screen detection | ✅ |
-| Fusion: screen vs market price discrepancy, frozen-screen detection, signals for the on-screen symbol and timeframe | ✅ |
-| Change-driven processing, optional AI vision on material changes only | ✅ |
-| Windows window capture (PrintWindow, mss fallback) | 🟡 written for Windows, not executable here |
-| Real TradingView/Webull/thinkorswim/IBKR screenshots | 🟡 tested on rendered charts only; real platforms will need tuning |
-
-## Stage 7: always-on copilot ✅ / 🟡
-| Feature | Status |
-|---|---|
-| Alert engine: entry/position/market/system categories, severity, material-change detection, duplicate suppression, history | ✅ |
-| In-app toasts with a link to the chart | ✅ |
-| Sleep/wake detection; pause/resume monitoring with honest labels | ✅ |
-| Windows toast notifications (win11toast), sound (winsound) | 🟡 |
-| Desktop window (pywebview/WebView2), tray icon with status, close-to-tray, Ctrl+Alt+S, start on login, keep-awake option | 🟡 |
-
-## Stage 8: AI mentor and education ✅
-Provider choice (built-in / Claude / Ollama), never required. Grounded Q&A for every question in the spec; refuses to invent news or guess a symbol. Explain This Chart adapts to your level and the terms you've already learned. 18 lessons (17 core + a separate options module), quizzes graded server-side, 70+ glossary terms, real-chart "spot the setup" exercises, progress, recommendations. 🟡 Claude/Ollama paths are written but untested here (no key or local model).
-
-## Stage 9: risk management ✅
-Settings editable live and persisted. Per-trade risk, daily loss limit, max positions, min reward:risk, required stop, consecutive-loss pause, max exposure, buying power, weekly P&L, position size calculator. Short-sale warnings (borrow, fees, restrictions and unlimited loss).
-
-## Stage 10: backtesting and ML ✅
-Bar replay with the paper simulator's own fill rules and costs, flat at the close, no look-ahead (tested). Metrics: win rate, average win/loss, profit factor, drawdown, expectancy ($ and R, before and after costs), Sharpe, total return, trades, holding time. Breakdown by setup, regime and symbol. Optimization grid, walk-forward, chronological split. Calibration store feeds signals. ML: logistic baseline, random forest, gradient boosting (XGBoost if installed), chronological validation, Brier skill, AUC, precision/recall, calibration table, permutation importance, versioning, PSI drift. Deploys only if it beats the base rate.
-
-## Not built (later stages in the original spec)
-| Stage | Status |
-|---|---|
-| 11: trading journal, mistake analysis, performance dashboard | ⬜ (paper fills and backtest trades are already stored for it) |
-| 12: Windows installer packaging | ⬜ |
-| News and catalyst monitoring | ⬜ (no free news feed wired; the assistant says so instead of guessing) |
-| Chrome extension | ⬜ (optional in the spec; screen capture covers browser charts) |
+- **No demonstrated edge.** The built-in setups lose slightly or break even out-of-sample. The app will mostly say NO TRADE.
+- **Free data is partial.** Yahoo's price is Nasdaq Last Sale (real-time price, partial volume); its endpoints are
+  unofficial and can change or break. Nothing is ever labelled REALTIME.
+- **Intraday history is short**: ~60 days for 5- and 15-minute bars, ~2 years for hourly. Walk-forward on 5/15-minute
+  covers 21 out-of-sample trading days, one market period.
+- **Survivorship bias**: the test universe is today's large caps.
+- **Windows-specific parts are unverified on Windows** (see [docs/WINDOWS_VERIFICATION.md](docs/WINDOWS_VERIFICATION.md)).
+- **Screen reading** measured on TradingView only; logged-in layouts and other platforms will need tuning.
+- **News**: Yahoo's feed only; no FDA calendar, no real-time wires; labels are keyword rules.
+- **Chrome extension**: TradingView doesn't always put the interval in the address; then your default timeframe is used.
+- Alert de-duplication resets on restart (M9 in the audit). Quitting within a second of launch logs a harmless library error (L6).
+- Not built: real-money execution (by design), Webull/ToS/IBKR-specific readers, code signing for the installer.

@@ -400,7 +400,7 @@ def position_info(tokens: list[Token]) -> dict | None:
     out = {}
     labels = {"qty": "quantity", "position": "quantity", "shares": "quantity", "avg": "avg_price", "p&l": "pnl", "pnl": "pnl",
               "unrealized": "pnl"}
-    for i, t in enumerate(tokens):
+    for t in tokens:
         key = labels.get(t.text.lower().strip(":"))
         if not key:
             continue

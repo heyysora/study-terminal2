@@ -1,0 +1,124 @@
+# Using Study Terminal
+
+Study Terminal is a research and paper-trading environment. It watches the market, looks for a fixed set of
+setups, tells you how those setups have actually performed out-of-sample, and records everything you do so you
+can learn from it. **It never trades real money and never places an order you didn't confirm.**
+
+The one thing to understand first: in testing, none of the built-in setups has a reliable edge yet (see
+`docs/BACKTEST_RESULTS.md`). So most of the time the honest answer you'll see is **NO TRADE**, with ideas listed
+as **watch only**. That's the app working as designed, not a bug.
+
+## The status strip (top of every page)
+- **Market data meter**: how live prices are. Near real-time (Yahoo stream) > Polling (lags up to ~90 s) >
+  Delayed / Historical / Cached / Stale > Unavailable. Hover for the reason. New signals need Near real-time or Polling.
+- **Screen**: whether the screen copilot is watching (it never runs without your OK).
+- **Paper equity, day P&L**: the simulated account.
+
+Every quote shows where it came from and when ("Yahoo stream, price time 14:32:05 ET, 3s old"). Every chart shows
+its bar source, when it was fetched, the newest closed bar, and data-quality checks (bad bars removed, spikes
+flagged, missing candles counted).
+
+## Scanner
+Finds candidates from your watchlists plus Yahoo's gainers, losers and most-active lists. It runs every 3 minutes in
+premarket and market hours, or when you press Run.
+
+- **Filters**: price, % move, average volume, dollar liquidity, market cap, relative volume, volatility, setup quality.
+- **Score**: a weighted mix of setup checklist, relative volume, move size, trend clarity and liquidity. The
+  weights are judgment calls, shown next to every row ("Why it ranks here"). A setup with losing out-of-sample
+  history is penalized; a fresh confirmed catalyst adds +5 (the direction of the news is never assumed).
+- **Watch** next to a signal means the setup has no reliable edge.
+
+## Signals
+Each setup idea shows: entry range, stop, invalidation, targets, size for your risk setting, reward:risk, and a
+plain-language explanation. The action comes from two things:
+
+1. **Where the setup is**: developing → approaching → confirmed, or extended (don't chase) / invalidated / expired.
+2. **How the setup has done out-of-sample** (from walk-forward tests you run on the Backtest page):
+
+| Evidence tier | Meaning | What the app does |
+|---|---|---|
+| Untested / Too few trades | Fewer than 30 out-of-sample trades | Watch only |
+| Lost money in testing / No proven edge | Average below zero, or the 95% interval includes zero | Watch only |
+| Clearly lost money | The whole 95% interval is below zero | **NO TRADE** (study only) |
+| Positive, not yet reliable | Interval above zero but < 100 trades, < 30 days, or inconsistent across test windows | Watch only |
+| **Reliable** | Interval above zero, 100+ trades over 30+ days, positive in most test windows | **BUY / SHORT** allowed |
+
+**STRONG BUY / STRONG SHORT** additionally need a high checklist score *and* a non-negative record in the current
+market regime. A high checklist alone never makes a signal strong.
+
+Signals also go watch-only from 15 minutes before to 15 minutes after a major scheduled release (FOMC, CPI, jobs,
+GDP, PCE), and on stale, delayed, cached or closed-market data.
+
+## News and catalysts (chart page, dashboard)
+- **Headlines** from Yahoo Finance with source, time, link, and the app's labels: **Reported** (stated as fact by the
+  publisher), **Unconfirmed** (rumour, "reportedly", "in talks"), **Opinion** (commentary, "stocks to buy"). Relevance
+  (high/medium/low) says whether it's really about this symbol. These labels are keyword rules, not AI, and they're
+  marked that way. The publisher's own summary is shown as theirs.
+- **Earnings**: next date and time (and whether the company has confirmed it), EPS estimate, last reports with surprise %.
+- **Analyst actions** (last 45 days): firm, old → new rating, price-target change.
+- **Economic calendar**: FOMC (Federal Reserve site), GDP/PCE/trade (BEA site), CPI/jobs/PPI (BLS schedule bundled
+  with the app, through Dec 2027).
+- Not covered: FDA decision dates (no reliable free calendar), real-time newswires.
+
+## Screen copilot (Live copilot page)
+1. Pick a window or a monitor. Nothing is captured until you start it, and a red dot shows while it runs.
+2. It reads the ticker, timeframe and visible price, checks them against market data, and runs the signal engine
+   for that symbol and timeframe.
+3. If the screen and the market data disagree by more than 0.5%, it tells you and uses market data.
+4. Login screens and non-chart browser tabs are skipped. Frames are never saved. Pause/Stop from the page or the tray.
+5. You can also upload a screenshot for a one-off read.
+
+Measured accuracy on real TradingView screenshots: `docs/SCREEN_VALIDATION.md`. Webull, thinkorswim and IBKR
+are untested; use `scripts\screen-eval.ps1` on your own screenshots to measure them.
+
+**Optional Chrome extension**: follows your active TradingView tab using only its title and address (no screen
+capture at all). See `extension/README.md`.
+
+## Paper trading
+- Order ticket: market, limit, stop (breakout entry) or stop-limit, with an optional protective stop and target
+  (they become a one-cancels-other pair when the entry fills). **Preview first, then confirm.**
+- **Load into paper order ticket** on a signal fills the plan in and links the trade to that signal, so the journal
+  can compare what you did with the plan.
+- Fills are conservative: slippage of max(1 bp, 1¢), stops that gap fill at the worse price, limits need price to
+  trade through, stop first when one bar hits both.
+- Risk limits (Settings): % risk per trade, daily loss limit, max positions, minimum reward:risk, required stop,
+  pause after N losing trades in a row, max exposure. Orders that break a limit are rejected with the reason.
+
+## Journal
+Every paper trade and every signal is recorded automatically.
+
+- **Trades**: entry, exit, stop, target, size, risk, P&L (realized and open), R-multiple, strategy, the conditions
+  when you entered (market, data status, trend, regime, how stretched price was), the signal's confidence at that
+  moment, and **whether you followed the plan** (each check listed: stop set, stop kept, entry inside the range,
+  stop where planned, risk within your limit, exit at stop or target). You can override the verdict, add notes and tags.
+- **Mistakes** detected from the records: late entry, chasing an extended move, exiting a winner early, holding a loser
+  past the plan, no stop or removed stop, unfavorable conditions, too many trades (or a trade within 10 minutes of a
+  loss), repeating a setup that's losing. Each shows its evidence and what it has cost you compared with your clean trades.
+- **Performance**: win rate, average winner and loser, profit factor, expectancy, max drawdown, total R, average R,
+  best and worst strategy, by ticker, time of day and regime. Filters for dates, ticker, strategy, direction, mistake
+  and plan-followed.
+- Closed trades are kept even if you reset the paper account.
+
+## Backtest
+Run **walk-forward** tests: parameters are chosen on one window and scored on the *next* window they never saw. Only
+those out-of-sample results calibrate signals. The results page shows the evidence tier with 95% intervals, the
+trade mechanics (how often trades reach +1R or +2R, how many are stopped within 2 bars, how many stopped trades later hit
+the target, cost per trade), and results by strategy, ticker, timeframe, direction, regime, time of day, volatility,
+streak and checklist score.
+
+Treat the "results by…" tables as a microscope, not a tuner: picking filters from them and re-testing on the same
+trades is curve-fitting.
+
+## AI mentor
+Ask in plain English: "Should I buy this?", "Where's my stop?", "What would invalidate this?", "Is this breakout
+confirmed?", "Am I chasing?", "Why did this signal appear / get invalidated?", "What's the risk/reward?", "Why is it
+moving?", "Which of my strategies has done best?", "What mistakes am I repeating?"
+
+Every answer is built from the app's own data and split into labelled parts: **Observed** (facts from data),
+**Interpretation** (the app's reading), **Historical evidence** (backtest and journal numbers), **Uncertainty** (what
+isn't known), **If you…** (scenarios). It works offline. Claude or Ollama are optional: they rewrite the same
+grounded data in friendlier language and are told never to invent prices, news or statistics.
+
+## Learning
+18 lessons with quizzes, a glossary, and "spot the setup" exercises on real charts. The mentor adapts explanations to
+your level and the terms you've learned.

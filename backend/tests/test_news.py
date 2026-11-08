@@ -1,6 +1,6 @@
 """Phase 5: news parsing and labelling, earnings and analyst data, macro calendar, and how catalysts
 reach signals and the scanner. Fixtures are trimmed copies of the real Fed and BEA pages (2026-11-07)."""
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd

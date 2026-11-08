@@ -1,0 +1,1 @@
+wf_1Hour_720_fixed.json 129.6 s | {'trades': 2796, 'days': 427, 'avg_r': -0.027, 'total_r': -74.69, 'avg_r_ci95': [-0.065, 0.015], 'win_rate': 46.6, 'win_rate_ci95': [44.7, 48.4], 'folds_positive': '7/22', 'tier': 'losing', 'tier_text': 'Lost money out-of-sample on average (not conclusive, but no evidence of an edge).'}

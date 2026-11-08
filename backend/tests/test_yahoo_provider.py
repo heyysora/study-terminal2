@@ -1,7 +1,6 @@
 """YahooProvider with yfinance replaced by a fake module (no network)."""
 import asyncio
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pandas as pd
 import pytest

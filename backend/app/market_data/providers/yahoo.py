@@ -18,7 +18,7 @@ import asyncio
 import logging
 import time as _time
 from collections import deque
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ...core.market_clock import ET, regular_close_minute

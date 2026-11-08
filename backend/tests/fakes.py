@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from app.core.market_clock import ET, MarketClock, TradingDay
 from app.market_data.providers.base import MarketDataProvider, StreamState, SymbolNotFound, TickStream

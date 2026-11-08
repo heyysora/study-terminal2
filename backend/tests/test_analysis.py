@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import datetime, time
 
 import numpy as np
 import pandas as pd
@@ -131,7 +131,6 @@ def test_volume_profile():
 
 def test_early_close_day_excludes_after_hours_bars():
     """2024-11-29 closed at 13:00 ET: Yahoo still returns zero-volume 13:00-15:00 hourly bars, which are after-hours."""
-    from datetime import datetime
 
     from app.core.market_clock import ET
     from app.market_data.types import Bar

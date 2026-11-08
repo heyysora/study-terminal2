@@ -146,7 +146,7 @@ def detect_mistakes(trades: list[dict], max_trades_per_day: int = 3, own_history
         sig, ctx = t.get("signal") or {}, t.get("context") or {}
         long = t["direction"] == "long"
 
-        def add(code, ev):
+        def add(code, ev, ms=ms):
             ms.append({"code": code, "label": MISTAKES[code], "evidence": ev})
 
         rng = sig.get("entry_range")
