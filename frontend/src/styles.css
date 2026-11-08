@@ -195,3 +195,10 @@ details[open] > summary { color: var(--text); }
 .journal-note { border: 1px solid var(--rule); border-radius: 3px; padding: 6px 8px; }
 textarea { width: 100%; background: var(--ink); color: var(--text); border: 1px solid var(--rule-strong); border-radius: 3px; padding: 6px 8px; font: inherit; resize: vertical; }
 button.small { font-size: 11.5px; padding: 2px 6px; }
+
+/* news */
+.news-row { border-left: 2px solid var(--rule); padding: 2px 0 4px var(--s3); }
+.news-row.rel-high { border-left-color: var(--brass); }
+.news-row a { color: var(--text); text-decoration: none; } .news-row a:hover { text-decoration: underline; }
+.cert { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; padding: 0 5px; border-radius: 3px; border: 1px solid var(--rule-strong); color: var(--muted); }
+.cert.c-confirmed { color: var(--text); } .cert.c-speculative { color: var(--warn); border-color: var(--warn); } .cert.c-opinion { color: var(--faint, #5d6a7b); }

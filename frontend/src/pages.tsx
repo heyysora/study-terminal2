@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Action, CandleChart, ChartStamp, Meter, OrderTicket, Panel, QuoteStamp, SignalCard, type Overlay, type PriceLine } from "./components";
+import { Catalysts, EconCalendar } from "./pages3";
 import { TIMEFRAMES, api, etTime, money, num, pct, sign, tfShort, useLive, usePoll } from "./lib";
 
 // ======================= Dashboard =======================
@@ -65,7 +66,7 @@ export function Dashboard() {
                 {opps.map((r: any) => (
                   <tr key={r.symbol} className="click" onClick={() => (location.hash = `#/chart/${r.symbol}`)}>
                     <td className="sym">{r.symbol}</td><td className={`r ${sign(r.change_pct)}`}>{pct(r.change_pct, 1)}</td>
-                    <td className="r">{num(r.rvol, 1)}</td><td>{r.best_signal ? <Action a={r.action} /> : <span className="faint">none</span>}</td>
+                    <td className="r">{num(r.rvol, 1)}</td><td>{r.best_signal ? <Action a={r.action} /> : r.watch_signal ? <span title="No reliable out-of-sample edge"><Action a={r.watch_signal.action} /> <span className="faint small">watch</span></span> : <span className="faint">none</span>}</td>
                     <td className="r">{r.rank_score}</td></tr>))}
               </tbody></table>}
           </Panel>
@@ -98,6 +99,7 @@ export function Dashboard() {
                 <div key={a.id} className={`alert ${a.severity}`}><span className="bar" /><div><div className="t">{a.title}</div>
                   <div className="small faint">{etTime(a.ts)} ET</div></div></div>))}
           </Panel>
+          <EconCalendar />
         </div>
       </div>
     </div>
@@ -192,11 +194,13 @@ export function ChartPage({ symbol: routeSym }: { symbol?: string }) {
         <div className="stack">
           <Panel title="Signal" sub={sg.data ? `${tfShort(tf)}` : ""} right={sg.data && <Action a={sg.data.action} />}>
             {!sg.data ? <span className="muted">{sg.error || "Evaluating…"}</span> :
-              best ? <SignalCard s={best} onTrade={setPrefill} /> :
+              best ? <div className="stack">{sg.data.action === "NO TRADE" && sg.data.reasons.map((r: string, i: number) => <p key={i} className="small" style={{ margin: 0 }}>{r}</p>)}
+                <SignalCard s={best} onTrade={setPrefill} /></div> :
                 <div className="stack"><p style={{ margin: 0 }}>NO TRADE.</p>{sg.data.reasons.map((r: string, i: number) => <p key={i} className="muted small">{r}</p>)}</div>}
             {sg.data?.signals?.length > 1 && <details><summary>Other setups on this chart ({sg.data.signals.length - 1})</summary>
               {sg.data.signals.filter((s: any) => s !== best).map((s: any) => <div key={s.id} className="spread small" style={{ padding: "3px 0" }}><span>{s.setup_name}</span><Action a={s.action} /></div>)}</details>}
           </Panel>
+          <Catalysts symbol={sym} />
           {an.data?.mtf && <Panel title="Timeframes" sub={an.data.mtf.aligned ? "aligned" : "mixed"}>
             {an.data.mtf.timeframes.map((t: any) => <div key={t.timeframe} className="spread small"><span>{tfShort(t.timeframe)}</span><span className={t.bias === "bullish" ? "up" : t.bias === "bearish" ? "down" : "muted"}>{t.bias} ({t.score})</span></div>)}
             <p className="small muted" style={{ marginTop: 6 }}>{an.data.mtf.note}</p></Panel>}
@@ -364,7 +368,9 @@ export function Scanner() {
               <tr key={r.symbol} className="click" onClick={() => (location.hash = `#/chart/${r.symbol}`)}>
                 <td className="sym">{r.symbol}</td><td className="r">{num(r.price)}</td><td className={`r ${sign(r.change_pct)}`}>{pct(r.change_pct, 1)}</td>
                 <td className="r">{num(r.rvol, 1)}</td><td className="r">{num(r.atr_pct)}</td><td>{r.bias}</td>
-                <td>{r.best_signal ? <span className="row"><Action a={r.action} /><span className="small muted">{r.best_signal.setup_name}</span></span> : <span className="faint">no setup</span>}</td>
+                <td>{r.best_signal ? <span className="row"><Action a={r.action} /><span className="small muted">{r.best_signal.setup_name}</span></span> :
+                  r.watch_signal ? <span className="row" title="Watch only: no reliable out-of-sample edge"><Action a={r.watch_signal.action} /><span className="small muted">{r.watch_signal.setup_name}, watch</span></span> :
+                  <span className="faint">no setup</span>}{r.catalyst && <div className="small" title={(r.catalyst.headlines || []).map((h: any) => h.headline).join("\n")}>Catalyst: {r.catalyst.text}</div>}</td>
                 <td className="r">{r.rank_score}</td>
                 <td className="small muted">{Object.entries(r.rank_components).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`).join(", ")}</td></tr>))}
             </tbody></table>}

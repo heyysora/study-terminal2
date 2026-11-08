@@ -200,7 +200,7 @@ class ScreenService:
             try:
                 ev, snap, _ = await self.signals.evaluate_symbol(sym, tf)
                 out["analysis_timeframe"] = tf.value
-                out["action"], out["best_signal"], out["reasons"] = ev["action"], ev.get("best"), ev["reasons"]
+                out["action"], out["best_signal"], out["reasons"] = ev["action"], ev.get("best") or ev.get("watch"), ev["reasons"]
                 out["bias"] = snap.get("bias")
                 levels = [lv for lv in snap.get("levels", []) if abs(lv.get("distance_pct", 99)) < 2]
                 out["your_drawn_levels"] = [{**d, "nearest_known_level": min(levels, key=lambda lv: abs(lv["price"] - d["price_estimate"]))["label"]

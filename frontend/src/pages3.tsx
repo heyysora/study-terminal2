@@ -234,3 +234,65 @@ export function Journal() {
     </div>
   );
 }
+
+// ======================= News & catalysts =======================
+
+const CERT_TEXT: Record<string, string> = { confirmed: "Reported", speculative: "Unconfirmed", opinion: "Opinion", unclear: "Unclear" };
+
+function NewsRow({ n }: { n: any }) {
+  return (
+    <div className={`news-row rel-${n.relevance}`}>
+      <div className="spread small"><span className="faint">{n.published ? `${etDate(n.published)} ${etTime(n.published)} ET` : "time unknown"}, {n.source}</span>
+        <span className="row" style={{ gap: 6 }}><span className={`cert c-${n.certainty}`} title={n.certainty_label}>{CERT_TEXT[n.certainty] || n.certainty}</span>
+          <span className="faint">{n.category_label}</span></span></div>
+      <div>{n.url ? <a href={n.url} target="_blank" rel="noreferrer noopener">{n.headline}</a> : n.headline}</div>
+      {n.publisher_summary && <details><summary className="small">Publisher's summary (their words)</summary><p className="small muted">{n.publisher_summary}</p></details>}
+      <div className="small faint">App's read (keyword rules, not AI): {n.relevance} relevance, {n.relevance_reason.toLowerCase()}.</div>
+    </div>
+  );
+}
+
+export function Catalysts({ symbol }: { symbol: string }) {
+  const c = usePoll(`/news/${symbol}`, 600000, [symbol]);
+  const [all, setAll] = useState(false);
+  const d = c.data;
+  const news: any[] = d?.news || [];
+  const shown = all ? news : news.filter((n) => n.relevance !== "low");
+  const e = d?.earnings;
+  return (
+    <Panel title="Catalysts" sub="Yahoo Finance news, earnings, analyst actions" right={<button className="ghost small" onClick={() => c.reload()}>Refresh</button>}>
+      {!d ? <span className="muted small">{c.error || "Loading…"}</span> : <div className="stack">
+        {d.events?.notes?.map((n: any, i: number) => <div key={i} className={`note ${d.events.gate ? "warn" : ""} small`}>{n.text} <span className="faint">({n.source})</span></div>)}
+        {e?.next ? <div className="small"><b>Next earnings:</b> {e.next.date}{e.next.when ? `, ${e.next.when}` : ""} ({e.next.days_away} days). <span className="faint">{e.next.status}.</span>
+          {e.next.eps_estimate != null && <> EPS estimate {num(e.next.eps_estimate)} (range {num(e.next.eps_range?.[0])}–{num(e.next.eps_range?.[1])}).</>}</div>
+          : d.earnings && <div className="small muted">No upcoming earnings date listed by Yahoo.</div>}
+        {e?.history?.length > 0 && <div className="small muted">Last reports: {e.history.slice(0, 4).map((h: any) => `${h.date} EPS ${h.eps_reported} vs ${h.eps_estimate} (${h.surprise_pct != null ? (h.surprise_pct > 0 ? "+" : "") + h.surprise_pct + "%" : "—"})`).join("; ")}.</div>}
+        {d.analyst?.length > 0 && <details><summary className="small">Analyst actions, last 45 days ({d.analyst.length})</summary>
+          {d.analyst.map((a: any) => <div key={a.id} className="small" style={{ padding: "2px 0" }}><span className="faint">{etDate(a.published)}</span> {a.headline}</div>)}</details>}
+        {d.news_error && <div className="note warn small">{d.news_error}</div>}
+        {d.news_note && <div className="small muted">{d.news_note}</div>}
+        {shown.map((n) => <NewsRow key={n.id} n={n} />)}
+        {news.length > shown.length && <button className="ghost small" onClick={() => setAll(true)}>Show {news.length - shown.length} low-relevance item(s) (opinion pieces, other tickers)</button>}
+        {news.length > 0 && !shown.length && !all && <div className="small muted">Only low-relevance items right now (opinion pieces or stories mainly about other tickers).</div>}
+        <div className="small faint">Headlines are not buy or sell signals. Positive news can sell off and negative news can rally.</div>
+      </div>}
+    </Panel>
+  );
+}
+
+export function EconCalendar() {
+  const c = usePoll("/calendar?days=14", 3600000);
+  const d = c.data;
+  return (
+    <Panel title="Economic calendar" sub="next 14 days, ET" flush>
+      {!d ? <div className="empty">{c.error || "Loading…"}</div> : <>
+        {d.now?.notes?.map((n: any, i: number) => <div key={i} className={`note ${d.now.gate ? "warn" : ""} small`} style={{ margin: "8px 12px" }}>{n.text}</div>)}
+        {!d.events.length ? <div className="empty">No scheduled high-impact releases in the next 14 days.</div> :
+          <table><tbody>{d.events.map((e: any, i: number) => <tr key={i}><td>{e.date.slice(5)} {e.time_et}</td>
+            <td><a href={e.url} target="_blank" rel="noreferrer noopener">{e.event}</a></td><td className="small faint">{e.source}</td></tr>)}</tbody></table>}
+        {Object.keys(d.errors || {}).length > 0 && <div className="note warn small" style={{ margin: "8px 12px" }}>Couldn't refresh: {Object.keys(d.errors).join(", ")}. Showing the last good copy.</div>}
+        {d.bls && <div className="small faint" style={{ padding: "6px 12px" }}>BLS dates bundled {d.bls.retrieved}, through {d.bls.last_date}. Signals go watch-only 15 min either side of major releases.</div>}
+      </>}
+    </Panel>
+  );
+}

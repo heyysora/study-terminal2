@@ -346,6 +346,25 @@ def evaluate(
     return out
 
 
+def apply_events(ev: dict, events: dict | None) -> dict:
+    """Attach scheduled-event and earnings notes to an evaluation. Inside a major-release window,
+    tradeable signals become watch-only and the overall answer is NO TRADE (with the reason)."""
+    if not events:
+        return ev
+    ev["events"] = events
+    notes = [n["text"] for n in events.get("notes", [])]
+    for s in ev.get("signals", []):
+        s["risks"] = notes + s["risks"]
+        if events.get("gate") and s.get("tradeable"):
+            s["tradeable"] = False
+            s["action"] = "POTENTIAL BUY" if s["direction"] == "long" else "POTENTIAL SHORT"
+    if events.get("gate") and ev.get("best"):
+        ev["watch"] = ev.pop("best")
+        ev["action"] = "NO TRADE"
+        ev["reasons"].insert(0, "NO TRADE for now: " + next(n["text"] for n in events["notes"] if n["type"] == "macro_window"))
+    return ev
+
+
 def manage_position(pos: dict, ff: FeatureFrame, live_price: float) -> dict:
     """Advice for an open paper position. Never changes orders - it only recommends."""
     df = ff.df

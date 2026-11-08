@@ -231,3 +231,14 @@ class JournalNoteRecord(Base):
     ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     kind: Mapped[str] = mapped_column(String(16), default="note")    # note | tags | followed_plan
     text: Mapped[str] = mapped_column(Text, default="")
+
+
+class NewsItemRecord(Base):
+    """Headlines and analyst actions seen by the app (kept so you can look back at what was known when)."""
+    __tablename__ = "news_items"
+
+    id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    published: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    seen_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    data: Mapped[str] = mapped_column(Text)

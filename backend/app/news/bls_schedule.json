@@ -1,0 +1,70 @@
+{
+ "source": "U.S. Bureau of Labor Statistics release schedules",
+ "source_urls": {
+  "cpi": "https://www.bls.gov/schedule/news_release/cpi.htm",
+  "jobs": "https://www.bls.gov/schedule/news_release/empsit.htm",
+  "ppi": "https://www.bls.gov/schedule/news_release/ppi.htm"
+ },
+ "retrieved": "2026-11-07",
+ "note": "BLS blocks automated downloads, so these dates are bundled with the app. They stop after the last date listed; update the app (or this file) to extend them. BLS can reschedule releases (e.g. during a government shutdown); check the source page if a date matters.",
+ "time_et": "08:30",
+ "releases": {
+  "cpi": {
+   "name": "Consumer Price Index (CPI)",
+   "dates": [
+    "2026-11-10",
+    "2026-12-10",
+    "2027-01-13",
+    "2027-02-11",
+    "2027-03-10",
+    "2027-04-13",
+    "2027-05-12",
+    "2027-06-10",
+    "2027-07-14",
+    "2027-08-11",
+    "2027-09-14",
+    "2027-10-14",
+    "2027-11-10",
+    "2027-12-10"
+   ]
+  },
+  "jobs": {
+   "name": "Employment Situation (jobs report)",
+   "dates": [
+    "2026-11-06",
+    "2026-12-04",
+    "2027-01-08",
+    "2027-02-05",
+    "2027-03-05",
+    "2027-04-02",
+    "2027-05-07",
+    "2027-06-04",
+    "2027-07-02",
+    "2027-08-06",
+    "2027-09-03",
+    "2027-10-08",
+    "2027-11-05",
+    "2027-12-03"
+   ]
+  },
+  "ppi": {
+   "name": "Producer Price Index (PPI)",
+   "dates": [
+    "2026-11-13",
+    "2026-12-15",
+    "2027-01-14",
+    "2027-02-12",
+    "2027-03-12",
+    "2027-04-14",
+    "2027-05-13",
+    "2027-06-11",
+    "2027-07-15",
+    "2027-08-10",
+    "2027-09-10",
+    "2027-10-15",
+    "2027-11-12",
+    "2027-12-15"
+   ]
+  }
+ }
+}

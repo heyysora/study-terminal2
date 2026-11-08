@@ -16,7 +16,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_journal, ws
+from .api import routes, routes2, routes_journal, routes_news, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, Settings, get_settings
@@ -25,6 +25,7 @@ from .core.market_clock import MarketClock
 from .db.session import Database
 from .education.service import EducationService
 from .journal.service import JournalService
+from .news.service import NewsService
 from .logging_setup import configure_logging
 from .market_data.health import FeedHealthWatcher
 from .market_data.providers.base import MarketDataProvider, ProviderError
@@ -70,6 +71,10 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         s.settings, s.db, s.monitor, s.paper, s.settings_store = settings, db, monitor, paper, store
         s.analysis, s.backtests, s.models, s.alerts, s.signals = analysis, backtests, models, alerts, signals
         s.scanner, s.education = scanner, education
+        news = NewsService(db, prov, monitor.clock, alerts, symbols_fn=lambda: monitor.monitored_symbols())
+        signals.news = news
+        scanner.news = news
+        s.news = news
         journal = JournalService(db, paper, store)
         journal.signals_service = signals
         signals.journal = journal
@@ -152,12 +157,14 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await signals.start()
             await scanner.start()
             await health.start()
+            await news.start()
         try:
             yield
         finally:
             if screen.state != "off":
                 await screen.stop()
             await health.stop()
+            await news.stop()
             await scanner.stop()
             await signals.stop()
             await paper.stop()
@@ -175,6 +182,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes.router)
     app.include_router(routes2.router)
     app.include_router(routes_journal.router)
+    app.include_router(routes_news.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

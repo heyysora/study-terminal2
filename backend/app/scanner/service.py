@@ -44,7 +44,7 @@ class ScanFilters(BaseModel):
 
 
 def rank(item: dict) -> tuple[float, dict]:
-    best = item.get("best_signal")
+    best = item.get("best_signal") or item.get("watch_signal")
     q = best["confidence"]["setup_quality"]["score"] if best else 0
     rv = item.get("rvol") or 0
     chg = abs(item.get("change_pct") or 0)
@@ -61,10 +61,16 @@ def rank(item: dict) -> tuple[float, dict]:
     if not best:
         score *= 0.5
         comp["no_active_setup_penalty"] = "x0.5"
-    hist = best["confidence"]["historical"] if best else None
-    if hist and hist.get("available") and hist.get("expectancy_r", 0) < 0:
+    tier = best.get("evidence_tier") if best else None
+    if tier in ("negative", "losing"):
         score *= 0.6
         comp["negative_history_penalty"] = "x0.6"
+    elif best and not best.get("tradeable"):
+        comp["evidence"] = f"watch only ({tier or 'untested'}): no reliable out-of-sample edge"
+    cat = item.get("catalyst")
+    if cat and cat.get("confirmed"):
+        score += 5
+        comp["catalyst"] = f"+5 ({cat['text']}; direction not assumed)"
     return round(score, 1), comp
 
 
@@ -80,6 +86,7 @@ class ScannerService:
         self.enabled = True
         self.errors: list[str] = []
         self._task: asyncio.Task | None = None
+        self.news = None   # NewsService, set by main
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._loop())
@@ -173,7 +180,8 @@ class ScannerService:
                 item: dict[str, Any] = {
                     **r, "price": r.get("price") or snap["price"], "rvol": snap["volume"]["rvol"], "atr_pct": snap["volatility"]["atr_pct"],
                     "bias": snap["bias"]["label"], "bias_score": snap["bias"]["score"], "structure": snap["structure"]["state"],
-                    "action": ev["action"], "best_signal": ev.get("best"), "signals": ev["signals"],
+                    "action": ev["action"], "best_signal": ev.get("best"), "watch_signal": ev.get("watch"), "signals": ev["signals"],
+                    "catalyst": self.news.scanner_tag(sym) if self.news else None,
                     "label": self.monitor.label(sym).model_dump(mode="json") if sym in self.monitor.monitored_symbols() else None,
                     "change_pct": r.get("change_pct") if r.get("change_pct") is not None else
                     (round(100 * (row["close"] / row["pdc"] - 1), 2) if row["pdc"] == row["pdc"] else None),
@@ -185,7 +193,8 @@ class ScannerService:
                     why = "too quiet (ATR%)"
                 elif f.max_atr_pct and (item["atr_pct"] or 0) > f.max_atr_pct:
                     why = "too volatile (ATR%)"
-                elif f.min_setup_quality and (not item["best_signal"] or item["best_signal"]["confidence"]["setup_quality"]["score"] < f.min_setup_quality):
+                elif f.min_setup_quality and not any(s and s["confidence"]["setup_quality"]["score"] >= f.min_setup_quality
+                                                     for s in (item["best_signal"], item["watch_signal"])):
                     why = "no setup above the quality floor"
                 if why:
                     rej.append({**item, "signals": None, "rejected_because": why})

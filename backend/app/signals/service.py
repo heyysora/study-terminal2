@@ -12,7 +12,7 @@ from ..analysis.service import AnalysisService
 from ..backtest.engine import _ml_row
 from ..market_data.providers.base import ProviderError
 from ..market_data.types import Timeframe
-from .engine import evaluate, manage_position, market_context
+from .engine import apply_events, evaluate, manage_position, market_context
 from .setups import SetupParams
 
 log = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ class SignalService:
         self._task: asyncio.Task | None = None
         self.cycles = 0
         self.journal = None                         # JournalService, set by main
+        self.news = None                            # NewsService, set by main
 
     @property
     def params(self) -> SetupParams:
@@ -94,6 +95,8 @@ class SignalService:
                     "available": False, "note": (self.models.meta or {}).get("reason", "No model trained yet.")}
         ev["mtf"] = mtf
         ev["data"] = self.analysis.data_info(ff)
+        if self.news is not None:
+            apply_events(ev, self.news.event_risk(symbol))
         ev["data_label"] = self.monitor.label(symbol).model_dump(mode="json") if tick else None
         ev["evaluated_at"] = datetime.now(timezone.utc).isoformat()
         return ev, snap, ff
