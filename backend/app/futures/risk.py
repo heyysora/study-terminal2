@@ -220,7 +220,7 @@ class RiskEngine:
 
         m: dict = {"balance": round(s.balance, 2), "equity": round(s.equity, 2), "unrealized": round(s.unrealized, 2),
                    "day_pnl": round(s.day_pnl, 2), "trade_date": s.trade_date, "open_risk_usd": s.open_risk_usd,
-                   "open_mini_equivalent": round(s.open_mini_equivalent, 2)}
+                   "open_mini_equivalent": round(s.open_mini_equivalent, 2), "trades_today": s.trades_today}
         official: dict = {"firm": r.firm, "label": r.label, "confirmed": r.confirmed, "enabled": r.enabled,
                           "max_contracts_mini": self.max_contracts_mini()}
         if r.enabled:

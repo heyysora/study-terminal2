@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     port: int = 8765
     log_level: str = "INFO"
     data_dir: Path = Field(default_factory=_default_data_dir, alias="STUDY_TERMINAL_DATA_DIR")
+    # Extra Host names accepted ONLY for /api/mobile/* (e.g. a private Tailscale name), comma-separated. Empty = localhost only.
+    # Study Terminal never binds to a public interface itself; see docs/MOBILE_API.md.
+    mobile_allowed_hosts: str = Field(default="", alias="STUDY_MOBILE_ALLOWED_HOSTS")
     database_url: str | None = None
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:5173",

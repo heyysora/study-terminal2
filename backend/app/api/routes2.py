@@ -410,13 +410,16 @@ def screen_calibration_delete(request: Request, sid: str):
 def settings_get(request: Request):
     from ..signals.setups import SETUPS
 
-    return {"values": st(request).settings_store.all(), "setups": {k: v[1] for k, v in SETUPS.items()}}
+    vals = {k: v for k, v in st(request).settings_store.all().items() if k != "mobile.token_hash"}
+    return {"values": vals, "setups": {k: v[1] for k, v in SETUPS.items()}}
 
 
 @router.put("/settings")
 def settings_put(body: dict, request: Request):
+    if any(k.startswith("mobile.") for k in body):
+        raise HTTPException(422, "Mobile access is changed through /api/mobile-access only.")
     try:
-        return {"values": st(request).settings_store.update(body)}
+        return {"values": {k: v for k, v in st(request).settings_store.update(body).items() if k != "mobile.token_hash"}}
     except (KeyError, ValueError) as e:
         raise HTTPException(422, str(e))
 

@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 
 INTENT_HEADER = b"x-study-terminal"
+AUTH_HEADER = b"authorization"
+MOBILE_PREFIX = "/api/mobile/"
 TOKEN_HEADER = b"x-study-token"
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -31,17 +33,24 @@ def allowed_hosts(port: int, extra: list[str] | None = None) -> set[str]:
 
 
 class LocalOnlyMiddleware:
-    def __init__(self, app, port: int, extra_hosts: list[str] | None = None):
+    def __init__(self, app, port: int, extra_hosts: list[str] | None = None, mobile_hosts: list[str] | None = None):
         self.app = app
         self.hosts = allowed_hosts(port, extra_hosts)
+        # Mobile hosts are accepted for /api/mobile/* only, and those routes always require a bearer token.
+        self.mobile_hosts = {h.strip().lower() for h in (mobile_hosts or []) if h.strip()}
 
     async def __call__(self, scope, receive, send):
         if scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
         headers = dict(scope.get("headers") or [])
         host = headers.get(b"host", b"").decode("latin-1").lower()
-        if host not in self.hosts:
+        mobile = scope["type"] == "http" and scope["path"].startswith(MOBILE_PREFIX)
+        if host not in self.hosts and not (mobile and host in self.mobile_hosts):
             return await self._deny(scope, send, 421, "Requests must be addressed to 127.0.0.1 or localhost.")
+        if mobile:
+            if AUTH_HEADER not in headers:
+                return await self._deny(scope, send, 401, "Mobile API requests need 'Authorization: Bearer <token>'.")
+            return await self.app(scope, receive, send)
         if scope["type"] == "http" and scope["method"] in UNSAFE and scope["path"].startswith("/api/"):
             if INTENT_HEADER not in headers and TOKEN_HEADER not in headers:
                 return await self._deny(scope, send, 403, "Missing X-Study-Terminal header. Changes must come from the "

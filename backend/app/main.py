@@ -17,7 +17,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_futures, routes_journal, routes_news, ws
+from .api import routes, routes2, routes_extension, routes_futures, routes_journal, routes_mobile, routes_news, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -234,13 +234,15 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                        allow_headers=["Content-Type", "X-Study-Terminal", "X-Study-Token"])
     # Outermost: reject DNS-rebinding hosts and cross-site state changes (see api/security.py)
     app.add_middleware(LocalOnlyMiddleware, port=settings.port,
-                       extra_hosts=["t", "testserver"] if settings.app_env == "test" else [])
+                       extra_hosts=["t", "testserver"] if settings.app_env == "test" else [],
+                       mobile_hosts=settings.mobile_allowed_hosts.split(","))
     app.include_router(routes.router)
     app.include_router(routes2.router)
     app.include_router(routes_journal.router)
     app.include_router(routes_news.router)
     app.include_router(routes_extension.router)
     app.include_router(routes_futures.router)
+    app.include_router(routes_mobile.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

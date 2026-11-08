@@ -113,3 +113,16 @@ Tests: 7 in tests/test_futures_p6_p7.py + 1 regression; full suite 322 passed.
   mistakes (futures journal), best strategies (research run, OOS and holdout, registry), late entry (distance as share of the stop), R:R.
   Context now carries recent decisions, the futures journal and the research run.
 - Not covered: retail sales (Census) values, geopolitical events. Tests: `tests/test_p8_p9.py` (17). Full suite 339 passed (3.11).
+
+### P10 — Automation Center and mobile API (done 2026-11-08)
+- **Automation Center** (`frontend/src/pages5.tsx`, default page in futures mode): mode A/B buttons with C shown locked; start / pause / resume /
+  stop / evaluate now / emergency stop (confirmation) and clearing with a written review note; monitored contracts and research sandbox toggles;
+  per-contract table (data status, regime, decision, reason, last check); recent decisions expandable to all pipeline steps; automation log;
+  practice account (balance, equity, day P&L, room to MLL and DLL, open risk, trades today, blocks, warnings, unconfirmed-rules notice);
+  positions and working orders (managed vs manual); automated vs manual comparison; sandbox summary; live checklist; mobile access panel.
+- **Mobile API** (`app/api/routes_mobile.py`, `docs/MOBILE_API.md`): off by default; bearer token shown once, stored as SHA-256; brake-only
+  controls (pause, resume, emergency stop); no orders, mode, rule changes or clearing an e-stop; bad-token lockout; the app still listens on
+  127.0.0.1 only; an optional private host name (STUDY_MOBILE_ALLOWED_HOSTS) is accepted for /api/mobile/* only. Mobile tokens can't be read
+  or set through /api/settings. Not tested with a real phone or tunnel.
+- Fix found while testing: `resume` during an emergency stop silently did nothing; it now refuses with an explanation.
+- Tests: `tests/test_p10_mobile.py` (7). Full suite 346 passed (3.11).

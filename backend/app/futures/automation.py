@@ -162,6 +162,8 @@ class AutomationEngine:
         return self.status()
 
     async def resume(self) -> dict:
+        if self.state.status == "emergency_stopped":
+            raise PermissionError("Emergency stop is active. Review what happened, then clear it on the computer before resuming.")
         if self.state.status == "paused":
             return await self.start()
         return self.status()

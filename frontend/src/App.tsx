@@ -5,10 +5,11 @@ import { ChartPage, Copilot, Dashboard, Paper, Scanner } from "./pages";
 import { Alerts, Backtest, Learn, Settings } from "./pages2";
 import { Journal } from "./pages3";
 import { Futures } from "./pages4";
+import { AutomationCenter } from "./pages5";
 
 const NAV: [string, string, string?][] = [
   ["dashboard", "Dashboard"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Paper trading"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
+  ["paper", "Paper trading"], ["automation", "Automation Center"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
 ];
 
 function ModeSwitch({ mode, onChange }: { mode: string; onChange: (m: string) => void }) {
@@ -76,12 +77,13 @@ export default function App() {
   const switchMode = async (m: string) => {
     setMode(m);
     try { await api("/settings", { method: "PUT", json: { "app.market_mode": m } }); } catch { /* the switch still works for this session */ }
-    location.hash = m === "futures" ? "#/futures" : "#/dashboard";
+    location.hash = m === "futures" ? "#/automation" : "#/dashboard";
   };
-  const page = route[0] || (curMode === "futures" ? "futures" : "dashboard");
+  const page = route[0] || (curMode === "futures" ? "automation" : "dashboard");
   const view = (() => {
     switch (page) {
       case "futures": return <Futures symbol={route[1]} />;
+      case "automation": return <AutomationCenter />;
       case "chart": return <ChartPage symbol={route[1]} />;
       case "copilot": return <Copilot />;
       case "scanner": return <Scanner />;
