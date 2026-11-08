@@ -22,7 +22,7 @@ SCHEMA: dict[str, tuple[type, Any]] = {
     # signals
     "signals.timeframes": (list, ["5Min", "15Min", "1Hour"]), "signals.enabled_setups": (list, []), "signals.params": (dict, {}),
     # alerts
-    "journal.max_trades_per_day": (int, 3), "alerts.desktop": (bool, True), "alerts.watch_only_ideas": (bool, False), "alerts.sound": (bool, False), "alerts.min_severity_desktop": (str, "medium"),
+    "journal.max_trades_per_day": (int, 3), "extension.enabled": (bool, False), "extension.token": (str, ""), "alerts.desktop": (bool, True), "alerts.watch_only_ideas": (bool, False), "alerts.sound": (bool, False), "alerts.min_severity_desktop": (str, "medium"),
     "alerts.min_severity_sound": (str, "high"), "alerts.categories": (dict, {"entry": True, "position": True, "market": True, "system": True}),
     # scanner
     "scanner.filters": (dict, {}), "scanner.interval_seconds": (float, 180.0), "scanner.enabled": (bool, True),

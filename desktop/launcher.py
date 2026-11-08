@@ -5,39 +5,93 @@
 - Tray icon: green = monitoring live, amber = degraded/polling, gray = paused, red dot = screen capture on.
 - Global hotkey Ctrl+Alt+S brings the window back.
 - Optional: keep the PC awake while monitoring (setting desktop.keep_awake_while_monitoring).
-Run:  .\\scripts\\run-desktop.ps1
+- One instance at a time: launching it again brings the running window to the front.
+- Quit waits for the backend to finish shutting down (pending bars and paper-account state are written).
+- --minimized starts straight to the tray (used by "start on login").
+Run from source:  .\\scripts\\run-desktop.ps1      Installed: Start menu > Study Terminal
 """
 from __future__ import annotations
 
+import logging
+import os
 import sys
 import threading
 import time
+import traceback
 import webbrowser
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "backend"))
+if not getattr(sys, "frozen", False):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 import httpx  # noqa: E402
 import uvicorn  # noqa: E402
 
-from app.config import get_settings  # noqa: E402
+from app.config import VERSION, get_settings  # noqa: E402
 
 S = get_settings()
 URL = f"http://127.0.0.1:{S.port}"
 API = f"{URL}/api"
 IS_WIN = sys.platform == "win32"
+LOG_DIR = S.data_dir / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+log = logging.getLogger("desktop")          # desktop shell events only; the backend writes study_terminal.log
+_fh = logging.FileHandler(LOG_DIR / "desktop.log", encoding="utf-8")
+_fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+log.addHandler(_fh)
+log.setLevel(logging.INFO)
+log.propagate = False
+HEADERS = {"X-Study-Terminal": "1"}
+
+
+def message_box(title: str, text: str, error: bool = True) -> None:
+    """A visible message even when there's no console (the installed app has none)."""
+    log.log(logging.ERROR if error else logging.INFO, "%s: %s", title, text)
+    if IS_WIN:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, text, title, 0x10 if error else 0x40)
+    else:
+        print(f"{title}: {text}", file=sys.stderr)
+
+
+class SingleInstance:
+    """Named mutex: a second launch finds the first and asks it to show its window instead of starting again."""
+
+    def __init__(self, name: str = "Local\\StudyTerminal.SingleInstance"):
+        self.handle = None
+        self.already_running = False
+        if IS_WIN:
+            import ctypes
+            self.handle = ctypes.windll.kernel32.CreateMutexW(None, False, name)
+            self.already_running = ctypes.windll.kernel32.GetLastError() == 183  # ERROR_ALREADY_EXISTS
+
+    def release(self):
+        if self.handle:
+            import ctypes
+            ctypes.windll.kernel32.CloseHandle(self.handle)
+            self.handle = None
 
 
 class Backend:
     def __init__(self):
-        self.server = uvicorn.Server(uvicorn.Config("app.main:app", host="127.0.0.1", port=S.port, log_level="warning"))
-        self.thread = threading.Thread(target=self.server.run, daemon=True)
+        from app.main import app as asgi_app   # imported here so a frozen build bundles it
+        self.server = uvicorn.Server(uvicorn.Config(asgi_app, host="127.0.0.1", port=S.port, log_level="warning", log_config=None))
+        self.thread = threading.Thread(target=self._serve, daemon=False, name="backend")
+        self.error: str | None = None
 
-    def start(self, timeout=60):
+    def _serve(self):
+        try:
+            self.server.run()
+        except BaseException as e:  # noqa: BLE001 - surfaced to the user by run()
+            self.error = f"{type(e).__name__}: {e}"
+            log.exception("backend crashed")
+
+    def start(self, timeout=90):
         self.thread.start()
         t0 = time.time()
         while time.time() - t0 < timeout:
+            if not self.thread.is_alive():
+                return False
             try:
                 if httpx.get(f"{API}/health", timeout=2).status_code == 200:
                     return True
@@ -45,8 +99,17 @@ class Backend:
                 time.sleep(0.4)
         return False
 
-    def stop(self):
+    def stop(self, wait: float = 30.0) -> bool:
+        """Ask the server to shut down and wait until it has (lifespan shutdown flushes the paper account and bars)."""
         self.server.should_exit = True
+        if self.thread.is_alive() and threading.current_thread() is not self.thread:
+            self.thread.join(wait)
+        done = not self.thread.is_alive()
+        if done:
+            log.info("backend stopped cleanly")
+        else:
+            log.warning("backend did not stop within %ss", wait)
+        return done
 
 
 def keep_awake(on: bool):
@@ -71,18 +134,24 @@ def tray_image(color: str, screen_on: bool):
 
 
 class App:
-    def __init__(self):
+    def __init__(self, minimized: bool = False):
         self.backend = Backend()
         self.window = None
         self.icon = None
         self.quitting = False
         self.status = {}
+        self.minimized = minimized
 
     def api(self, method: str, path: str, **kw):
         try:
-            return httpx.request(method, f"{API}{path}", timeout=10, headers={"X-Study-Terminal": "1"}, **kw).json()
+            return httpx.request(method, f"{API}{path}", timeout=10, headers=HEADERS, **kw).json()
         except Exception:
             return None
+
+    def open_folder(self, which: str):
+        d = LOG_DIR if which == "logs" else S.data_dir
+        if IS_WIN:
+            os.startfile(str(d))  # noqa: S606
 
     # ---------------- window ----------------
     def show(self):
@@ -120,12 +189,7 @@ class App:
             self.refresh()
 
         def quit_app(icon, item):
-            self.quitting = True
-            keep_awake(False)
-            self.backend.stop()
-            icon.stop()
-            if self.window:
-                self.window.destroy()
+            self.quit()
 
         menu = pystray.Menu(
             pystray.MenuItem("Open Study Terminal", lambda i, it: self.show(), default=True),
@@ -133,6 +197,10 @@ class App:
                              else "Resume monitoring", toggle_monitoring),
             pystray.MenuItem("Stop screen monitoring", stop_screen,
                              visible=lambda it: (self.status.get("screen") or {}).get("state") in ("running", "paused")),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Open logs folder", lambda i, it: self.open_folder("logs")),
+            pystray.MenuItem("Open data folder", lambda i, it: self.open_folder("data")),
+            pystray.MenuItem(f"Version {VERSION}", None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit (stops all monitoring)", quit_app),
         )
@@ -160,10 +228,27 @@ class App:
         settings = (self.api("GET", "/settings") or {}).get("values", {})
         keep_awake(bool(settings.get("desktop.keep_awake_while_monitoring")) and md.get("monitoring_enabled", True))
 
+    def quit(self):
+        if self.quitting:
+            return
+        self.quitting = True
+        log.info("quit requested")
+        keep_awake(False)
+        self.backend.stop()          # waits for a clean shutdown
+        if self.icon:
+            self.icon.stop()
+        if self.window:
+            self.window.destroy()
+
     def status_loop(self):
+        n = 0
         while not self.quitting:
-            self.refresh()
-            time.sleep(5)
+            if n % 5 == 0:
+                self.refresh()
+            if (self.api("GET", "/desktop/focus") or {}).get("show"):   # a second launch asked us to show up
+                self.show()
+            n += 1
+            time.sleep(1)
 
     # ---------------- hotkey ----------------
     def hotkey_loop(self):
@@ -183,8 +268,13 @@ class App:
 
     # ---------------- run ----------------
     def run(self):
+        log.info("Study Terminal %s starting (frozen=%s, data=%s)", VERSION, getattr(sys, "frozen", False), S.data_dir)
         if not self.backend.start():
-            print("Backend failed to start; see logs in %LOCALAPPDATA%\\StudyTerminal\\logs")
+            why = self.backend.error or "it didn't answer within 90 seconds"
+            if "address already in use" in why.lower() or "10048" in why:
+                why = f"port {S.port} is already used by another program. Set PORT=... in {S.data_dir / '.env'}."
+            message_box("Study Terminal couldn't start", f"The backend failed to start: {why}\n\nDetails are in {LOG_DIR}.")
+            self.backend.stop(5)
             sys.exit(1)
         try:
             self.build_tray()
@@ -195,8 +285,8 @@ class App:
         try:
             import webview
 
-            self.window = webview.create_window("Study Terminal", URL, width=1560, height=980, min_size=(1100, 700),
-                                                background_color="#0b0e14")
+            self.window = webview.create_window(f"Study Terminal {VERSION}", URL, width=1560, height=980, min_size=(1100, 700),
+                                                background_color="#0b0e14", hidden=self.minimized)
             self.window.events.closing += self.on_closing
             webview.start(gui="edgechromium" if IS_WIN else None)
         except ImportError:
@@ -205,9 +295,47 @@ class App:
             while not self.quitting:
                 time.sleep(1)
         # window loop ended via Quit
-        self.quitting = True
-        self.backend.stop()
+        if not self.quitting:
+            self.quit()
+        else:
+            self.backend.stop()
+
+
+def self_test() -> int:
+    """Start the backend, check /api/health, shut down cleanly. Used by the installer build. Exit code 0 = OK."""
+    b = Backend()
+    ok = b.start(timeout=120)
+    health = None
+    if ok:
+        try:
+            health = httpx.get(f"{API}/health", timeout=5).json()
+        except httpx.HTTPError:
+            ok = False
+    stopped = b.stop(30)
+    print(f"self-test: backend {'up' if ok else 'FAILED'}; clean shutdown {'yes' if stopped else 'NO'}; "
+          f"version {VERSION}; brokerage_required={None if not health else health.get('brokerage_required')}")
+    return 0 if ok and stopped else 1
+
+
+def main():
+    if "--self-test" in sys.argv:
+        sys.exit(self_test())
+    inst = SingleInstance()
+    if inst.already_running:
+        try:
+            httpx.post(f"{API}/desktop/focus", headers=HEADERS, timeout=3)
+        except httpx.HTTPError:
+            message_box("Study Terminal", "Study Terminal is already starting. Give it a few seconds.", error=False)
+        return
+    try:
+        App(minimized="--minimized" in sys.argv).run()
+    except Exception:  # noqa: BLE001
+        message_box("Study Terminal error", "Study Terminal hit an unexpected error and closed.\n\n"
+                    + traceback.format_exc(limit=3) + f"\n\nFull details: {LOG_DIR}")
+        raise
+    finally:
+        inst.release()
 
 
 if __name__ == "__main__":
-    App().run()
+    main()

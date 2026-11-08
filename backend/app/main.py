@@ -17,10 +17,10 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_journal, routes_news, ws
+from .api import routes, routes2, routes_extension, routes_journal, routes_news, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
-from .config import REPO_ROOT, Settings, get_settings
+from .config import REPO_ROOT, VERSION, Settings, get_settings
 from .core.events import Broadcaster
 from .core.market_clock import MarketClock
 from .db.session import Database
@@ -191,7 +191,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             db.dispose()
             log.info("Study Terminal stopped")
 
-    app = FastAPI(title="Study Terminal API", version="0.4.0", lifespan=lifespan)
+    app = FastAPI(title="Study Terminal API", version=VERSION, lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins,
                        allow_methods=["GET", "POST", "DELETE", "PUT", "PATCH"],
                        allow_headers=["Content-Type", "X-Study-Terminal", "X-Study-Token"])
@@ -202,6 +202,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes2.router)
     app.include_router(routes_journal.router)
     app.include_router(routes_news.router)
+    app.include_router(routes_extension.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

@@ -192,9 +192,13 @@ class ScreenService:
             diff = 100 * (vp / last["price"] - 1)
             out["visible_price"], out["price_diff_pct"] = vp, round(diff, 3)
             if abs(diff) > 0.5:
-                out["discrepancy"] = (f"Screen shows ${vp:,.2f} but market data shows ${last['price']:,.2f} ({label.get('status')}), "
+                where = "Your TradingView tab" if obs.get("source") == "chrome-extension" else "Screen"
+                out["discrepancy"] = (f"{where} shows ${vp:,.2f} but market data shows ${last['price']:,.2f} ({label.get('status')}), "
                                       f"{diff:+.2f}% apart. The screen or one of the feeds may be delayed, the chart may be a different "
                                       "symbol/exchange, or the screen is frozen. Recommendations use market data only.")
+                if self.monitor.clock.session_at().session.value != "regular":
+                    out["discrepancy"] += (" Outside regular hours this is often just the after-hours price on one side and the "
+                                           "4 PM close on the other.")
             out["checks"].append({"check": "visible price vs market data", "ok": abs(diff) <= 0.5, "detail": f"{diff:+.2f}%"})
         if self.last_change_at and time.monotonic() - self.last_change_at > 90 and label.get("status") in ("near_realtime", "realtime"):
             out["stale_screen"] = "The screen hasn't changed for 90+ seconds while the market is live. The chart may be frozen or paused."

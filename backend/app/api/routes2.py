@@ -378,12 +378,60 @@ def desktop_startup(request: Request, enabled: bool):
         raise HTTPException(400, "Start-on-login is a Windows feature.")
     import os
 
+    from ..config import FROZEN
+
     startup = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "StudyTerminal.cmd"
     root = Path(__file__).resolve().parents[3]
     if enabled:
-        startup.write_text(f'@echo off\r\ncd /d "{root}"\r\nstart "" /min powershell -WindowStyle Hidden -ExecutionPolicy Bypass '
-                           f'-File "{root / "scripts" / "run-desktop.ps1"}"\r\n', encoding="utf-8")
-    elif startup.exists():
-        startup.unlink()
+        if FROZEN:   # installed app: start the exe straight to the tray
+            body = f'@echo off\r\nstart "" "{sys.executable}" --minimized\r\n'
+        else:        # running from source
+            body = (f'@echo off\r\ncd /d "{root}"\r\nstart "" /min powershell -WindowStyle Hidden -ExecutionPolicy Bypass '
+                    f'-File "{root / "scripts" / "run-desktop.ps1"}" --minimized\r\n')
+        startup.write_text(body, encoding="utf-8")
+    else:
+        installer_lnk = startup.with_name("Study Terminal.lnk")   # created by the installer's optional task
+        for f in (startup, installer_lnk):
+            if f.exists():
+                f.unlink()
     st(request).settings_store.update({"desktop.start_on_login": enabled})
     return {"enabled": enabled, "path": str(startup)}
+
+
+@router.get("/desktop/info")
+def desktop_info(request: Request):
+    """Version and where your data, settings and logs live (so you can find, back up or send logs)."""
+    from ..config import ENV_FILES, FROZEN, VERSION
+
+    s = st(request).settings
+    return {"version": VERSION, "installed_app": FROZEN, "data_dir": str(s.data_dir), "log_file": str(s.data_dir / "logs" / "study_terminal.log"),
+            "database": s.resolved_database_url.replace("sqlite:///", ""), "settings_files": list(ENV_FILES),
+            "start_on_login": bool(st(request).settings_store.get("desktop.start_on_login", False)),
+            "update_procedure": "Download the new installer and run it: it replaces the program files and keeps your data, settings "
+                                "and journal (they live in the data folder above, not in the program folder)."}
+
+
+@router.post("/desktop/open-folder")
+def desktop_open_folder(request: Request, which: str = Query(..., pattern="^(logs|data)$")):
+    if sys.platform != "win32":
+        raise HTTPException(400, "Opening folders is a Windows desktop feature.")
+    import os
+
+    d = st(request).settings.data_dir / ("logs" if which == "logs" else "")
+    d.mkdir(parents=True, exist_ok=True)
+    os.startfile(str(d))  # noqa: S606 - opens Explorer on our own folder only
+    return {"opened": str(d)}
+
+
+@router.post("/desktop/focus")
+def desktop_focus_request(request: Request):
+    """A second launch of the app asks the running one to show its window."""
+    request.app.state.focus_requested = True
+    return {"ok": True}
+
+
+@router.get("/desktop/focus")
+def desktop_focus_poll(request: Request):
+    want = bool(getattr(request.app.state, "focus_requested", False))
+    request.app.state.focus_requested = False
+    return {"show": want}

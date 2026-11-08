@@ -18,7 +18,10 @@ from typing import Annotated, Literal
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+VERSION = "0.5.0"
+FROZEN = bool(getattr(sys, "frozen", False))      # running from the installed app (PyInstaller bundle)
+# Where the code and bundled files live: the repo when run from source, the bundle's folder when installed.
+REPO_ROOT = Path(getattr(sys, "_MEIPASS", "")) if FROZEN else Path(__file__).resolve().parents[2]
 
 
 def _default_data_dir() -> Path:
@@ -28,9 +31,14 @@ def _default_data_dir() -> Path:
     return Path.home() / ".study-terminal"
 
 
+# Optional settings file. Installed app: %LOCALAPPDATA%\StudyTerminal\.env (survives updates and uninstall).
+# From source: the repo's .env as well (it wins if both set the same key).
+ENV_FILES = tuple(str(p) for p in (_default_data_dir() / ".env", REPO_ROOT / ".env"))
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=str(REPO_ROOT / ".env"),
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,

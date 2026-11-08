@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Study Terminal extension</title><link rel="stylesheet" href="style.css"></head>
+<body class="opts">
+  <h1>Study Terminal for TradingView</h1>
+  <p class="muted">This extension sends only the active TradingView tab's title and address to the Study Terminal app on this
+    computer (127.0.0.1). It never reads page contents, takes screenshots, touches your TradingView account, or sends anything
+    to the internet.</p>
+  <label>Pairing token<input id="token" type="password" autocomplete="off" placeholder="from Study Terminal > Settings > Chrome extension"></label>
+  <label>Port<input id="port" type="number" min="1024" max="65535"></label>
+  <label class="check"><input id="enabled" type="checkbox"> Send TradingView tabs to Study Terminal</label>
+  <div class="row"><button id="save">Save and test</button><span id="msg" class="muted"></span></div>
+  <script type="module" src="options.js"></script>
+</body></html>

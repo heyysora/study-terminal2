@@ -321,8 +321,57 @@ export function Settings() {
             <MonitoringToggle />
           </div>
         </Panel>
+        <ExtensionPanel />
+        <AboutFiles />
       </div>
     </div>
+  );
+}
+
+function ExtensionPanel() {
+  const p = usePoll("/extension/pairing");
+  const latest = usePoll("/extension/latest", 15000);
+  const [show, setShow] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const d = p.data;
+  const toggle = async (on: boolean) => { await api("/settings", { method: "PUT", json: { "extension.enabled": on } }); p.reload(); };
+  const rotate = async () => { await api("/extension/pairing/rotate", { method: "POST" }); p.reload(); };
+  const copy = async () => { try { await navigator.clipboard.writeText(d.token); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { setShow(true); } };
+  return (
+    <Panel title="Chrome extension" sub="optional, off by default">
+      {!d ? <span className="muted small">Loading…</span> : <div className="stack small">
+        <p className="muted" style={{ margin: 0 }}>Sends only your active TradingView tab's title and address to this app, so the copilot can follow the
+          chart without screen capture. No screenshots, no page contents. Install steps are in the extension folder's README.</p>
+        <label className="check"><input type="checkbox" checked={d.enabled} onChange={(e) => toggle(e.target.checked)} />Accept data from the Chrome extension</label>
+        {d.enabled && <div className="row">
+          <span className="muted">Pairing token</span><code>{show ? d.token : "•".repeat(12)}</code>
+          <button className="ghost small" onClick={() => setShow(!show)}>{show ? "Hide" : "Show"}</button>
+          <button className="ghost small" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
+          <button className="ghost small" onClick={rotate} title="Disconnects the extension until you paste the new token">New token</button>
+        </div>}
+        {latest.data && <div className="muted">Last from extension: {latest.data.symbol || "no symbol"} {latest.data.timeframe || ""}, {latest.data.action || ""} ({latest.data.received_at ? new Date(latest.data.received_at).toLocaleTimeString() : ""})</div>}
+      </div>}
+    </Panel>
+  );
+}
+
+function AboutFiles() {
+  const d = usePoll("/desktop/info");
+  const [msg, setMsg] = useState<string | null>(null);
+  const open = async (which: string) => { try { await api(`/desktop/open-folder?which=${which}`, { method: "POST" }); setMsg(null); } catch (e: any) { setMsg(e.message); } };
+  const i = d.data;
+  return (
+    <Panel title="About and files" sub={i ? `version ${i.version}${i.installed_app ? ", installed app" : ", running from source"}` : ""}>
+      {!i ? <span className="muted small">Loading…</span> : <div className="stack small">
+        <div><span className="muted">Your data (journal, paper account, settings, backtests): </span><code>{i.data_dir}</code></div>
+        <div><span className="muted">Log file: </span><code>{i.log_file}</code></div>
+        <div><span className="muted">Optional settings file (API keys etc.): </span><code>{i.settings_files[0]}</code></div>
+        <div className="row"><button onClick={() => open("logs")}>Open logs folder</button><button className="ghost" onClick={() => open("data")}>Open data folder</button>
+          {msg && <span className="faint">{msg}</span>}</div>
+        <p className="muted" style={{ margin: 0 }}><b>Updating:</b> {i.update_procedure}</p>
+        <p className="faint" style={{ margin: 0 }}>To back up everything, copy the data folder while the app is closed.</p>
+      </div>}
+    </Panel>
   );
 }
 
