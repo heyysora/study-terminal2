@@ -77,7 +77,8 @@ class PaperStore:
                       status=OrderStatus(d["status"]), updated_at=_dt(d["updated_at"]), expires_at=_dt(d["expires_at"]),
                       parent_id=d["parent_id"], oco_group=d["oco_group"], bracket_stop=d["bracket_stop"],
                       bracket_target=d["bracket_target"], triggered=d["triggered"], filled_at=_dt(d["filled_at"]),
-                      fill_price=d["fill_price"], reject_reason=d["reject_reason"], note=d["note"])
+                      fill_price=d["fill_price"], reject_reason=d["reject_reason"], note=d["note"],
+                      signal_id=d.get("signal_id"), context=d.get("context"))
             eng.orders[o.id] = o
         eng.fills = [Fill(id=d["id"], order_id=d["order_id"], symbol=d["symbol"], side=Side(d["side"]), qty=d["qty"],
                           price=d["price"], ref_price=d["ref_price"], slippage_cost=d["slippage_cost"],

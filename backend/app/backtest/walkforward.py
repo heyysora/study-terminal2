@@ -85,5 +85,10 @@ def walk_forward(frames, cfg: BacktestConfig, clock, grid: dict | None = None, t
                           "train_metrics": best["metrics"], "test_metrics": metrics(trades, [], cfg.starting_cash)})
         k += test_sessions
     eq = combine_equity(oos_curves, cfg.starting_cash)
-    return {"folds": folds, "oos_trades": oos_trades, "oos_metrics": metrics(oos_trades, eq, cfg.starting_cash), "oos_equity": eq,
+    n_combos = len(_grid(grid or DEFAULT_GRID))
+    search = {"combos_per_fold": n_combos, "folds": len(folds),
+              "note": (f"Each fold tried {n_combos} parameter combinations on its training window and kept the best. The more "
+                       "combinations tried, the more the training winner is a lucky draw - which is exactly why only the "
+                       "following, unseen test window is reported.")}
+    return {"search": search, "folds": folds, "oos_trades": oos_trades, "oos_metrics": metrics(oos_trades, eq, cfg.starting_cash), "oos_equity": eq,
             "note": "Out-of-sample: each test window used parameters chosen only from the window before it."}

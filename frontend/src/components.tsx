@@ -152,6 +152,7 @@ export function SignalCard({ s, onTrade }: { s: any; onTrade?: (s: any) => void 
         <span className="small muted">{s.state}</span>
       </div>
       <p className="small muted" style={{ margin: 0 }}>{s.state_reason}</p>
+      {s.tradeable === false && s.action !== "NO TRADE" && <div className="note watch"><b>Watch only.</b> {TIER_TEXT[s.evidence_tier] || "No proven edge"}: study it, don't treat it as a trade call.</div>}
       <div className="levels">
         <div><div className="k">Entry range</div><div className="v">{num(s.entry_range[0])}–{num(s.entry_range[1])}</div></div>
         <div><div className="k">Stop</div><div className="v down">{num(s.stop)}</div></div>
@@ -164,7 +165,8 @@ export function SignalCard({ s, onTrade }: { s: any; onTrade?: (s: any) => void 
         <div className="qbar"><i style={{ width: `${q.score}%` }} /></div>
       </div>
       <div className="small">
-        <div><span className="muted">Out-of-sample history: </span>{hist.available ? hist.note : hist.note}</div>
+        <div><span className="muted">Out-of-sample evidence: </span><span className={`tier t-${hist.tier || "none"}`}>{TIER_TEXT[hist.tier] || hist.tier || "untested"}</span> {hist.note}</div>
+        {s.confidence.historical_in_current_regime && <div><span className="muted">In the current regime ({s.regime}): </span>{s.confidence.historical_in_current_regime.trades} trades, {s.confidence.historical_in_current_regime.avg_r >= 0 ? "+" : ""}{s.confidence.historical_in_current_regime.avg_r}R average</div>}
         <div><span className="muted">Model estimate: </span>{model && model.probability_of_profit !== undefined ? `${Math.round(model.probability_of_profit * 100)}% chance of profit (model ${model.model_version})` : (model?.note || "No model deployed.")}</div>
         <div className="faint">{s.confidence.certainty}</div>
       </div>
@@ -188,6 +190,11 @@ export function SignalCard({ s, onTrade }: { s: any; onTrade?: (s: any) => void 
   );
 }
 
+export const TIER_TEXT: Record<string, string> = {
+  none: "Untested", insufficient: "Too few test trades", negative: "Clearly lost money in testing", losing: "Lost money in testing",
+  inconclusive: "No proven edge", promising: "Positive, not yet reliable", reliable: "Reliable out-of-sample edge",
+};
+
 /** Paper order ticket: preview first, then an explicit confirm. */
 export function OrderTicket({ symbol, prefill, onDone }: { symbol: string; prefill?: any; onDone?: () => void }) {
   const [f, setF] = useState<any>({ side: "buy", qty: 10, type: "limit", limit_price: "", stop_price: "", stop_loss: "", take_profit: "", tif: "day", extended_hours: false });
@@ -198,16 +205,16 @@ export function OrderTicket({ symbol, prefill, onDone }: { symbol: string; prefi
     if (!prefill) return;
     const long = prefill.direction === "long";
     setF((x: any) => ({ ...x, side: long ? "buy" : "sell", type: "stop", stop_price: prefill.trigger, limit_price: "",
-      stop_loss: prefill.stop, take_profit: prefill.targets.t2, qty: prefill.position_size.shares || 1, tif: "day" }));
+      stop_loss: prefill.stop, take_profit: prefill.targets.t2, qty: prefill.position_size.shares || 1, tif: "day", signal_id: prefill.id, signal: prefill }));
     setPv(null);
   }, [prefill]);
-  useEffect(() => { setPv(null); setMsg(null); }, [symbol]);
+  useEffect(() => { setPv(null); setMsg(null); setF((x: any) => ({ ...x, signal_id: null, signal: null })); }, [symbol]);
   const body = () => {
     const n = (v: any) => (v === "" || v === null || v === undefined ? null : Number(v));
     return { symbol, side: f.side, qty: Number(f.qty), type: f.type, tif: f.tif, extended_hours: f.extended_hours,
       limit_price: ["limit", "stop_limit"].includes(f.type) ? n(f.limit_price) : null,
       stop_price: ["stop", "stop_limit"].includes(f.type) ? n(f.stop_price) : null,
-      stop_loss: n(f.stop_loss), take_profit: n(f.take_profit) };
+      stop_loss: n(f.stop_loss), take_profit: n(f.take_profit), signal_id: f.signal_id || null };
   };
   const preview = async () => {
     setBusy(true); setMsg(null);
@@ -232,6 +239,8 @@ export function OrderTicket({ symbol, prefill, onDone }: { symbol: string; prefi
         <div className="seg">{["buy", "sell"].map((s) => <button key={s} className={f.side === s ? "on" : ""} onClick={() => { setF({ ...f, side: s }); setPv(null); }}>{s === "buy" ? "Buy" : "Sell / short"}</button>)}</div>
         <span className="sym">{symbol}</span>
       </div>
+      {f.signal && <div className="small muted">Linked to signal: {f.signal.setup_name} ({f.signal.timeframe}). The journal will compare this trade with that plan.
+        <button className="ghost small" onClick={() => setF({ ...f, signal_id: null, signal: null })}>Unlink</button></div>}
       <div className="form">
         <label className="f">Shares<input type="number" min={1} value={f.qty} onChange={set("qty")} /></label>
         <label className="f">Order type<select value={f.type} onChange={set("type")}><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (breakout entry)</option><option value="stop_limit">Stop limit</option></select></label>

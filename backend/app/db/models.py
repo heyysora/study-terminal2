@@ -189,3 +189,45 @@ class LearningProgressRecord(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     data: Mapped[str] = mapped_column(Text, default="{}")
     ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+# ---------------- journal (Stage 11) ----------------
+
+class SignalLogRecord(Base):
+    """Every generated signal, logged when it first appears and whenever its action or state changes."""
+    __tablename__ = "signal_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    signal_id: Mapped[str] = mapped_column(String(64), index=True)   # symbol|setup|timeframe
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    setup: Mapped[str] = mapped_column(String(32), index=True)
+    direction: Mapped[str] = mapped_column(String(8))
+    timeframe: Mapped[str] = mapped_column(String(8))
+    action: Mapped[str] = mapped_column(String(24), index=True)
+    state: Mapped[str] = mapped_column(String(16))
+    tradeable: Mapped[int] = mapped_column(Integer, default=0)
+    evidence_tier: Mapped[str] = mapped_column(String(16), default="none")
+    data: Mapped[str] = mapped_column(Text)   # compact signal snapshot (plan, confidence components, market, data label)
+
+
+class JournalTradeRecord(Base):
+    """Immutable snapshot of a closed paper round-trip trade. Survives a paper-account reset."""
+    __tablename__ = "journal_trades"
+
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)   # id of the trade's first fill
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    opened_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    closed_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    data: Mapped[str] = mapped_column(Text)
+
+
+class JournalNoteRecord(Base):
+    """Your own notes, tags and plan verdict on a trade (open or closed)."""
+    __tablename__ = "journal_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trade_key: Mapped[str] = mapped_column(String(32), index=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    kind: Mapped[str] = mapped_column(String(16), default="note")    # note | tags | followed_plan
+    text: Mapped[str] = mapped_column(Text, default="")

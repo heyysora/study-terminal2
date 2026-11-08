@@ -71,10 +71,12 @@ def test_evaluate_produces_complete_signal():
     for key in ("symbol", "price", "direction", "entry_range", "stop", "targets", "reward_risk", "position_size", "invalidation",
                 "supporting_indicators", "structure", "volume", "market", "timeframe", "confidence", "risks", "confirmation", "education"):
         assert key in sig, key
-    assert sig["state"] == "confirmed" and sig["action"] in ("BUY", "STRONG BUY")
+    # untested setup: a confirmed trigger is still only a watch-only idea, and the overall answer is NO TRADE
+    assert sig["state"] == "confirmed" and sig["action"] == "POTENTIAL BUY" and sig["tradeable"] is False
+    assert res["action"] == "NO TRADE" and res["watch"]["setup"] == "vwap_reclaim" and "NO TRADE" in res["reasons"][0]
     assert sig["position_size"]["risk_dollars"] <= 125.01  # 0.5% of $25k
     assert "NOT a probability" in sig["confidence"]["setup_quality"]["note"]
-    assert sig["confidence"]["historical"]["available"] is False
+    assert sig["confidence"]["historical"]["available"] is False and sig["evidence_tier"] == "none"
     assert "In dollars" in sig["education"]["money"]
 
 
@@ -102,21 +104,62 @@ def test_manage_position_actions():
     assert any(a["type"] == "no_stop" for a in nostop["alerts"])
 
 
-def test_calibration_gates_strong_and_downgrades_losers():
+def _confirmed_reclaim():
     ff = reclaim_frame()
     df = ff.df
     d = detect(df, LOOSE, True)
     ts = d[d["setup"] == "vwap_reclaim"].index[0]
     i = df.index.get_loc(ts)
     sub = build(df.iloc[: i + 1][["open", "high", "low", "close", "volume"]], Timeframe.M5)
-    trig = float(d.loc[[ts]].iloc[0]["trigger"])
-    good = {"vwap_reclaim|5Min": {"available": True, "expectancy_r": 0.4, "note": "x"}}
-    bad = {"vwap_reclaim|5Min": {"available": True, "expectancy_r": -0.3, "note": "OOS -0.30R"}}
-    s_bad = next(s for s in evaluate("T", sub, live_price=trig + 0.01, params=LOOSE, calibration=bad)["signals"] if s["setup"] == "vwap_reclaim")
-    assert s_bad["action"] == "POTENTIAL BUY" and "LOST money" in s_bad["risks"][0]
-    s_none = next(s for s in evaluate("T", sub, live_price=trig + 0.01, params=LOOSE)["signals"] if s["setup"] == "vwap_reclaim")
-    assert s_none["action"] == "BUY"  # never STRONG without history
-    s_good = next(s for s in evaluate("T", sub, live_price=trig + 0.01, params=LOOSE, calibration=good,
-                                      market=MarketContext(bias="bullish"))["signals"] if s["setup"] == "vwap_reclaim")
-    assert s_good["confidence"]["historical"]["expectancy_r"] == 0.4
-    assert s_good["action"] in ("BUY", "STRONG BUY")
+    return sub, float(d.loc[[ts]].iloc[0]["trigger"])
+
+
+def _sig(sub, trig, **kw):
+    res = evaluate("T", sub, live_price=trig + 0.01, params=LOOSE, **kw)
+    return res, next(s for s in res["signals"] if s["setup"] == "vwap_reclaim")
+
+
+def _ev(tier, avg, n=150, by_regime=None):
+    return {"vwap_reclaim|long|5Min": {"tier": tier, "available": True, "tradeable": tier == "reliable", "trades": n,
+                                       "avg_r": avg, "expectancy_r": avg, "note": f"OOS {avg:+.2f}R", "by_regime": by_regime or {}}}
+
+
+def test_evidence_tiers_gate_actions():
+    sub, trig = _confirmed_reclaim()
+    # clearly losing: NO TRADE (study only), even though the trigger confirmed
+    res, s = _sig(sub, trig, calibration=_ev("negative", -0.3))
+    assert s["action"] == "NO TRADE" and "Study only" in s["risks"][0] and res["action"] == "NO TRADE"
+    # inconclusive / promising / losing: watch only
+    for t in ("inconclusive", "promising", "losing", "insufficient"):
+        res, s = _sig(sub, trig, calibration=_ev(t, 0.05))
+        assert s["action"] == "POTENTIAL BUY" and not s["tradeable"] and res["action"] == "NO TRADE", t
+    # reliable: BUY is allowed and becomes the overall action
+    res, s = _sig(sub, trig, calibration=_ev("reliable", 0.25), market=MarketContext(bias="bullish"))
+    assert s["action"] in ("BUY", "STRONG BUY") and s["tradeable"] and res["action"] == s["action"]
+
+
+def test_strong_requires_regime_history_not_just_checklist(monkeypatch):
+    import app.signals.engine as se
+    real = se.quality
+    monkeypatch.setattr(se, "quality", lambda *a, **k: (95, real(*a, **k)[1]))  # pretend the checklist is near-perfect
+    sub, trig = _confirmed_reclaim()
+    _, s = _sig(sub, trig, calibration=_ev("reliable", 0.25), market=MarketContext(bias="bullish"))
+    assert s["action"] == "BUY"  # high checklist but no record in the current regime -> not STRONG
+    reg = s["regime"]
+    assert reg is not None
+    _, s2 = _sig(sub, trig, calibration=_ev("reliable", 0.25, by_regime={reg: {"trades": 60, "avg_r": 0.3}}))
+    assert s2["action"] == "STRONG BUY"
+    _, s3 = _sig(sub, trig, calibration=_ev("reliable", 0.25, by_regime={reg: {"trades": 60, "avg_r": -0.2}}))
+    assert s3["action"] == "BUY"   # losing in this regime
+    _, s4 = _sig(sub, trig, calibration=_ev("promising", 0.25, by_regime={reg: {"trades": 60, "avg_r": 0.3}}))
+    assert s4["action"] == "POTENTIAL BUY"  # a perfect checklist on unproven evidence is still watch-only
+
+
+def test_legacy_calibration_never_counts_as_reliable():
+    sub, trig = _confirmed_reclaim()
+    good_old = {"vwap_reclaim|5Min": {"available": True, "trades": 400, "expectancy_r": 0.4, "note": "x"}}
+    _, s = _sig(sub, trig, calibration=good_old)
+    assert s["evidence_tier"] == "inconclusive" and s["action"] == "POTENTIAL BUY"
+    bad_old = {"vwap_reclaim|5Min": {"available": True, "trades": 40, "expectancy_r": -0.3, "note": "OOS -0.30R"}}
+    _, s = _sig(sub, trig, calibration=bad_old)
+    assert s["evidence_tier"] == "losing" and s["action"] == "POTENTIAL BUY"

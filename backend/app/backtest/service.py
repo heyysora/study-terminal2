@@ -17,7 +17,9 @@ from ..market_data.providers.base import MarketDataProvider, ProviderError
 from ..market_data.types import Timeframe
 from ..market_data.validation import validate_bars
 from ..signals.setups import SetupParams
+from .diagnostics import report as diagnose
 from .engine import BacktestConfig, breakdown, metrics, run
+from .stats import TRADE_OK, summarize
 from .walkforward import combine_equity, optimize, walk_forward
 
 log = logging.getLogger(__name__)
@@ -75,7 +77,7 @@ class BacktestService:
             rid = self._store(kind, result)
             result["id"] = rid
             if kind == "walk_forward":
-                self._update_calibration(result["trades"], tf.value)
+                self._update_calibration(result["trades"], tf.value, result.get("folds"))
             return result
         finally:
             self.running = None
@@ -86,7 +88,9 @@ class BacktestService:
             trades = wf["oos_trades"]
             return {"metrics": wf["oos_metrics"], "equity": wf["oos_equity"], "trades": trades, "folds": wf["folds"],
                     "by_setup": breakdown(trades, "setup"), "by_regime": breakdown(trades, "regime"),
-                    "by_symbol": breakdown(trades, "symbol"), "out_of_sample": True, "explanation": wf["note"]}
+                    "by_symbol": breakdown(trades, "symbol"), "out_of_sample": True, "explanation": wf["note"],
+                    "evidence": summarize(trades, wf["folds"]), "diagnostics": diagnose(trades, wf["folds"]),
+                    "search": wf.get("search")}
         if kind == "optimize":
             res = optimize(frames, cfg, self.clock, req.get("grid"))
             return {"results": [{"params": r["params"], "metrics": r["metrics"]} for r in res], "trades": [], "equity": [],
@@ -106,8 +110,9 @@ class BacktestService:
         return {"metrics": metrics(trades, eq, cfg.starting_cash), "in_sample": metrics(ins, [], cfg.starting_cash),
                 "out_of_sample_period": metrics(oos, [], cfg.starting_cash), "split_at": cut_ts, "equity": eq, "trades": trades,
                 "by_setup": breakdown(trades, "setup"), "by_regime": breakdown(trades, "regime"), "by_symbol": breakdown(trades, "symbol"),
-                "out_of_sample": False,
-                "explanation": "Same rules on all data; the last part is reported separately. Use walk-forward for calibrated confidence."}
+                "out_of_sample": False, "evidence": summarize(oos), "diagnostics": diagnose(oos) if oos else None,
+                "explanation": ("Same rules on all data; the last part is reported separately (its evidence and diagnostics cover only "
+                                "that part). Use walk-forward for calibrated confidence.")}
 
     def _store(self, kind: str, result: dict) -> int:
         summary = {"metrics": result.get("metrics"), "config": result.get("config")}
@@ -117,25 +122,35 @@ class BacktestService:
             s.flush()
             return rec.id
 
-    def _update_calibration(self, trades: list[dict], tf: str) -> None:
-        by = breakdown(trades, "setup")
+    def _update_calibration(self, trades: list[dict], tf: str, folds: list[dict] | None = None) -> None:
+        """Store out-of-sample evidence per setup, timeframe and direction, with its regime breakdown.
+        The signal engine reads `tier`: only `reliable` evidence allows BUY/SHORT."""
+        groups: dict[tuple[str, str], list[dict]] = {}
+        for t in trades:
+            groups.setdefault((t["setup"], t["direction"]), []).append(t)
         with self.db.session() as s:
-            for setup, st in by.items():
-                pf_trades = [t for t in trades if t["setup"] == setup]
-                m = metrics(pf_trades, [], 25_000)
-                data = {"available": st["trades"] >= MIN_CALIBRATION_TRADES, "trades": st["trades"], "win_rate": st["win_rate"],
-                        "expectancy_r": st["expectancy_r"], "profit_factor": m.get("profit_factor"),
-                        "symbols": sorted({t["symbol"] for t in pf_trades}), "timeframe": tf,
-                        "period": [min(t["entry_ts"] for t in pf_trades), max(t["entry_ts"] for t in pf_trades)],
+            for (setup, direction), g in groups.items():
+                ev = summarize(g)
+                m = metrics(g, [], 25_000)
+                regimes = {}
+                for t in g:
+                    regimes.setdefault(t.get("regime", "?"), []).append(t)
+                data = {**ev, "available": ev["tier"] not in ("none", "insufficient"), "trades": ev["trades"],
+                        "expectancy_r": ev["avg_r"], "profit_factor": m.get("profit_factor"), "direction": direction,
+                        "symbols": sorted({t["symbol"] for t in g}), "timeframe": tf,
+                        "period": [min(t["entry_ts"] for t in g), max(t["entry_ts"] for t in g)],
                         "source": "walk-forward out-of-sample",
-                        "note": (f"Out-of-sample: {st['trades']} trades, win rate {st['win_rate']}%, average {st['expectancy_r']:+.2f}R per trade."
-                                 if st["trades"] >= MIN_CALIBRATION_TRADES else
-                                 f"Only {st['trades']} out-of-sample trades - too few to trust (need {MIN_CALIBRATION_TRADES}).")}
-                rec = s.scalar(select(SetupStatRecord).where(SetupStatRecord.setup == setup, SetupStatRecord.timeframe == tf))
+                        "by_regime": {k: summarize(v) for k, v in regimes.items()},
+                        "tradeable": ev["tier"] in TRADE_OK,
+                        "note": (f"Out-of-sample: {ev['trades']} trades over {ev.get('days', 0)} days, win rate {ev.get('win_rate')}%, "
+                                 f"average {ev['avg_r']:+.3f}R (95% interval {ev.get('avg_r_ci95')}). {ev['tier_text']}"
+                                 if ev["trades"] else ev["tier_text"])}
+                key = f"{setup}|{direction}"
+                rec = s.scalar(select(SetupStatRecord).where(SetupStatRecord.setup == key, SetupStatRecord.timeframe == tf))
                 if rec:
                     rec.data = json.dumps(data)
                 else:
-                    s.add(SetupStatRecord(setup=setup, timeframe=tf, data=json.dumps(data)))
+                    s.add(SetupStatRecord(setup=key, timeframe=tf, data=json.dumps(data)))
         self.reload_calibration()
 
     def reload_calibration(self) -> None:

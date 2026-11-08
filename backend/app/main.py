@@ -16,7 +16,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, ws
+from .api import routes, routes2, routes_journal, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, Settings, get_settings
@@ -24,6 +24,7 @@ from .core.events import Broadcaster
 from .core.market_clock import MarketClock
 from .db.session import Database
 from .education.service import EducationService
+from .journal.service import JournalService
 from .logging_setup import configure_logging
 from .market_data.health import FeedHealthWatcher
 from .market_data.providers.base import MarketDataProvider, ProviderError
@@ -69,6 +70,10 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         s.settings, s.db, s.monitor, s.paper, s.settings_store = settings, db, monitor, paper, store
         s.analysis, s.backtests, s.models, s.alerts, s.signals = analysis, backtests, models, alerts, signals
         s.scanner, s.education = scanner, education
+        journal = JournalService(db, paper, store)
+        journal.signals_service = signals
+        signals.journal = journal
+        s.journal = journal
 
         async def build_assistant():
             key = settings.anthropic_api_key.get_secret_value() if settings.anthropic_api_key else None
@@ -169,6 +174,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                        extra_hosts=["t", "testserver"] if settings.app_env == "test" else [])
     app.include_router(routes.router)
     app.include_router(routes2.router)
+    app.include_router(routes_journal.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

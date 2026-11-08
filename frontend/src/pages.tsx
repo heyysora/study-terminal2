@@ -118,7 +118,7 @@ export function ChartPage({ symbol: routeSym }: { symbol?: string }) {
   const sg = usePoll(`/signals/${sym}?timeframe=${tf}`, 30000, []);
   const ex = usePoll(`/ai/explain/${sym}?timeframe=${tf}`, 0, [tf]);
   const snap = an.data?.snapshots?.[tf];
-  const best = sg.data?.best || (sg.data?.signals || [])[0];
+  const best = sg.data?.best || sg.data?.watch || (sg.data?.signals || [])[0];
   const overlays: Overlay[] = useMemo(() => {
     const s = an.data?.chart?.series || {};
     const o: Overlay[] = [];

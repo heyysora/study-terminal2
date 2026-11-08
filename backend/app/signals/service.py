@@ -16,7 +16,7 @@ from .engine import evaluate, manage_position, market_context
 from .setups import SetupParams
 
 log = logging.getLogger(__name__)
-ALERT_ACTIONS = {"STRONG BUY", "BUY", "SHORT", "WAIT FOR CONFIRMATION", "POTENTIAL BUY", "POTENTIAL SHORT"}
+ALERT_ACTIONS = {"STRONG BUY", "STRONG SHORT", "BUY", "SHORT", "WAIT FOR CONFIRMATION", "POTENTIAL BUY", "POTENTIAL SHORT"}
 
 
 class SignalService:
@@ -31,6 +31,7 @@ class SignalService:
         self.focus: set[str] = set()                # e.g. the symbol on screen
         self._task: asyncio.Task | None = None
         self.cycles = 0
+        self.journal = None                         # JournalService, set by main
 
     @property
     def params(self) -> SetupParams:
@@ -120,6 +121,11 @@ class SignalService:
                 log.info("signal eval %s skipped: %s", sym, e)
                 continue
             self.latest[sym] = ev
+            if self.journal is not None:
+                try:
+                    self.journal.log_signals(ev)
+                except Exception:  # noqa: BLE001 - logging must never stop the signal loop
+                    log.exception("signal journal write failed")
             self._alert_signals(ev)
             self._market_alerts(sym, ff)
         await self.manage_positions()
@@ -142,8 +148,9 @@ class SignalService:
             fp = f"{s['action']}|{s['state']}|{atr_bucket}|{s['stop']}"
             prev = self._prev.get(key)
             self._prev[key] = (s["action"], s["state"])
-            if s["action"] in ALERT_ACTIONS:
-                sev = "high" if s["action"] in ("STRONG BUY", "BUY", "SHORT") else "medium" if s["action"] == "WAIT FOR CONFIRMATION" else "low"
+            watch_only = not s.get("tradeable") and not self.settings.get("alerts.watch_only_ideas", False)
+            if s["action"] in ALERT_ACTIONS and not watch_only:
+                sev = "high" if s["action"] in ("STRONG BUY", "STRONG SHORT", "BUY", "SHORT") else "medium" if s["action"] == "WAIT FOR CONFIRMATION" else "low"
                 title, body = signal_alert_text(s)
                 self.alerts.emit("entry", sev, title, body, key=key, fingerprint=fp, symbol=s["symbol"], data={"signal": s},
                                  link=f"/#/chart/{s['symbol']}")

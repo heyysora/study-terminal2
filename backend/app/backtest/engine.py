@@ -24,7 +24,7 @@ from ..analysis.features import FeatureFrame
 from ..core.market_clock import ET, MarketClock
 from ..market_data.types import DataStatus
 from ..paper.engine import OrderRequest, OrderType, PaperConfig, PaperEngine, PriceRef, RiskConfig, Side, TIF
-from ..signals.engine import build_plan
+from ..signals.engine import MarketContext, add_regime_inputs, build_plan, quality, regime
 from ..signals.setups import SetupParams, detect
 
 ML_FEATURES = ["rsi", "macd_hist", "stoch_k", "roc", "atr_pct", "bb_width", "bb_pctb", "vol_ratio", "rvol", "pressure",
@@ -127,6 +127,7 @@ def run(symbol: str, ff: FeatureFrame, cfg: BacktestConfig, clock: MarketClock, 
                     risk_d = open_trade["risk_per_share"] * open_trade["qty"]
                     trades.append({**open_trade, "exit_ts": f.ts.isoformat(), "exit_price": f.price,
                                    "exit_reason": "eod" if f.role.value == "exit" else f.role.value,
+                                   **_excursions(df, sessions, open_trade, i_bar, f.role.value),
                                    "pnl": round(pnl, 2), "r_multiple": round(pnl / risk_d, 3) if risk_d else 0.0,
                                    "cost_r": round((open_trade["slippage"] + open_trade["commission"]) / risk_d, 3) if risk_d else 0.0,
                                    "bars_held": i_bar - open_trade["entry_bar"],
@@ -185,7 +186,9 @@ def run(symbol: str, ff: FeatureFrame, cfg: BacktestConfig, clock: MarketClock, 
                             "symbol": symbol, "setup": c["setup"], "direction": c["direction"], "signal_ts": ts.isoformat(),
                             "planned_entry": plan["entry"], "stop": plan["stop"], "target": plan["t2"],
                             "risk_per_share": plan["risk_per_share"], "features": _ml_row(row),
-                            "regime": regime(row)}}
+                            "regime": regime(row), "timeframe": ff.timeframe.value, "signal_i": i,
+                            "signal_close": float(row["close"]), "atr": float(plan["atr"] or 0),
+                            "quality": quality(row, c["direction"], plan, MarketContext(), None, ff.intraday)[0]}}
                     else:
                         rejected += 1
         equity.append((b1.isoformat(), round(eng.equity(), 2)))
@@ -193,16 +196,36 @@ def run(symbol: str, ff: FeatureFrame, cfg: BacktestConfig, clock: MarketClock, 
             "final_equity": round(eng.equity(), 2), "notes": ff.notes}
 
 
-def regime(row: pd.Series) -> str:
-    trend = "up" if row["ema21"] > row["ema50"] else "down"
-    v = row.get("atr_pct")
-    med = row.get("atr_pct_med")
-    vol = "high-vol" if (v == v and med == med and med and v > 1.3 * med) else "normal-vol"
-    return f"{trend}/{vol}"
-
-
-def add_regime_inputs(df: pd.DataFrame) -> None:
-    df["atr_pct_med"] = df["atr_pct"].rolling(200, min_periods=20).median()
+def _excursions(df: pd.DataFrame, sessions, t: dict, i_exit: int, exit_role: str) -> dict:
+    """How far a trade went for and against it (MFE/MAE, in R), how fast it was stopped, and what
+    price did for the rest of that session after a stop. Bar data can't show the order of prices
+    inside a bar, so: the exit bar counts toward MFE only for target exits (a stop bar's high may have
+    come after the stop), and the entry bar counts in full (may slightly overstate both)."""
+    long = t["direction"] == "long"
+    e, rps, i0 = t["entry_price"], t["risk_per_share"] or 1e-9, t["entry_bar"]
+    seg = df.iloc[i0:i_exit + 1]
+    fav_seg = seg if exit_role == "take_profit" or i_exit == i0 else df.iloc[i0:i_exit]
+    hi, lo = float(fav_seg["high"].max()), float(fav_seg["low"].min())
+    mfe = (hi - e) / rps if long else (e - lo) / rps
+    mae = (e - float(seg["low"].min())) / rps if long else (float(seg["high"].max()) - e) / rps
+    out = {"mfe_r": round(max(mfe, 0.0), 3), "mae_r": round(max(mae, 0.0), 3), "bars_to_exit": i_exit - i0,
+           "entry_bars_after_signal": i0 - t["signal_i"]}
+    if t.get("atr"):
+        d = (e - t["signal_close"]) / t["atr"]
+        out["entry_vs_signal_close_atr"] = round(d if long else -d, 3)
+    if exit_role == "stop_loss":
+        j = i_exit + 1
+        while j < len(df) and sessions[j] == sessions[i_exit]:
+            j += 1
+        rest = df.iloc[i_exit + 1:j]
+        hit = (rest["high"] >= t["target"]) if long else (rest["low"] <= t["target"])
+        reached = bool(hit.any())
+        out["target_after_stop"] = reached
+        if reached:
+            before = pd.concat([seg, rest.iloc[:int(hit.to_numpy().argmax()) + 1]])
+            worst = (e - float(before["low"].min())) / rps if long else (float(before["high"].max()) - e) / rps
+            out["adverse_before_target_r"] = round(worst, 3)
+    return out
 
 
 def metrics(trades: list[dict], equity: list[tuple[str, float]], starting_cash: float) -> dict:

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CandleChart, LineChart, Panel } from "./components";
 import { TIMEFRAMES, api, etDate, etTime, money, num, pct, sign, useLive, usePoll } from "./lib";
+import { Diagnostics, Evidence } from "./pages3";
 
 // ======================= Backtest + ML =======================
 export function Backtest() {
@@ -68,6 +69,9 @@ export function Backtest() {
               .map(([k, v]) => <div key={k as string} className="cell" style={{ padding: "8px 14px" }}><span className="k">{k}</span><span className="v">{v as any}</span></div>)}
           </div></section>
           {m.sample_warning && <div className="note warn">{m.sample_warning}</div>}
+          <Evidence ev={res.evidence} title={res.out_of_sample ? "Statistical evidence (out-of-sample)" : "Statistical evidence (last part of the period only)"} />
+          {res.search && <div className="note small">{res.search.note}</div>}
+          <Diagnostics d={res.diagnostics} setupNames={setups} />
           <div className="note">Past results do not guarantee future results. A positive backtest is a reason to keep paper testing, not proof of an edge.</div>
           {res.equity?.length > 1 && <Panel title="Equity curve" sub={res.out_of_sample ? "out-of-sample only" : "full period"}><LineChart points={res.equity} /></Panel>}
           <div className="cols c-2">

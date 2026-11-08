@@ -102,6 +102,7 @@ def build(bars: list[Bar] | pd.DataFrame, timeframe: Timeframe) -> FeatureFrame:
     df["roc"] = ind.roc(c, 10)
     df["atr"] = ind.atr(h, l, c, 14)
     df["atr_pct"] = 100 * df["atr"] / c
+    df["atr_pct_med"] = df["atr_pct"].rolling(200, min_periods=20).median()  # volatility regime baseline (causal)
     df = df.join(ind.bollinger(c))
     periods_per_year = 252 if not intraday else 252 * (390 / bar_min)
     df["hv"] = ind.historical_volatility(c, 20, periods_per_year)

@@ -245,12 +245,16 @@ async def paper_preview(body: OrderRequest, p: PaperService = Depends(paper)):
 
 
 @router.post("/paper/orders", status_code=201)
-async def paper_place(body: PlaceOrderIn, p: PaperService = Depends(paper)):
+async def paper_place(body: PlaceOrderIn, request: Request, p: PaperService = Depends(paper)):
     _sym(body.symbol)
     if not body.confirm:
         raise HTTPException(400, "Orders need explicit confirmation: resend with \"confirm\": true after reviewing the preview.")
     req = OrderRequest(**body.model_dump(exclude={"confirm"}))
-    res = await p.submit(req)
+    journal = getattr(request.app.state, "journal", None)
+    ctx = journal.capture_context(req.symbol, req.signal_id) if journal else None
+    res = await p.submit(req, context=ctx)
+    if journal:
+        journal.sync()
     if res["order"]["status"] == "rejected":
         raise HTTPException(422, {"message": res["order"]["reject_reason"], **res})
     return res

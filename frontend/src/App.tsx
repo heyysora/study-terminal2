@@ -2,10 +2,11 @@ import { dismissToast, money, pct, sign, useHashRoute, useLive } from "./lib";
 import { Meter } from "./components";
 import { ChartPage, Copilot, Dashboard, Paper, Scanner } from "./pages";
 import { Alerts, Backtest, Learn, Settings } from "./pages2";
+import { Journal } from "./pages3";
 
 const NAV: [string, string, string?][] = [
   ["dashboard", "Dashboard"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Paper trading"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
+  ["paper", "Paper trading"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
 ];
 
 function StatusStrip() {
@@ -46,6 +47,7 @@ export default function App() {
       case "copilot": return <Copilot />;
       case "scanner": return <Scanner />;
       case "paper": return <Paper />;
+      case "journal": return <Journal />;
       case "backtest": return <Backtest />;
       case "learn": return <Learn id={route[1]} />;
       case "alerts": return <Alerts />;

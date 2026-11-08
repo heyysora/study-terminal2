@@ -147,6 +147,7 @@ export function actionClass(a?: string) {
   if (a === "STRONG BUY") return "act strong";
   if (a === "BUY") return "act buy";
   if (a === "SHORT") return "act short";
+  if (a === "STRONG SHORT") return "act short strong-short";
   if (a === "WAIT FOR CONFIRMATION" || a.startsWith("POTENTIAL")) return "act wait";
   if (a === "EXIT POSITION" || a === "SELL" || a === "COVER SHORT") return "act exit";
   return "act";

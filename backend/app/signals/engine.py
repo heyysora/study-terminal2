@@ -160,6 +160,41 @@ def lifecycle(df: pd.DataFrame, i_signal: int, plan: dict, direction: str, live_
     return "developing", f"Setup formed; price is {dist_atr:.2f} ATR away from the trigger."
 
 
+def regime(row: pd.Series) -> str:
+    """Trend (21 vs 50 EMA) and volatility (ATR% vs its 200-bar median) at one bar.
+    The backtester uses the same function, so live and historical regimes are comparable."""
+    trend = "up" if row["ema21"] > row["ema50"] else "down"
+    v = row.get("atr_pct")
+    med = row.get("atr_pct_med")
+    vol = "high-vol" if (v == v and med == med and med and v > 1.3 * med) else "normal-vol"
+    return f"{trend}/{vol}"
+
+
+def add_regime_inputs(df: pd.DataFrame) -> None:
+    df["atr_pct_med"] = df["atr_pct"].rolling(200, min_periods=20).median()
+
+
+def evidence_for(calibration: dict | None, setup: str, direction: str, tf: str) -> dict:
+    """Out-of-sample evidence for one setup/direction/timeframe, with a tier. Old (pre-tier)
+    calibration records are read conservatively: they can never count as reliable."""
+    cal = (calibration or {}).get(f"{setup}|{direction}|{tf}")
+    if cal and "tier" in cal:
+        return cal
+    old = (calibration or {}).get(f"{setup}|{tf}")
+    if not old:
+        return {"available": False, "tier": "none", "tradeable": False,
+                "note": "No out-of-sample backtest for this setup yet. Run a walk-forward test on the Backtest page."}
+    n, avg = old.get("trades", 0), old.get("expectancy_r", 0)
+    t = "insufficient" if n < 30 else "losing" if avg < 0 else "inconclusive"
+    return {**old, "tier": t, "tradeable": False,
+            "note": f"{old.get('note', '')} (Older test without direction split or confidence interval: re-run walk-forward.)".strip()}
+
+
+TIER_SHORT = {"none": "untested", "insufficient": "too few test trades", "negative": "clearly lost money in testing",
+              "losing": "lost money in testing", "inconclusive": "no proven edge", "promising": "positive but not yet reliable",
+              "reliable": "reliable out-of-sample edge"}
+
+
 ACTION = {
     ("long", "developing"): "POTENTIAL BUY", ("long", "approaching"): "WAIT FOR CONFIRMATION",
     ("short", "developing"): "POTENTIAL SHORT", ("short", "approaching"): "WAIT FOR CONFIRMATION",
@@ -215,17 +250,30 @@ def evaluate(
         score, checks = quality(row, cand["direction"], plan, market, mtf, ff.intraday)
         long = cand["direction"] == "long"
         qty = position_size(equity, risk_pct, plan["entry"], plan["stop"])
-        cal = (calibration or {}).get(f"{cand['setup']}|{tf}")
-        proven = bool(cal and cal.get("available") and cal.get("expectancy_r", 0) > 0.1)
-        losing = bool(cal and cal.get("available") and cal.get("expectancy_r", 0) < 0)
+        cal = evidence_for(calibration, cand["setup"], cand["direction"], tf)
+        tier = cal.get("tier", "none")
+        reliable = tier == "reliable"
+        cur_regime = regime(row) if "atr_pct_med" in df else None
+        reg_ev = (cal.get("by_regime") or {}).get(cur_regime) if cur_regime else None
+        regime_ok = bool(reg_ev and reg_ev.get("trades", 0) >= 30 and reg_ev.get("avg_r", -1) >= 0)
+        risks = []
         if state == "confirmed":
-            # STRONG requires both a high checklist score AND positive out-of-sample history
-            action = ("STRONG BUY" if score >= QUALITY_STRONG and proven else "BUY") if long else "SHORT"
+            if reliable:
+                # STRONG needs all three: reliable out-of-sample evidence, a non-negative record in the
+                # current market regime, and a high checklist score. A checklist alone never makes it STRONG.
+                strong = score >= QUALITY_STRONG and regime_ok
+                action = ("STRONG BUY" if strong else "BUY") if long else ("STRONG SHORT" if strong else "SHORT")
+            else:
+                action = "POTENTIAL BUY" if long else "POTENTIAL SHORT"
         elif state in ("developing", "approaching"):
-            action = ACTION[(cand["direction"], state)]
+            action = ACTION[(cand["direction"], state)] if reliable else ("POTENTIAL BUY" if long else "POTENTIAL SHORT")
         else:
             action = "NO TRADE"
-        risks = []
+        if tier == "negative":
+            action = "NO TRADE"
+            risks.append(f"Study only: this setup clearly lost money out-of-sample ({cal.get('note', '')}).")
+        elif not reliable and state in ("confirmed", "developing", "approaching"):
+            risks.append(f"Watch only: {TIER_SHORT.get(tier, tier)}. {cal.get('note', '')}".strip())
         if not checks[0]["passed"]:
             risks.append("Trading against the trend on this timeframe.")
         if market.high_risk:
@@ -236,9 +284,6 @@ def evaluate(
             risks.append("Short selling: losses are theoretically unlimited; borrow availability and short-sale restrictions are not checked without a broker.")
         if fastest and fastest != "1Min":
             risks.append("Based on polled data that can lag 1-2 minutes.")
-        if losing and action in ("BUY", "STRONG BUY", "SHORT", "WAIT FOR CONFIRMATION"):
-            action = "POTENTIAL BUY" if long else "POTENTIAL SHORT"
-            risks.insert(0, f"This setup LOST money in out-of-sample testing ({cal['note']}) - shown for learning, not as a trade.")
         if suspect and ts.isoformat() in suspect:
             action = "NO TRADE"
             risks.insert(0, "The signal bar looks like a bad print (a one-bar spike that immediately reversed). "
@@ -264,8 +309,12 @@ def evaluate(
                           "first_level_in_the_way": plan["first_level"], "room_r": _r(plan["room_to_first_level_r"])},
             "volume": {"rvol": _r(row.get("rvol")), "signal_bar_vol_ratio": _r(row.get("vol_ratio")), "pressure": _r(row.get("pressure"))},
             "market": market.to_dict(),
+            "tradeable": reliable and action not in ("NO TRADE",),
+            "evidence_tier": tier,
+            "regime": cur_regime,
             "confidence": {
-                "historical": cal or {"available": False, "note": "No out-of-sample backtest for this setup yet. Run one on the Backtest page."},
+                "historical": cal,
+                "historical_in_current_regime": reg_ev,
                 "model_probability": model_probability,
                 "setup_quality": {"score": score, "checks": checks,
                                   "note": "Rule checklist score - how many quality boxes are ticked, NOT a probability of winning."},
@@ -279,15 +328,21 @@ def evaluate(
         }
         out["signals"].append(to_jsonable(sig))
 
-    rank = {"STRONG BUY": 0, "BUY": 1, "SHORT": 1, "WAIT FOR CONFIRMATION": 2, "POTENTIAL BUY": 3, "POTENTIAL SHORT": 3, "NO TRADE": 9}
+    rank = {"STRONG BUY": 0, "STRONG SHORT": 0, "BUY": 1, "SHORT": 1, "WAIT FOR CONFIRMATION": 2, "POTENTIAL BUY": 3,
+            "POTENTIAL SHORT": 3, "NO TRADE": 9}
     live = sorted(out["signals"], key=lambda s: (rank[s["action"]], -s["confidence"]["setup_quality"]["score"]))
-    if live and live[0]["action"] != "NO TRADE":
+    if live and live[0]["action"] != "NO TRADE" and live[0]["tradeable"]:
         out["action"] = live[0]["action"]
         out["best"] = live[0]
+    elif live and live[0]["action"] != "NO TRADE":
+        # Ideas exist but none has reliable out-of-sample evidence: the honest answer is NO TRADE.
+        out["watch"] = live[0]
+        out["reasons"].append(f"NO TRADE: there is a {live[0]['setup_name']} idea ({live[0]['action']}), but this setup has "
+                              f"{TIER_SHORT.get(live[0]['evidence_tier'], 'no proven edge')}. It's listed to watch and learn from, not to trade.")
     else:
         out["reasons"].append("No active setup right now. NO TRADE is a valid decision - waiting is a position.")
-        if market.high_risk:
-            out["reasons"] += list(market.reasons)
+    if out["action"] == "NO TRADE" and market.high_risk:
+        out["reasons"] += list(market.reasons)
     return out
 
 

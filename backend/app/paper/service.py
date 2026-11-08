@@ -90,9 +90,12 @@ class PaperService:
         ref = await self._ensure_price(req.symbol)
         return {"preview": self.engine.preview(req, ref).to_dict(), "price": self._ref_dict(ref)}
 
-    async def submit(self, req: OrderRequest) -> dict:
+    async def submit(self, req: OrderRequest, context: dict | None = None) -> dict:
         ref = await self._ensure_price(req.symbol)
         order, pv = self.engine.submit(req, ref)
+        if context is not None:
+            order.context = context
+            self.engine._touch(order)
         self._flush()
         await self.monitor.refresh_symbols()
         return {"order": order.to_dict(), "preview": pv.to_dict(), "price": self._ref_dict(ref)}

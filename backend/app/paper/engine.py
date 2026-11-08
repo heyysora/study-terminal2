@@ -100,6 +100,7 @@ class OrderRequest(BaseModel):
     stop_loss: float | None = None     # bracket: protective stop for the new position
     take_profit: float | None = None   # bracket: profit target for the new position
     note: str | None = None
+    signal_id: str | None = None       # the signal this order acts on, if any (journal links them)
 
     @field_validator("symbol")
     @classmethod
@@ -157,6 +158,8 @@ class Order:
     fill_price: float | None = None
     reject_reason: str | None = None
     note: str | None = None
+    signal_id: str | None = None
+    context: dict | None = None        # snapshot of conditions when the order was placed (for the journal)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -551,7 +554,7 @@ class PaperEngine:
         role = OrderRole.ENTRY if pv.intent and pv.intent.startswith("open") else OrderRole.EXIT
         o = Order(id=_new_id(), symbol=req.symbol, side=req.side, qty=req.qty, type=req.type, role=role, tif=req.tif,
                   created_at=now, updated_at=now, limit_price=req.limit_price, stop_price=req.stop_price,
-                  extended_hours=req.extended_hours, note=req.note,
+                  extended_hours=req.extended_hours, note=req.note, signal_id=req.signal_id,
                   bracket_stop=req.stop_loss if role == OrderRole.ENTRY else None,
                   bracket_target=req.take_profit if role == OrderRole.ENTRY else None)
         self.orders[o.id] = o
