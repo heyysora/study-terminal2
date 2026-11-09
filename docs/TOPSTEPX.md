@@ -1,4 +1,4 @@
-# TopstepX and futures (0.7.0)
+# TopstepX and futures (0.8.0)
 
 Study Terminal now supports two independent setups that share the mentor, alerts, journal, learning and
 infrastructure:
@@ -181,7 +181,7 @@ floor updated when the trade date closes.
 | Source | Real-time? | Coverage | Streaming | Needs | Cost | Limits | In Study Terminal |
 |---|---|---|---|---|---|---|---|
 | Yahoo Finance (default) | No: Yahoo reports a 10-minute delay on CME futures (checked 2026-11-07 for ES, MES, NQ, CL, GC) | Specific contracts (ESZ26.CME) and continuous front month (ES=F) | No | Nothing | Free | Unofficial; 1-min ≈ 7 days, 5-min ≈ 60 days | DELAYED: levels and study only; no signals, no live fills |
-| TopstepX API (ProjectX Gateway) | Yes (included with the subscription) | Products tradable on TopstepX | SignalR hubs; Study Terminal polls REST bars | Topstep account, ProjectX API Access subscription, API key | $29/month, $14.50 with code "topstep" | retrieveBars 50 / 30 s; others 200 / 60 s; 20,000 bars per request | Optional, read-only, POLLING when fresh |
+| TopstepX API (ProjectX Gateway) | Yes (included with the subscription) | Products tradable on TopstepX | SignalR market hub (quotes, trades) streamed by Study Terminal; REST bars for history and backfill | Topstep account, ProjectX API Access subscription, API key | $29/month, $14.50 with code "topstep" | retrieveBars 50 / 30 s; others 200 / 60 s; 20,000 bars per request | Optional, read-only, LIVE / STALE / DISCONNECTED ([LIVE_MARKET_DATA.md](LIVE_MARKET_DATA.md)) |
 | Databento | Yes | Full CME Globex | Yes | Account + CME license | From $32.65/month non-pro license + usage, or $199/month plan | Usage-based | Not integrated (paid); the provider interface is ready |
 | Your screen | As fast as your screen | What's visible | Capture | Screen monitoring on | Free | OCR can misread | Cross-check only, never a price for signals or fills |
 
@@ -256,7 +256,7 @@ Sources checked 2026-11-08: ProjectX Gateway docs (gateway.docs.projectx.com) an
 | Accounts | `POST /api/Account/search` | Only if you turn on account reading; display only |
 | Orders | `POST /api/Order/place`, cancel, modify, search (limit, market, stop, trailing stop, join bid/ask; brackets only in Auto OCO mode) | **No.** Not implemented. The client refuses any path outside the four above before a request is made, and a test checks this. |
 | Positions / trades | search and close endpoints | No |
-| Real-time | SignalR user and market hubs (quotes, trades, depth) | No (REST polling only; labelled POLLING) |
+| Real-time | SignalR market hub: `SubscribeContractQuotes`, `SubscribeContractTrades`, `SubscribeContractMarketDepth`; user hub | Market hub quotes and trades only (0.8.0), labelled LIVE / STALE / DISCONNECTED. Depth and the user hub aren't used. Mock-tested only. |
 
 Topstep's rules for API use (as published): custom bots are allowed through the API, no high-frequency trading;
 VPS, VPNs and remote servers may not be used for trading; **Live Funded accounts may not trade through the API**; there is no

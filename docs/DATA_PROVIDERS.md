@@ -94,8 +94,9 @@ Databento is the main paid alternative. Comparison table and setup steps: [TOPST
 Labels on every futures quote and chart (0.7.0): **REAL-TIME / NEAR REAL-TIME / POLLING** (fillable), **DELAYED**, **HISTORICAL**,
 **REPLAY**, **CACHED** (fetch failed, last good copy shown with its age), **STALE**, **UNAVAILABLE**. Each label carries the source, bar time,
 fetch time and validation counts (impossible and future-dated bars dropped, duplicates removed, out-of-order bars re-sorted, off-tick prices and missing candles counted).
-If the TopstepX API fails, bars come from Yahoo **labelled DELAYED with a note saying why**; a live label is never kept on
-substituted data. A failing source backs off from 30 s up to 10 minutes. Downtime (sleep, shutdown, stalls) is detected and the
+If TopstepX REST fails (stream off), bars come from Yahoo **labelled DELAYED with a note saying why**. With the 0.8.0 stream on,
+status comes only from the stream: LIVE while connected and receiving data, otherwise STALE or DISCONNECTED; nothing is substituted
+under a live label ([LIVE_MARKET_DATA.md](LIVE_MARKET_DATA.md)). A failing source backs off from 30 s up to 10 minutes. Downtime (sleep, shutdown, stalls) is detected and the
 missed bars are replayed in order (labelled `reconcile`) before any decision.
 
 ## 6. Economic data

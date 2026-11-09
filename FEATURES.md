@@ -1,4 +1,4 @@
-# Features and limitations (0.7.0)
+# Features and limitations (0.8.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
@@ -55,6 +55,12 @@
 | Screen calibration | Labelled screenshots scored per field; per-platform accuracy with intervals and failures; consent-only image storage; synthetic samples excluded | ✅ tool; 🟡 no TopstepX accuracy measured yet |
 | Automation Center | Central futures screen | ✅ |
 | Mobile companion API | Off by default, token shown once and stored hashed, brake-only controls, localhost + optional private host for mobile paths only | ✅ in-process tests; 🟡 no real phone/tunnel test |
+| Live futures data (0.8.0) | TopstepX SignalR market hub (documented quotes + trades subscriptions), read-only, reconnect with backoff, token refresh, REST backfill after every reconnect, gap log, contract rollover | ✅ against a local mock hub; 🟡 never run against real TopstepX data |
+| | Candle engine: trades → 1-minute bars by exchange time; duplicates, late/out-of-order prints, off-tick prints, session edges; bars close on the clock | ✅ |
+| | Session-aligned 1m/5m/15m/30m/1h/4h/daily for every source (anchored at the 17:00 CT Globex open) | ✅ |
+| | Labels LIVE / STALE / DISCONNECTED / DELAYED / CACHED with source, exchange and receipt times, contract, price; only LIVE can drive signals or fills | ✅ |
+| | Decisions use completed bars only; automation re-evaluates on each streamed 5-minute close | ✅ |
+| Live Market screen | NQ/MNQ/ES/MES, 7 timeframes, in-place updates over WebSocket, bid/ask, EMA 9/20/50/200, VWAP, volume, PDH/PDL, overnight, session and RTH open, OR, IB, BOS/CHoCH, swings, FVGs, sweeps, S/R, volume profile, toggles; greyed "NOT LIVE" when stale/disconnected/delayed | ✅ checked in a browser against the mock server; 🟡 not with real TopstepX data |
 | Earlier stages | Analysis, scanner, paper trading, risk limits, alerts, learning centre | ✅ (see previous releases) |
 
 ## Remaining limitations
@@ -70,6 +76,7 @@
 - **News**: Yahoo's feed only; no FDA calendar, no real-time wires; labels are keyword rules.
 - **Chrome extension**: TradingView doesn't always put the interval in the address; then your default timeframe is used.
 - Alert de-duplication resets on restart (M9 in the audit). Quitting within a second of launch logs a harmless library error (L6).
+- **Live TopstepX streaming is unverified against the real service** ([docs/LIVE_MARKET_DATA.md](docs/LIVE_MARKET_DATA.md)).
 - **Futures data is delayed by default** (Yahoo reports 10 minutes). Without the optional TopstepX API there are no live
   futures signals or live simulator fills; use replay or delayed practice. Everything not tested against a real TopstepX
   environment is listed in [docs/TOPSTEPX.md](docs/TOPSTEPX.md) §10.

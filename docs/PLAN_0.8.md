@@ -51,3 +51,12 @@ whether bar `t` is the bar start (assumed start, as in the example); whether the
 Nothing here touches order execution, the risk engine or the strategy-evidence gate.
 
 ## Phase log
+
+### Done 2026-11-09
+- P1 candle engine (`futures/candles.py`), P2 stream client and LiveStream (`futures/stream.py`), P3 data integration (`futures/data.py`,
+  service: `sync_stream`, `_on_live_bar_close`, `frame(completed_only)`), P4 chart API (`/api/futures/live/chart`, `/live/status`,
+  `/live/stream/sync`), P5 Live Market screen (`frontend/src/pages6.tsx`), P6 docs (`LIVE_MARKET_DATA.md` and updates) and version 0.8.0.
+- All bars from every source are now session-aligned and marked closed/forming; decisions drop the forming candle.
+- Status labels shown as LIVE / STALE / DISCONNECTED / DELAYED / CACHED.
+- Tests: 22 new (mocked); full suite 370 passed on 3.11 and 3.13. Manual browser check against the mock server.
+- Not verified: anything against real TopstepX data (no credentials). Checklist in LIVE_MARKET_DATA.md.

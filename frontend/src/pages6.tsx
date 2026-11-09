@@ -60,6 +60,8 @@ export function LiveMarket() {
   }, [root, tf]);
 
   useEffect(() => { setData(null); setQuote(null); load(); }, [load]);
+  // make sure the stream matches the current settings (e.g. right after choosing "TopstepX API" as the data source)
+  useEffect(() => { api("/futures/live/stream/sync", { method: "POST" }).catch(() => undefined); }, []);
   useEffect(() => { try { localStorage.setItem("live.root", root); localStorage.setItem("live.tf", tf); } catch { /* ignore */ } }, [root, tf]);
   // Without a stream nothing is pushed: refresh on a timer so delayed/historical charts still move (never labelled live).
   useEffect(() => {

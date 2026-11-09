@@ -1,4 +1,4 @@
-# Study Terminal 0.7.0
+# Study Terminal 0.8.0
 
 A trading research and paper-trading environment for Windows that you use alongside your charts. It watches
 the market, reads your chart window (with your permission), finds setups, tells you honestly how those setups
@@ -27,10 +27,11 @@ have performed on data they never saw, records every trade and signal in a journ
 | Backtesting | Walk-forward testing, diagnostics by strategy, ticker, regime, time of day and more, ML with a deployment gate |
 | Learning | 18 lessons, quizzes, glossary, real-chart exercises |
 | Futures (TopstepX) | TopstepX is the default futures platform; NQ, MNQ, ES, MES monitored by default. CME contract specs, Globex sessions, regime and multi-timeframe analysis, a 13-step decision pipeline with every decision stored, Topstep evaluation practice, a persistent futures simulator, replay with automation, labelled data with fallback and downtime reconciliation. Never places orders on TopstepX. See [docs/TOPSTEPX.md](docs/TOPSTEPX.md) |
+| Live Market | Live-updating futures charts (NQ, MNQ, ES, MES; 1m to daily) from the TopstepX market hub when you have a ProjectX API subscription, with EMAs, VWAP, session levels and structure overlays, and an honest LIVE / STALE / DISCONNECTED / DELAYED label. Without the subscription the charts use Yahoo, labelled DELAYED. Streaming is mock-tested only so far. See [docs/LIVE_MARKET_DATA.md](docs/LIVE_MARKET_DATA.md) |
 | Automation Center | Mode A (assisted) and Mode B (automated paper trading, validated strategies only, inside a central risk service); Mode C live is locked with no order code. Start/pause/resume/stop, emergency stop with review, research sandbox, automated vs manual comparison. See [docs/AUTOMATION_GUIDE.md](docs/AUTOMATION_GUIDE.md) |
 | Mobile companion | Optional, off by default: token-protected API to watch status and pause/resume/emergency-stop from a phone over a private encrypted channel. See [docs/MOBILE_API.md](docs/MOBILE_API.md) |
 
-Docs: [User guide](docs/USER_GUIDE.md) · [TopstepX and futures](docs/TOPSTEPX.md) · [Automation](docs/AUTOMATION_GUIDE.md) ·
+Docs: [User guide](docs/USER_GUIDE.md) · [TopstepX and futures](docs/TOPSTEPX.md) · [Live market data](docs/LIVE_MARKET_DATA.md) · [Automation](docs/AUTOMATION_GUIDE.md) ·
 [Paper trading](docs/PAPER_TRADING_GUIDE.md) · [Replay](docs/REPLAY_GUIDE.md) · [Evaluation practice](docs/EVALUATION_GUIDE.md) ·
 [Mobile API](docs/MOBILE_API.md) · [Features](FEATURES.md) · [Limitations](docs/LIMITATIONS.md) · [Test results](docs/TEST_RESULTS.md) ·
 [Backtest results: stocks](docs/BACKTEST_RESULTS.md), [futures](docs/BACKTEST_RESULTS_FUTURES.md) · [Market data sources](docs/DATA_PROVIDERS.md) ·
@@ -49,7 +50,7 @@ cd C:\Users\<you>\dev\study-terminal
 powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1            # Python environment (once)
 winget install JRSoftware.InnoSetup                                    # free installer compiler (once)
 powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1  # ~5 minutes
-.\dist-installer\StudyTerminal-Setup-0.7.0.exe
+.\dist-installer\StudyTerminal-Setup-0.8.0.exe
 ```
 
 The installer:
@@ -107,7 +108,8 @@ cd ..\frontend; npm ci; npm run build                  # rebuild the UI into fro
 ## First session (futures / TopstepX)
 1. Switch to **Futures** (top left). The **Automation Center** opens and monitoring of NQ, MNQ, ES and MES starts in Mode A.
 2. **Futures > Rules**: pick your Topstep preset, check every number against your dashboard, confirm. Set personal limits.
-3. **Futures > Data & simulator**: Yahoo (delayed) works with no setup; add the optional TopstepX API key in `.env` for live data.
+3. **Futures > Data & simulator**: Yahoo (delayed) works with no setup. For live data: ProjectX API Access subscription, key in `.env`,
+   data source "TopstepX API" ([docs/LIVE_MARKET_DATA.md](docs/LIVE_MARKET_DATA.md)). Then open **Live Market**.
 4. **Futures > Evidence**: see the bundled research or re-run it. Nothing is validated today, so ideas stay watch-only.
 5. Practise in **Replay**, or live once you have a fillable feed. Check the **Journal** and the mentor ("why was this rejected?").
 6. Optional: **Live copilot** for your TopstepX window (calibrate it first), and the **mobile companion**.

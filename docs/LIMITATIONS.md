@@ -1,4 +1,4 @@
-# Known limitations (0.7.0)
+# Known limitations (0.8.0)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -14,7 +14,11 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 ## Data
 - **Futures data is delayed by default.** Yahoo reports about 10 minutes on CME futures. Without the paid TopstepX API there are no
   live futures signals, no automated entries and no live fills (replay and labelled delayed practice still work).
-- The TopstepX API client was tested against a mock server, not the real API. Real-time hubs (SignalR) aren't used.
+- **TopstepX live streaming (0.8.0) was tested only against a local mock hub.** It has never received real TopstepX market data. The
+  list of what to verify with a real account is in [LIVE_MARKET_DATA.md](LIVE_MARKET_DATA.md#what-still-needs-a-real-topstepx-account).
+  REST calls were also tested against mocks only. Market depth and the user hub aren't used.
+- Candles are built from the trade prints the stream delivers; volume parity with TopstepX's own charts is unverified. Bars aren't
+  back-adjusted across contract rolls.
 - Yahoo endpoints are unofficial and can change or break.
 - Holiday hours come from exchange_calendars, not CME's holiday notices.
 

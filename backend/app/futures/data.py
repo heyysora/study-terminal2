@@ -31,12 +31,13 @@ SOURCES = [
      "limits": "Unofficial; 1-minute bars for about 7 days, 5-minute for about 60 days; rate-limited without notice",
      "status_in_app": "DELAYED: analysis and study only, no signals, no live paper fills", "default": True},
     {"id": "projectx", "name": "TopstepX API (ProjectX Gateway)", "realtime": "Yes (real-time data included with the subscription)",
-     "coverage": "Products tradable on TopstepX", "streaming": "Yes via SignalR hubs; Study Terminal polls REST bars (POLLING)",
+     "coverage": "Products tradable on TopstepX", "streaming": "Yes: Study Terminal streams quotes and trades from the documented SignalR market hub (LIVE), with REST history and backfill",
      "requirements": "A Topstep account, a ProjectX API Access subscription and an API key from TopstepX > Settings > API",
      "cost": "$29/month, or $14.50 with the code 'topstep' (help.topstep.com, checked 2026-11-07)",
      "limits": "retrieveBars 50 requests / 30 s; other endpoints 200 / 60 s; 20,000 bars per request",
-     "status_in_app": "POLLING when fresh: signals allowed on 5-minute bars", "default": False,
-     "note": "Optional. Read-only in Study Terminal. Not tested against a real account."},
+     "status_in_app": "LIVE while the stream is connected and receiving data; STALE or DISCONNECTED otherwise (no signals then). "
+                      "With streaming turned off: POLLING", "default": False,
+     "note": "Optional. Read-only in Study Terminal. Streaming tested against a local mock only, not a real account."},
     {"id": "databento", "name": "Databento (not built in)", "realtime": "Yes", "coverage": "Full CME Globex (CME, CBOT, NYMEX, COMEX)",
      "streaming": "Yes", "requirements": "Account and CME license", "cost": "Live CME data from $32.65/month non-professional license plus usage, "
      "or a $199/month plan; historical pay-as-you-go with $125 free credits", "limits": "Usage-based",

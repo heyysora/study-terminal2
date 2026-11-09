@@ -127,7 +127,8 @@ your level and the terms you've learned.
 Click **Futures** at the top left. The **Automation Center** opens: monitoring status and mode, controls including the
 emergency stop, the latest decision per contract, recent decisions with every pipeline step, the practice account,
 positions, automated vs manual results, and the locked live-execution checklist ([AUTOMATION_GUIDE.md](AUTOMATION_GUIDE.md)).
-**Futures (TopstepX)** in the menu has the chart and ticket. The status strip switches to the futures
+**Futures (TopstepX)** in the menu has the chart and ticket. **Live Market** has live-updating charts for NQ, MNQ, ES and MES from
+1 minute to daily, with indicator and overlay toggles and a data-integrity panel ([LIVE_MARKET_DATA.md](LIVE_MARKET_DATA.md)). The status strip switches to the futures
 simulator: balance, day P&L, room above the Maximum Loss Limit, which rules are active and whether entries are allowed.
 
 - **Live**: pick a product (ES, NQ, CL, GC, MES, MNQ, or type a contract such as MNQZ26). You get the chart with

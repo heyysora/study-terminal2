@@ -52,6 +52,8 @@ One Python process on your PC (plus the WebView2 window it opens):
                   risk (central risk service: prop presets + personal limits) ; paper (futures simulator, persisted) ;
                   automation (modes A/B, C locked; monitoring loop; trade management; emergency stop; sandbox) ;
                   backtest (scan + simulate) ; research (walk-forward + holdout, strategy registry) ; replay ; journal ; service
+   futures/stream.py      TopstepX SignalR market hub client (read-only, two subscribe calls), LiveStream: status, gaps, backfill, rollover
+   futures/candles.py     trades -> 1-minute bars (dedupe, late prints, tick grid), session-aligned aggregation for every timeframe
    screen/calibration.py  labelled-screenshot scoring and per-platform accuracy report (images kept only with consent)
    news/econ_data.py      BLS published values (actual/previous) for CPI, PPI, payrolls, unemployment
    api/routes_mobile.py   token-protected, brake-only mobile companion API
@@ -69,6 +71,8 @@ Design rules:
 - **No broker code exists.** Orders go only to the local simulator, and each needs `confirm: true` (stocks) or passes
   `FuturesPaperEngine.preview` -> `RiskEngine.check_entry` (futures; the same path for manual, automated, replay and sandbox orders).
   Live execution (Mode C) is locked and has no implementation.
+- **Live means live.** Only the TopstepX stream can label data `realtime` (LIVE), and only while connected and receiving data.
+  Stale/disconnected/delayed data can't reach the pipeline's or simulator's tradable set. Decisions drop a still-forming candle.
 - **One decision pipeline.** Futures signals, assisted mode, automated paper mode, replay automation and the sandbox all use
   `pipeline.run`; every decision is stored with its steps, keyed by contract/setup/direction/bar time so it can't act twice.
 - **Screen frames never touch disk.** Capture is off until you consent and select a target. Login screens are skipped.
