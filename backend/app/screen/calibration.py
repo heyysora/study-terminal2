@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-FIELDS = ("ticker", "timeframe", "price", "price_axis")
+FIELDS = ("ticker", "timeframe", "price", "price_axis", "last_candle")
 MIN_SAMPLES = 20
 _TF_ALIASES = {"1": "1Min", "1m": "1Min", "1min": "1Min", "5": "5Min", "5m": "5Min", "5min": "5Min", "15": "15Min", "15m": "15Min",
                "15min": "15Min", "30m": "30Min", "30min": "30Min", "1h": "1Hour", "60": "1Hour", "1hour": "1Hour", "60m": "1Hour",
@@ -93,6 +93,31 @@ def score(obs: dict, labels: dict, tick_size: float | None = None) -> dict:
     if labels.get("axis_visible", True):
         out["price_axis"] = {"ok": bool(ax) and (ax.get("max_error_pct") or 0) <= 0.2, "read": ax}
     return out
+
+
+def visual_observation(reading: dict) -> dict:
+    """A Visual Market Monitor reading in the shape score() expects, so both readers are measured the same way."""
+    ax = reading.get("axis") or {}
+    return {"blocked": False, "ticker": reading["instrument"]["value"], "ticker_confidence": reading["instrument"]["confidence"],
+            "ticker_source": reading["instrument"]["source"], "futures": {"root": reading["instrument"]["value"]},
+            "timeframe": reading["timeframe"]["value"], "visible_price": reading["price"]["value"],
+            "visible_price_source": reading["price"]["source"],
+            "price_axis": {"points": ax.get("labels"), "max_error_pct": ax.get("max_residual_pct", 0)} if ax else None,
+            "platform": "topstepx-visual", "candles": reading.get("candles", [])[-1:]}
+
+
+def score_last_candle(obs: dict, labels: dict, tick_size: float | None) -> dict | None:
+    """Compare the newest COMPLETED candle you typed (open/high/low/close, any subset) with what the reader estimated."""
+    want = {k: labels.get(f"last_{k}") for k in ("open", "high", "low", "close")}
+    want = {k: float(v) for k, v in want.items() if v not in (None, "")}
+    cands = obs.get("all_candles") or []
+    if not want or len(cands) < 2:
+        return None
+    c = cands[-2]                                          # the right-most candle is still forming
+    tol = float(labels.get("tolerance_ticks") or 2) * (tick_size or 0.25)
+    errs = {k: (None if c.get(k) is None else round(float(c[k]) - v, 6)) for k, v in want.items()}
+    ok = all(e is not None and abs(e) <= tol + 1e-9 for e in errs.values())
+    return {"ok": ok, "read": {k: c.get(k) for k in want}, "truth": want, "error": errs, "tolerance": tol}
 
 
 class CalibrationStore:

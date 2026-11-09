@@ -356,7 +356,7 @@ def last_price_tag(img: np.ndarray, tokens: list[Token], width: int, axis: AxisF
             continue
         # a real tag fills its box with color (only the digits aren't); a grid label merely touching a tag is
         # colored in a strip along one edge. Score = share of strongly colored pixels.
-        sat = float((patch[:, :, 1] > 90).mean())
+        sat = float(((patch[:, :, 1] > 90) & (patch[:, :, 2] > 70)).mean())   # dark tinted backgrounds are "saturated" but dim
         if sat >= TAG_FILL and sat > best_s:
             best, best_s = (v, t.cy), sat
     return best if best else (None, None)

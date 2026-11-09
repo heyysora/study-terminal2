@@ -23,7 +23,8 @@ from .contracts import fmt_num
 OUTCOMES = ("APPROVED", "WATCH_ONLY", "WAIT", "REJECTED", "INVALIDATED", "NO_TRADE")
 ACTION_OF = {"WATCH_ONLY": "WATCH ONLY", "WAIT": "WAIT FOR CONFIRMATION", "INVALIDATED": "INVALIDATED", "NO_TRADE": "NO TRADE",
              "REJECTED": "NO TRADE"}
-LIVE = {"realtime", "near_realtime", "polling", "replay"}
+LIVE = {"realtime", "near_realtime", "polling", "replay", "screen_capture"}   # screen_capture: Visual Market Monitor (decisions only;
+#                                                                            never simulator fills: see paper.TRADABLE)
 STEPS = ["Market-data validation", "Contract validation", "Market-session validation", "Market-regime classification",
          "Technical setup identification", "Multi-timeframe confirmation", "Strategy performance validation", "Entry-quality evaluation",
          "Risk/reward calculation", "Position-size calculation", "Prop-firm and personal risk validation", "Slippage and cost evaluation",
@@ -76,7 +77,9 @@ def _step(steps: list, n: int, passed: bool | None, detail: str, **data) -> bool
 def run(F5: pd.DataFrame, F15: pd.DataFrame | None, contract: Contract, label: dict, evidence: dict, *, now: datetime | None = None,
         current_price: float | None = None, risk_engine=None, snapshot=None, round_turn: float = 0.0, slippage_ticks: float = 1.0,
         flat_by_min_from_rth: float | None = None, validated: set[str] | None = None, prev_plan: dict | None = None,
-        cfg: PipelineConfig | None = None, mode: str = "assisted") -> Decision:
+        cfg: PipelineConfig | None = None, mode: str = "assisted", check_unvalidated: bool = False) -> Decision:
+    """check_unvalidated: for a setup that isn't a validated strategy, keep going through entry quality, R:R, sizing, risk and
+    costs (so you see whether it would pass), but the outcome stays WATCH_ONLY. The evidence rule is never relaxed."""
     cfg = cfg or PipelineConfig()
     now = now or datetime.now(timezone.utc)
     spec: ProductSpec = contract.spec
@@ -182,8 +185,10 @@ def run(F5: pd.DataFrame, F15: pd.DataFrame | None, contract: Contract, label: d
     plan["tradeable_evidence"] = is_valid
     if not is_valid:
         _step(steps, 7, False, f"Tested evidence for {s.name} {d}: {plan['evidence_short']}. Only validated strategies can be traded.")
-        return done("WATCH_ONLY", f"{s.name} {d} isn't a validated strategy ({plan['evidence_short']}).", plan, cands, reg, "confirmed")
-    _step(steps, 7, True, f"Validated: {ev.get('trades')} trades, avg {ev.get('avg_r')}R")
+        if not check_unvalidated:
+            return done("WATCH_ONLY", f"{s.name} {d} isn't a validated strategy ({plan['evidence_short']}).", plan, cands, reg, "confirmed")
+    else:
+        _step(steps, 7, True, f"Validated: {ev.get('trades')} trades, avg {ev.get('avg_r')}R")
     # 8. entry quality
     atr = float(r["atr"])
     if cur is not None:
@@ -241,4 +246,7 @@ def run(F5: pd.DataFrame, F15: pd.DataFrame | None, contract: Contract, label: d
         return done("REJECTED", "Costs are too large relative to the risk.", plan, cands, reg, "confirmed")
     _step(steps, 12, True, f"Costs {frac:.0%} of the risk")
     plan["levels_nearby"] = {k: v for k, v in key_levels(r).items() if abs(v - s.entry) <= 2 * atr}
+    if not is_valid:                                  # check_unvalidated: passed risk and costs, but evidence still says no
+        return done("WATCH_ONLY", f"{s.name} {d} passed the risk, cost and entry checks but isn't a validated strategy "
+                                  f"({plan['evidence_short']}).", plan, cands, reg, "confirmed")
     return done("APPROVED", f"{s.name} {d} passed every check.", plan, cands, reg, "confirmed")

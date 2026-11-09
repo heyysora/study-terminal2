@@ -288,8 +288,28 @@ class ScreenService:
         if img is None:
             raise ValueError("Not an image")
         plat = platform if platform and platform != "auto" else self.platform()
-        obs = await asyncio.to_thread(analyze_image, img, labels.get("title", ""), None, plat, False)
-        res = score(obs, labels, self._tick_for(labels.get("ticker")))
+        if labels.get("profile"):                       # Visual Market Monitor reader with your chart profile
+            from datetime import datetime, timezone
+
+            from .calibration import score_last_candle, visual_observation
+            from .chart_profile import ChartProfile
+            from .chart_reader import read_chart
+            prof = ChartProfile.from_dict(labels["profile"])
+            x, y, w, h = prof.region
+            crop = img[y:y + h, x:x + w] if w and h else img
+            rd = (await asyncio.to_thread(read_chart, crop, prof, datetime.now(timezone.utc), title=labels.get("title", ""))).to_dict()
+            obs = visual_observation(rd)
+            obs["all_candles"] = rd.get("candles", [])
+            res = score(obs, labels, self._tick_for(labels.get("ticker")))
+            lc = score_last_candle(obs, labels, self._tick_for(labels.get("ticker")))
+            if lc is not None:
+                res["last_candle"] = lc
+            obs.pop("all_candles", None)
+            plat = f"topstepx-visual: {prof.name}"
+            labels = {k: v for k, v in labels.items() if k != "profile"} | {"profile_name": prof.name}
+        else:
+            obs = await asyncio.to_thread(analyze_image, img, labels.get("title", ""), None, plat, False)
+            res = score(obs, labels, self._tick_for(labels.get("ticker")))
         row = self.calibration.add(obs.get("platform") or plat, labels, obs, res, png_bytes, keep_image, keep_result)
         return {**row, "kept": {"image": row["image_kept"], "result": bool(keep_result and not res.get("blocked"))}}
 

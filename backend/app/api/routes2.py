@@ -359,7 +359,8 @@ async def screen_analyze_image(request: Request, file: UploadFile = File(...), t
 async def screen_calibration_sample(request: Request, file: UploadFile = File(...), ticker: str = Form(""), timeframe: str = Form(""),
                                     price: str = Form(""), tolerance_ticks: float = Form(2), platform: str = Form("auto"),
                                     title: str = Form(""), axis_visible: bool = Form(True), synthetic: bool = Form(False),
-                                    keep_image: bool = Form(False), keep_result: bool = Form(True)):
+                                    keep_image: bool = Form(False), keep_result: bool = Form(True), profile_id: str = Form(""),
+                                    last_open: str = Form(""), last_high: str = Form(""), last_low: str = Form(""), last_close: str = Form("")):
     """Score a labelled screenshot. The image is stored only when keep_image is true (explicit consent)."""
     data = await file.read()
     if len(data) > 25_000_000:
@@ -372,7 +373,19 @@ async def screen_calibration_sample(request: Request, file: UploadFile = File(..
         except ValueError:
             raise HTTPException(422, "Price must be a number")
     labels = {"ticker": ticker.strip() or None, "timeframe": timeframe.strip() or None, "price": price.strip() or None,
-              "tolerance_ticks": tolerance_ticks, "title": title, "axis_visible": axis_visible, "synthetic": synthetic}
+              "tolerance_ticks": tolerance_ticks, "title": title, "axis_visible": axis_visible, "synthetic": synthetic,
+              "last_open": last_open or None, "last_high": last_high or None, "last_low": last_low or None, "last_close": last_close or None}
+    if profile_id:
+        prof = request.app.state.visual.store.get(profile_id)
+        if prof is None:
+            raise HTTPException(404, "No such chart profile")
+        labels["profile"] = prof.to_dict()
+    for k in ("last_open", "last_high", "last_low", "last_close"):
+        if labels[k] is not None:
+            try:
+                float(labels[k])
+            except ValueError:
+                raise HTTPException(422, f"{k} must be a number") from None
     try:
         return await st(request).screen.calibrate(data, labels, platform, keep_image, keep_result)
     except ValueError as e:
