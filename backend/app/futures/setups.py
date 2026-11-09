@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from .contracts import ProductSpec, round_to_tick
+from .contracts import fmt_num
 
 SETUPS = {
     "sweep_reversal": "Liquidity sweep and reclaim of a key level (previous day, overnight, initial balance)",
@@ -86,18 +87,18 @@ def _plan(spec: ProductSpec, name: str, d: int, r: pd.Series, stop_raw: float, t
     risk = abs(entry - stop)
     atr = r["atr"]
     if risk < p.min_stop_atr * atr:
-        return None, f"{name}: stop would be {risk:g} points, inside normal noise (ATR {atr:.2f})."
+        return None, f"{name}: stop would be {fmt_num(risk)} points, inside normal noise (ATR {atr:.2f})."
     if risk > p.max_stop_atr * atr:
-        return None, f"{name}: stop would be {risk:g} points, too wide for this setup."
+        return None, f"{name}: stop would be {fmt_num(risk)} points, too wide for this setup."
     target = round_to_tick(entry + d * p.target_r * risk, spec, "down" if d > 0 else "up")
     ahead = sorted(((lbl, v) for lbl, v in levels.items() if (v - entry) * d > tick), key=lambda kv: abs(kv[1] - entry))
     if ahead and abs(ahead[0][1] - entry) < p.obstacle_r * risk:
-        return None, f"{name}: {ahead[0][0]} at {ahead[0][1]:g} sits {abs(ahead[0][1] - entry) / risk:.2f}R away, in the way of the target."
+        return None, f"{name}: {ahead[0][0]} at {fmt_num(ahead[0][1])} sits {abs(ahead[0][1] - entry) / risk:.2f}R away, in the way of the target."
     nxt = next(((lbl, v) for lbl, v in ahead if abs(v - entry) >= abs(target - entry)), None)
     rng = (min(entry, entry - d * tick * 2), max(entry, entry - d * tick * 2))
     side = "below" if d > 0 else "above"
     return Setup(name, d, entry, stop, target, trigger, label, conds,
-                 invalidation=f"A close {side} {stop:g} (stop), or {('back ' + side + ' ' + label) if label else 'structure failing'} before the entry fills.",
+                 invalidation=f"A close {side} {fmt_num(stop)} (stop), or {('back ' + side + ' ' + label) if label else 'structure failing'} before the entry fills.",
                  entry_range=rng, next_level=nxt), None
 
 
@@ -116,7 +117,7 @@ def detect(F: pd.DataFrame, i: int, spec: ProductSpec, p: SetupParams | None = N
     atr = float(r["atr"])
     prev = F.iloc[i - 1] if i > 0 else None
     if i >= 3 and abs(r["c"] - F["c"].iloc[i - 3]) > p.max_run_atr * atr:
-        return [], [f"Extended: price moved {abs(r['c'] - F['c'].iloc[i - 3]):g} points in 3 bars (>{p.max_run_atr} ATR). Not chasing."]
+        return [], [f"Extended: price moved {fmt_num(abs(r['c'] - F['c'].iloc[i - 3]))} points in 3 bars (>{p.max_run_atr} ATR). Not chasing."]
     lv = key_levels(r)
     out: list[Setup] = []
     bull, bear = r["c"] > r["o"], r["c"] < r["o"]
@@ -133,18 +134,18 @@ def detect(F: pd.DataFrame, i: int, spec: ProductSpec, p: SetupParams | None = N
         L = lv.get(lbl)
         if L is not None and r["l"] <= L - tick and r["c"] > L and bull:
             if r["c"] - L > p.max_chase_atr * atr:
-                rejected.append(f"sweep_reversal: close is {r['c'] - L:g} points above {lbl}; too far to chase.")
+                rejected.append(f"sweep_reversal: close is {fmt_num(r['c'] - L)} points above {lbl}; too far to chase.")
             else:
-                add(_plan(spec, "sweep_reversal", +1, r, r["l"], L, lbl, [f"Traded below {lbl} ({L:g}) and closed back above it",
+                add(_plan(spec, "sweep_reversal", +1, r, r["l"], L, lbl, [f"Traded below {lbl} ({fmt_num(L)}) and closed back above it",
                                                                           "Bullish close on the sweep bar"], p, lv))
             break
     for lbl in ("PDH", "ONH", "IBH", "Prev Globex H"):
         H = lv.get(lbl)
         if H is not None and r["h"] >= H + tick and r["c"] < H and bear:
             if H - r["c"] > p.max_chase_atr * atr:
-                rejected.append(f"sweep_reversal: close is {H - r['c']:g} points below {lbl}; too far to chase.")
+                rejected.append(f"sweep_reversal: close is {fmt_num(H - r['c'])} points below {lbl}; too far to chase.")
             else:
-                add(_plan(spec, "sweep_reversal", -1, r, r["h"], H, lbl, [f"Traded above {lbl} ({H:g}) and closed back below it",
+                add(_plan(spec, "sweep_reversal", -1, r, r["h"], H, lbl, [f"Traded above {lbl} ({fmt_num(H)}) and closed back below it",
                                                                           "Bearish close on the sweep bar"], p, lv))
             break
     # B. opening-range breakout retest (first 3 hours)
@@ -154,10 +155,10 @@ def detect(F: pd.DataFrame, i: int, spec: ProductSpec, p: SetupParams | None = N
         if True:
             if broke_up and r["l"] <= orh + 0.15 * atr and r["c"] > orh and bull and r["c"] - orh <= p.max_chase_atr * atr:
                 add(_plan(spec, "orb_retest", +1, r, min(r["l"], orh - 0.25 * atr), orh, "ORH",
-                          ["Broke above the opening range earlier", f"Pulled back to ORH ({orh:g}) and held"], p, lv))
+                          ["Broke above the opening range earlier", f"Pulled back to ORH ({fmt_num(orh)}) and held"], p, lv))
             if broke_dn and r["h"] >= orl - 0.15 * atr and r["c"] < orl and bear and orl - r["c"] <= p.max_chase_atr * atr:
                 add(_plan(spec, "orb_retest", -1, r, max(r["h"], orl + 0.25 * atr), orl, "ORL",
-                          ["Broke below the opening range earlier", f"Pulled back to ORL ({orl:g}) and failed"], p, lv))
+                          ["Broke below the opening range earlier", f"Pulled back to ORL ({fmt_num(orl)}) and failed"], p, lv))
     # C. VWAP reclaim / loss with structure
     if i >= 4 and _ok(r["vwap"]):
         prior = F.iloc[i - 3:i]
@@ -177,11 +178,11 @@ def detect(F: pd.DataFrame, i: int, spec: ProductSpec, p: SetupParams | None = N
     if _ok(ibh) and _ok(ibl) and prev is not None and prev["td"] == r["td"]:
         if r["c"] > ibh and prev["c"] <= ibh and vol_ok and r["c"] - ibh <= p.max_chase_atr * atr:
             add(_plan(spec, "ib_breakout", +1, r, min(r["l"], ibh - 0.3 * atr), ibh, "IBH",
-                      [f"First close above the initial balance high ({ibh:g})", f"Volume {r['v'] / r['vol_avg20']:.1f}x the recent average"], p,
+                      [f"First close above the initial balance high ({fmt_num(ibh)})", f"Volume {r['v'] / r['vol_avg20']:.1f}x the recent average"], p,
                       {k: v for k, v in lv.items() if k not in ("IBH", "ORH")}))
         if r["c"] < ibl and prev["c"] >= ibl and vol_ok and ibl - r["c"] <= p.max_chase_atr * atr:
             add(_plan(spec, "ib_breakout", -1, r, max(r["h"], ibl + 0.3 * atr), ibl, "IBL",
-                      [f"First close below the initial balance low ({ibl:g})", f"Volume {r['v'] / r['vol_avg20']:.1f}x the recent average"], p,
+                      [f"First close below the initial balance low ({fmt_num(ibl)})", f"Volume {r['v'] / r['vol_avg20']:.1f}x the recent average"], p,
                       {k: v for k, v in lv.items() if k not in ("IBL", "ORL")}))
     # E. trend pullback into a fresh FVG
     if i >= 12:
@@ -193,7 +194,7 @@ def detect(F: pd.DataFrame, i: int, spec: ProductSpec, p: SetupParams | None = N
                 touched = r["l"] <= hi and r["l"] > lo - tick and r["c"] > hi
                 if touched and r["c"] - hi <= p.max_chase_atr * atr:
                     add(_plan(spec, "trend_pullback", +1, r, lo - 0.2 * atr, hi, "FVG",
-                              ["Uptrend: recent break of structure up", f"Pulled back into a fair value gap ({lo:g}-{hi:g}) and held",
+                              ["Uptrend: recent break of structure up", f"Pulled back into a fair value gap ({fmt_num(lo)}-{fmt_num(hi)}) and held",
                                "Above session VWAP"], p, lv))
         if r["trend"] == -1 and win["bos_dn"].any() and _ok(r["vwap"]) and r["c"] < r["vwap"] and bear:
             g = win[win["fvg_bear"]]
@@ -202,7 +203,7 @@ def detect(F: pd.DataFrame, i: int, spec: ProductSpec, p: SetupParams | None = N
                 touched = r["h"] >= lo and r["h"] < hi + tick and r["c"] < lo
                 if touched and lo - r["c"] <= p.max_chase_atr * atr:
                     add(_plan(spec, "trend_pullback", -1, r, hi + 0.2 * atr, lo, "FVG",
-                              ["Downtrend: recent break of structure down", f"Pulled back into a fair value gap ({lo:g}-{hi:g}) and failed",
+                              ["Downtrend: recent break of structure down", f"Pulled back into a fair value gap ({fmt_num(lo)}-{fmt_num(hi)}) and failed",
                                "Below session VWAP"], p, lv))
     return out, rejected
 
@@ -217,7 +218,7 @@ def developing(F: pd.DataFrame, i: int, spec: ProductSpec) -> list[str]:
     for lbl, v in key_levels(r).items():
         d = r["c"] - v
         if abs(d) <= 0.3 * atr:
-            notes.append(f"Price is {abs(d):g} points {'above' if d >= 0 else 'below'} {lbl} ({v:g}). Watch how it reacts: a sweep and "
+            notes.append(f"Price is {fmt_num(abs(d))} points {'above' if d >= 0 else 'below'} {lbl} ({fmt_num(v)}). Watch how it reacts: a sweep and "
                          "reclaim, a clean break, or chop.")
     if r["rth"] and not _ok(r.get("or_h")):
         notes.append("The opening range is still forming; opening-range levels aren't set yet.")

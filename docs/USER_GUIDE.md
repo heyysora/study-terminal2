@@ -124,7 +124,10 @@ grounded data in friendlier language and are told never to invent prices, news o
 your level and the terms you've learned.
 
 ## Futures and TopstepX
-Click **Futures** at the top left (or **Futures (TopstepX)** in the menu). The status strip switches to the futures
+Click **Futures** at the top left. The **Automation Center** opens: monitoring status and mode, controls including the
+emergency stop, the latest decision per contract, recent decisions with every pipeline step, the practice account,
+positions, automated vs manual results, and the locked live-execution checklist ([AUTOMATION_GUIDE.md](AUTOMATION_GUIDE.md)).
+**Futures (TopstepX)** in the menu has the chart and ticket. The status strip switches to the futures
 simulator: balance, day P&L, room above the Maximum Loss Limit, which rules are active and whether entries are allowed.
 
 - **Live**: pick a product (ES, NQ, CL, GC, MES, MNQ, or type a contract such as MNQZ26). You get the chart with
@@ -132,11 +135,17 @@ simulator: balance, day P&L, room above the Maximum Loss Limit, which rules are 
   label matters: Yahoo's futures prices are delayed, so you'll see setups marked "for study only" and no signals.
 - **Rules**: load a Topstep preset, check every number against your Topstep dashboard, then press confirm. Your own
   limits sit next to it and are kept separate.
-- **Replay**: load a past session (last ~59 days), step through it bar by bar and practice in a separate account.
-- **Evidence**: run the futures backtest for a product. Until a setup is "reliable", it stays watch-only.
+- **Replay**: load a past session (last ~59 days), play or step through it, optionally with automation, in a separate
+  account ([REPLAY_GUIDE.md](REPLAY_GUIDE.md)).
+- **Evidence**: the bundled research run, or run walk-forward research for a product. Until a strategy is validated it
+  stays watch-only and automation won't trade it.
 - **Data & simulator**: data source (Yahoo or your TopstepX API subscription), slippage, partial-fill share,
   auto-flatten, delayed practice, and fees per product.
 
 On the Live copilot page, set **Platform** to TopstepX (or leave it on automatic) and watch your TopstepX window as
 you would TradingView. Study Terminal reads the chart, checks the contract and price against futures data, and
-shows the futures signal. It can't place, change or cancel anything on your Topstep account.
+shows the futures signal. It can't place, change or cancel anything on your Topstep account. Use **Calibrate screen
+reading** on that page to measure how well it reads your own TopstepX screenshots before relying on it.
+
+The economic calendar shows each release's relevance and, for BLS releases, the last published actual and previous values.
+You get an alert 30 minutes before each high-impact release (setting `events.warn_minutes`, 0 = off).

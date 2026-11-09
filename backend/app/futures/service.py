@@ -23,6 +23,7 @@ from .paper import FuturesPaperConfig, FuturesPaperEngine
 from .projectx import ProjectXClient
 from .risk import SIM_ONLY, PersonalRisk, PropRules, RiskEngine, load_presets
 from .sessions import FuturesClock
+from .contracts import fmt_num
 
 log = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -368,7 +369,7 @@ class FuturesService:
         s = sig.get("signal") or {}
         body = "; ".join(sig.get("reasons", [])[:3])
         if s:
-            body = f"Entry {s['entry']:g}, stop {s['stop']:g}, target {s['target']:g}. " + body
+            body = f"Entry {fmt_num(s['entry'])}, stop {fmt_num(s['stop'])}, target {fmt_num(s['target'])}. " + body
         self.alerts.emit("entry" if act != "EXIT" else "position", "high", f"{act} {contract.code} (futures, paper)", body,
                          key=f"fut:{contract.code}", fingerprint=f"{act}:{s.get('entry')}", symbol=contract.code)
 
@@ -704,7 +705,7 @@ class FuturesService:
         if vp is not None and last:
             on_grid = fc.round_to_tick(vp, spec) == round(vp, spec.decimals + 2)
             out["checks"].append({"check": "price on the tick grid", "ok": on_grid,
-                                  "detail": f"{vp:g} {'is' if on_grid else 'is NOT'} a valid {spec.root} price (tick {spec.tick_size})."
+                                  "detail": f"{fmt_num(vp)} {'is' if on_grid else 'is NOT'} a valid {spec.root} price (tick {spec.tick_size})."
                                   + ("" if on_grid else " The price was probably misread.")})
             diff = 100 * (vp / last - 1)
             ticks = fc.ticks_between(last, vp, spec) if on_grid else None
@@ -720,7 +721,7 @@ class FuturesService:
                            "expected and this check can only catch big mismatches (wrong contract, misread price).")
             out["checks"].append({"check": "visible price vs market data", "ok": ok, "detail": detail})
             if not ok:
-                out["discrepancy"] = (f"Screen shows {vp:g} but {label.get('provider')} shows {last:g} for {contract.code} ({diff:+.2f}%). The chart may "
+                out["discrepancy"] = (f"Screen shows {fmt_num(vp)} but {label.get('provider')} shows {fmt_num(last)} for {contract.code} ({diff:+.2f}%). The chart may "
                                       "be a different contract month, the price may be misread, or a feed is delayed. Recommendations use market data only.")
         else:
             out["ticker_confirmed"] = False

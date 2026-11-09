@@ -14,6 +14,7 @@ import pandas as pd
 
 from .contracts import CT, ProductSpec, round_to_tick
 from .sessions import FuturesClock
+from .contracts import fmt_num
 
 
 @dataclass
@@ -231,10 +232,10 @@ def sweep_events(df: pd.DataFrame, levels: dict, spec: ProductSpec, lookback: in
                 continue
             if r["h"] >= lv + tick and r["c"] < lv:
                 out.append({"level": name, "price": lv, "side": "above", "ts": r["ts"].isoformat(),
-                            "text": f"Swept above {name.upper()} ({lv:g}) and closed back below"})
+                            "text": f"Swept above {name.upper()} ({fmt_num(lv)}) and closed back below"})
             if r["l"] <= lv - tick and r["c"] > lv:
                 out.append({"level": name, "price": lv, "side": "below", "ts": r["ts"].isoformat(),
-                            "text": f"Swept below {name.upper()} ({lv:g}) and closed back above"})
+                            "text": f"Swept below {name.upper()} ({fmt_num(lv)}) and closed back above"})
     return out
 
 

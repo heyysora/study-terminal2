@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from . import contracts as fc
 from .risk import AccountSnapshot, PersonalRisk, PropRules, RiskEngine, effective_flat, mini_equivalent, next_eod_floor, next_intraday_floor
 from .sessions import FuturesClock
+from .contracts import fmt_num
 
 TRADABLE = {"realtime", "near_realtime", "polling"}
 # "reconcile": historical bars replayed after a restart/sleep so stops and targets hit while offline are honoured
@@ -304,7 +305,7 @@ class FuturesPaperEngine:
                                 "practice in Settings, use replay, or connect a live futures feed.")
         lim = self.personal.max_data_age_seconds if self.personal.enabled else None
         if lim and data_age_seconds is not None and data_status in TRADABLE and data_age_seconds > lim:
-            problems.append(f"Market data is {data_age_seconds:.0f} s old (your limit is {lim:g} s). Entries wait for fresh data.")
+            problems.append(f"Market data is {data_age_seconds:.0f} s old (your limit is {fmt_num(lim)} s). Entries wait for fresh data.")
         entry_est = {"market": ref_price, "limit": limit_price, "stop": stop_price}.get(type_)
         slip = self.cfg.slippage_ticks_market if type_ == "market" else self.cfg.slippage_ticks_stop if type_ == "stop" else 0
         stop = (bracket or {}).get("stop")
@@ -380,9 +381,9 @@ class FuturesPaperEngine:
                 continue
             old = o.stop_price
             o.stop_price, o.updated_at = new_stop, _iso(now)
-            o.note = ((o.note + "; ") if o.note else "") + f"stop {old:g} -> {new_stop:g} ({reason})"
+            o.note = ((o.note + "; ") if o.note else "") + f"stop {fmt_num(old)} -> {fmt_num(new_stop)} ({reason})"
             out = {"contract": contract, "from": old, "to": new_stop, "reason": reason, "at": _iso(now)}
-            self._event("info", f"{contract}: stop moved {old:g} -> {new_stop:g}. Reason: {reason}", now)
+            self._event("info", f"{contract}: stop moved {fmt_num(old)} -> {fmt_num(new_stop)}. Reason: {reason}", now)
         return out
 
     def flatten(self, contract: str | None, now: datetime, reason: str = "Flattened by you", price: float | None = None,

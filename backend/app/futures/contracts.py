@@ -157,6 +157,13 @@ def load_user_products(path: Path) -> list[str]:
 
 # ---------------- tick math ----------------
 
+def fmt_num(x) -> str:
+    """Number for messages. Unlike f"{x:g}" it never drops digits: 26952.25 stays 26952.25 (":g" keeps 6 significant digits)."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return str(x)
+    return f"{x:.6f}".rstrip("0").rstrip(".") if x == x else "nan"
+
+
 def round_to_tick(price: float, spec: ProductSpec, mode: str = "nearest") -> float:
     """Snap a price onto the tick grid. mode: nearest | down | up."""
     p, t = Decimal(str(price)), spec.tick

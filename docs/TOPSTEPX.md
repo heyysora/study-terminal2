@@ -1,4 +1,4 @@
-# TopstepX and futures (0.6.0)
+# TopstepX and futures (0.7.0)
 
 Study Terminal now supports two independent setups that share the mentor, alerts, journal, learning and
 infrastructure:
@@ -11,7 +11,9 @@ infrastructure:
 | Risk | % of equity, stock simulator limits | prop-firm rules (Topstep presets) + your own limits |
 | Simulator | stock paper account | separate futures paper account, plus replay |
 
-Switch with the **Stocks / Futures** buttons at the top left, or open **Futures (TopstepX)** in the menu.
+Switch with the **Stocks / Futures** buttons at the top left. In futures mode the app opens on the **Automation Center**
+([AUTOMATION_GUIDE.md](AUTOMATION_GUIDE.md)); **Futures (TopstepX)** has the chart, ticket, rules, replay and evidence.
+TopstepX is the default futures platform, and NQ, MNQ, ES and MES are the products monitored by default.
 
 **Topstep is the prop firm; TopstepX is its trading platform.** Study Terminal treats them separately: the
 TopstepX adapter reads the platform's screen, and the Topstep presets describe the firm's account rules.
@@ -196,23 +198,22 @@ Study Terminal's client can only call login, contract search, historical bars an
 account balances. Any other path is refused before a request is made, and a test checks that. Keep the key
 private: it's redacted from logs like other secrets.
 
-## 9. Futures backtest (`backtest.py`)
+## 9. Futures research (`backtest.py`, `research.py`)
 
-Same fill rules as the simulator, one contract, fees and 1 tick slippage per side on market and stop orders,
-flat by 15:10 CT, max three trades per trade date. Run from Futures > Evidence. Results on Yahoo continuous
-5-minute bars, 2026-08-30 to 2026-11-06:
+Same fill rules as the simulator, one contract, fees and 1 tick slippage per side on market and stop orders, flat time
+respected. Walk-forward over development folds with a parameter grid chosen only on earlier folds, then a final
+chronological holdout. Full report: [BACKTEST_RESULTS_FUTURES.md](BACKTEST_RESULTS_FUTURES.md). Summary of the run bundled with
+0.7.0 (Yahoo continuous 5-minute bars, 2026-08-31 to 2026-11-06, holdout 2026-10-27 to 2026-11-06):
 
-| Product | Trades | Days | Avg R | 95% interval | Win rate | Evidence |
-|---|---|---|---|---|---|---|
-| ES | 124 | 49 | −0.193 | −0.407 to +0.032 | 29.8% | losing (0/4 folds positive) |
-| MES | 101 | 42 | −0.008 | −0.276 to +0.274 | 36.6% | losing |
-| NQ | 108 | 46 | +0.244 | −0.023 to +0.525 | 41.7% | inconclusive (4/4 folds positive, interval includes zero) |
-| CL | 115 | 49 | −0.008 | −0.255 to +0.261 | 35.7% | losing (CL fees: commission only) |
-| GC | 101 | 46 | −0.052 | −0.289 to +0.188 | 34.7% | losing |
+| Product | OOS trades | OOS avg R (95% interval) | Holdout | Tier |
+|---|---|---|---|---|
+| NQ | 50 | +0.29 (−0.24 to +0.84) | 17 trades, +0.39R | inconclusive |
+| MNQ | 42 | +0.42 (−0.07 to +0.86) | 17 trades, +0.39R | inconclusive |
+| ES | 68 | −0.07 (−0.35 to +0.22) | 14 trades, −0.12R | losing |
+| MES | 81 | −0.03 (−0.27 to +0.21) | 20 trades, −0.10R | losing |
 
-No setup reaches "reliable", so **every futures setup is watch-only** until more data says otherwise. NQ's
-result is worth re-testing as more data accumulates; it is not evidence of an edge yet. Continuous series
-contain one roll inside the window, which can distort signals around the roll date.
+**No strategy is validated**, so automated paper trading approves nothing and every futures setup stays watch-only.
+The Nasdaq results are worth re-testing as data accumulates; with 17 holdout trades they can't be told apart from luck.
 
 ## 10. What could not be tested against a real TopstepX environment
 
@@ -237,4 +238,29 @@ These parts were built from documentation and tested with synthetic or recorded 
 6. **Live futures signals and live paper fills.** With only Yahoo's delayed data available, the live path was
    tested with recorded bars and a fake live label, not a live feed.
 7. **Holiday hours** come from exchange_calendars and were not checked against CME's holiday notices.
-8. **Windows.** As with 0.5.0, the desktop build has not been run on Windows by this build process.
+8. **Windows.** The desktop build has not been run on Windows by this build process.
+9. **Automation against live data.** Mode B and the sandbox were tested with recorded bars, replay and injected clocks; they have
+   not run against a live fillable feed (that needs the TopstepX API subscription).
+10. **Screen-reading accuracy on TopstepX.** The calibration tool (Screen page) measures it on your own screenshots; no accuracy
+    figure is claimed until real TopstepX samples have been scored.
+
+## 11. TopstepX API: what exists, what Study Terminal uses
+
+Sources checked 2026-11-08: ProjectX Gateway docs (gateway.docs.projectx.com) and Topstep's help article "TopstepX API Access".
+
+| Area | Documented by ProjectX | Used by Study Terminal |
+|---|---|---|
+| Authentication | `POST /api/Auth/loginKey` (username + API key → session token) | Yes |
+| Contracts | `POST /api/Contract/search` | Yes (contract ids are looked up by name, never guessed) |
+| History | `POST /api/History/retrieveBars` (max 20,000 bars; 50 requests / 30 s) | Yes |
+| Accounts | `POST /api/Account/search` | Only if you turn on account reading; display only |
+| Orders | `POST /api/Order/place`, cancel, modify, search (limit, market, stop, trailing stop, join bid/ask; brackets only in Auto OCO mode) | **No.** Not implemented. The client refuses any path outside the four above before a request is made, and a test checks this. |
+| Positions / trades | search and close endpoints | No |
+| Real-time | SignalR user and market hubs (quotes, trades, depth) | No (REST polling only; labelled POLLING) |
+
+Topstep's rules for API use (as published): custom bots are allowed through the API, no high-frequency trading;
+VPS, VPNs and remote servers may not be used for trading; **Live Funded accounts may not trade through the API**; there is no
+sandbox (Topstep suggests a Practice account); the subscription costs $29/month ($14.50 with code "topstep").
+An older TopstepX FAQ still says bots aren't supported. Because of that conflict, and because order behaviour has never been
+tested on a Practice account, live execution stays locked. See the checklist in the Automation Center.
+

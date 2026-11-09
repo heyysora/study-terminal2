@@ -93,7 +93,7 @@ export function AutomationCenter() {
                 <td><a href={`#/futures/${c}`}>{c}</a></td>
                 <td>{p.error ? <span className="neg small">error</span> : <Meter withText status={p.data_status} />}</td>
                 <td className="small">{p.regime || "-"}</td>
-                <td>{p.outcome ? <Action a={p.action} /> : "-"}<div className="small faint">{p.outcome}</div></td>
+                <td>{p.outcome ? <Action a={p.action} /> : "-"}{p.outcome && p.outcome.replace(/_/g, " ") !== p.action && <div className="small faint">{p.outcome.replace(/_/g, " ")}</div>}</td>
                 <td className="small">{p.error || p.reason}</td>
                 <td className="small faint">{ago(p.last_eval)}</td></tr>)}
                 {!Object.keys(st.per_contract || {}).length && <tr><td colSpan={6} className="muted">Not evaluated yet. Start monitoring or press "Evaluate now".</td></tr>}
@@ -104,7 +104,7 @@ export function AutomationCenter() {
             <table><tbody>{(dec.data?.decisions || []).map((d: any) => <Fragment key={d.id}>
               <tr onClick={() => setOpen(open === d.id ? null : d.id)} style={{ cursor: "pointer" }}>
                 <td className="small">{d.evaluated_at?.slice(5, 16).replace("T", " ")}</td><td>{d.contract}</td>
-                <td className="small">{d.outcome}</td><td className="small">{d.reason}</td>
+                <td className="small">{d.outcome?.replace(/_/g, " ")}</td><td className="small">{d.reason}</td>
                 <td className="small">{d.acted ? `acted (${d.acted.slice(0, 8)})` : ""}</td></tr>
               {open === d.id && <tr><td colSpan={5}><DecisionSteps d={d} /></td></tr>}</Fragment>)}
               {!(dec.data?.decisions || []).length && <tr><td className="muted">No decisions yet.</td></tr>}</tbody></table>

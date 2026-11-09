@@ -47,8 +47,14 @@ One Python process on your PC (plus the WebView2 window it opens):
    ai/            provider choice (built-in / Claude / Ollama) ; grounded assistant ; Explain This Chart
    education/     lessons, quizzes, glossary, progress, real-chart exercises
    futures/       contracts (specs, ticks, expirations, roll) ; sessions (Globex, CT) ; data (Yahoo delayed / optional
-                  read-only TopstepX API) ; features (levels, profile, structure) ; setups ; signals ; risk (prop-firm
-                  presets + personal limits) ; paper (futures simulator) ; backtest ; replay ; service
+                  read-only TopstepX API, labels, cache, fallback) ; feed (bar validation, source health, downtime) ;
+                  features (levels, profile, structure, regime) ; setups ; pipeline (13-step decision, stored) ; signals ;
+                  risk (central risk service: prop presets + personal limits) ; paper (futures simulator, persisted) ;
+                  automation (modes A/B, C locked; monitoring loop; trade management; emergency stop; sandbox) ;
+                  backtest (scan + simulate) ; research (walk-forward + holdout, strategy registry) ; replay ; journal ; service
+   screen/calibration.py  labelled-screenshot scoring and per-platform accuracy report (images kept only with consent)
+   news/econ_data.py      BLS published values (actual/previous) for CPI, PPI, payrolls, unemployment
+   api/routes_mobile.py   token-protected, brake-only mobile companion API
    screen/platforms.py  platform adapters (TopstepX, TradingView, generic) feeding the shared OCR pipeline
    settings/      live-editable settings persisted in SQLite
 ```
@@ -60,7 +66,11 @@ Design rules:
 - **Sessions come from the exchange calendar**, never from a fixed 09:30–16:00 (early-close days).
 - **Every number shown has a source and a time** (quotes, charts, news, calendar entries).
 - **The LLM explains; it doesn't calculate.** It receives the computed JSON with strict no-invention rules. Without an LLM, built-in templates answer.
-- **No broker code exists.** Orders go only to the local simulator, and each needs `confirm: true`.
+- **No broker code exists.** Orders go only to the local simulator, and each needs `confirm: true` (stocks) or passes
+  `FuturesPaperEngine.preview` -> `RiskEngine.check_entry` (futures; the same path for manual, automated, replay and sandbox orders).
+  Live execution (Mode C) is locked and has no implementation.
+- **One decision pipeline.** Futures signals, assisted mode, automated paper mode, replay automation and the sandbox all use
+  `pipeline.run`; every decision is stored with its steps, keyed by contract/setup/direction/bar time so it can't act twice.
 - **Screen frames never touch disk.** Capture is off until you consent and select a target. Login screens are skipped.
 
 Why pywebview instead of Tauri: Tauri needs Rust plus Visual Studio Build Tools (several GB) and a separate sidecar process for Python. pywebview uses the WebView2 runtime already in Windows 11 and installs with pip, so the whole app is one Python process. The UI is a standard React build, so moving to Tauri later only changes the shell.
@@ -70,7 +80,9 @@ Why pywebview instead of Tauri: Tauri needs Rust plus Visual Studio Build Tools 
 ```
 study-terminal/
 ├─ README.md · FEATURES.md · .env.example (optional)
-├─ docs/        USER_GUIDE · BACKTEST_RESULTS · DATA_PROVIDERS · SCREEN_VALIDATION · WINDOWS_VERIFICATION · AUDIT · ARCHITECTURE · MIGRATION_FROM_ALPACA
+├─ docs/        USER_GUIDE · TOPSTEPX · AUTOMATION_GUIDE · PAPER_TRADING_GUIDE · REPLAY_GUIDE · EVALUATION_GUIDE · MOBILE_API ·
+│               BACKTEST_RESULTS(_FUTURES) · DATA_PROVIDERS · SCREEN_VALIDATION · WINDOWS_VERIFICATION · TEST_RESULTS · LIMITATIONS ·
+│               AUDIT(_0.7) · PLAN_0.7 · ARCHITECTURE · MIGRATION_FROM_ALPACA
 ├─ scripts/     setup · test · check · run-backend · run-desktop · verify-windows · screen-eval · build-installer (.ps1)
 ├─ desktop/     launcher.py (window, tray, hotkey) · verify_windows.py · make_icon.py · assets/
 ├─ installer/   StudyTerminal.spec (PyInstaller) · StudyTerminal.iss (Inno Setup)
@@ -80,8 +92,8 @@ study-terminal/
    ├─ app/      main.py config.py cli.py | core/ db/ market_data/ analysis/ signals/ scanner/ paper/
    │            backtest/ ml/ screen/ alerts/ ai/ education/ settings/ journal/ news/ api/
    ├─ research/ run_walkforward.py · run_all.sh · screen_eval.py · out/ (study results, JSON)
-   └─ tests/    163 unit + integration tests (synthetic data, fake provider, fake Yahoo socket, rendered charts,
-                trimmed real Fed/BEA pages)
+   └─ tests/    unit + integration tests (synthetic data, fake provider, fake Yahoo socket, rendered charts,
+                trimmed real Fed/BEA pages, recorded real ES bars, mocked BLS/ProjectX HTTP); count in docs/TEST_RESULTS.md
 ```
 
 ## 3b. What the backtests found

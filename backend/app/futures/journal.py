@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import contracts as fc
+from .contracts import fmt_num
 
 
 def round_trips(fills: list, orders: dict) -> list[dict]:
@@ -79,7 +80,7 @@ def mistakes(trips: list[dict], decisions: list[dict]) -> list[dict]:
             worse = (t["entry"] - plan["entry"]) * (1 if t["direction"] == "long" else -1)
             if plan.get("stop") is not None and worse > 0.25 * abs(plan["entry"] - plan["stop"]):
                 out.append({"code": "chasing", "trade": t["opened"], "contract": t["contract"],
-                            "text": f"Filled {worse:g} points worse than the planned entry (more than a quarter of the stop distance)."})
+                            "text": f"Filled {fmt_num(worse)} points worse than the planned entry (more than a quarter of the stop distance)."})
     for d, ts in per_day.items():
         if len(ts) > 6:
             out.append({"code": "overtrading", "trade": d, "contract": "", "text": f"{len(ts)} trades on {d}."})

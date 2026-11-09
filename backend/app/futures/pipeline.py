@@ -18,6 +18,7 @@ from ..signals.engine import TIER_SHORT
 from .contracts import CT, Contract, ProductSpec, size_for_risk
 from .features import regime
 from .setups import SetupParams, detect, developing, key_levels
+from .contracts import fmt_num
 
 OUTCOMES = ("APPROVED", "WATCH_ONLY", "WAIT", "REJECTED", "INVALIDATED", "NO_TRADE")
 ACTION_OF = {"WATCH_ONLY": "WATCH ONLY", "WAIT": "WAIT FOR CONFIRMATION", "INVALIDATED": "INVALIDATED", "NO_TRADE": "NO TRADE",
@@ -146,7 +147,7 @@ def run(F5: pd.DataFrame, F15: pd.DataFrame | None, contract: Contract, label: d
     if prev_plan and not found:
         stop, d = prev_plan.get("stop"), 1 if prev_plan.get("direction") == "long" else -1
         if stop is not None and cur is not None and (cur - stop) * d <= 0:
-            _step(steps, 5, False, f"The earlier {prev_plan['setup']} idea is invalidated: price {cur:g} is through its stop {stop:g}.")
+            _step(steps, 5, False, f"The earlier {prev_plan['setup']} idea is invalidated: price {fmt_num(cur)} is through its stop {fmt_num(stop)}.")
             return done("INVALIDATED", f"{prev_plan['setup']} invalidated before entry.", plan=prev_plan, reg=reg, dev="invalidated")
     if not found:
         extended = [x for x in rejected if "chase" in x or "Extended" in x]
@@ -188,12 +189,12 @@ def run(F5: pd.DataFrame, F15: pd.DataFrame | None, contract: Contract, label: d
     if cur is not None:
         drift = (cur - s.entry) * s.direction
         if (cur - s.stop) * s.direction <= 0:
-            _step(steps, 8, False, f"Price {cur:g} is already through the stop {s.stop:g}.")
+            _step(steps, 8, False, f"Price {fmt_num(cur)} is already through the stop {fmt_num(s.stop)}.")
             return done("INVALIDATED", "Invalidated before entry.", plan, cands, reg, "invalidated")
         if drift > cfg.max_drift_atr * atr:
-            _step(steps, 8, False, f"Price has moved {drift:g} points past the entry ({drift / atr:.2f} ATR).")
+            _step(steps, 8, False, f"Price has moved {fmt_num(drift)} points past the entry ({drift / atr:.2f} ATR).")
             return done("REJECTED", "Entry is gone: chasing would worsen reward/risk.", plan, cands, reg, "extended")
-    _step(steps, 8, True, f"Current {cur:g} vs entry {s.entry:g}")
+    _step(steps, 8, True, f"Current {fmt_num(cur)} vs entry {fmt_num(s.entry)}")
     # 9. reward/risk
     rr = abs(s.target - s.entry) / s.risk_points if s.risk_points else 0
     plan["reward_risk"] = round(rr, 2)

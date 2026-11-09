@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Awaitable, Callable
 
 from . import contracts as fc
+from .contracts import fmt_num
 
 log = logging.getLogger(__name__)
 
@@ -342,7 +343,7 @@ class AutomationEngine:
         if account == "practice":
             self.svc.mark_acted(dec["id"], o.id)
         self._log("high", f"{contract.code}: {'SANDBOX (experimental) ' if account == 'sandbox' else ''}paper {plan['direction']} {qty} at "
-                  f"{plan['entry']:g}, stop {plan['stop']:g}, targets {', '.join(format(t['price'], 'g') for t in targets)}. Simulated only.",
+                  f"{fmt_num(plan['entry'])}, stop {fmt_num(plan['stop'])}, targets {', '.join(fmt_num(t['price']) for t in targets)}. Simulated only.",
                   decision_id=dec["id"], order_id=o.id)
         return {"action": "entered", "contract": contract.code, "account": account, "order_id": o.id, "qty": qty}
 
@@ -386,7 +387,7 @@ class AutomationEngine:
         out = []
         tick = float(contract.spec.tick)
         if rules.breakeven_at_r is not None and r_now >= rules.breakeven_at_r and "breakeven" not in m["done"]:
-            ch = eng.modify_stop(contract.code, m["entry"] + d * tick, now, f"break-even rule at +{rules.breakeven_at_r}R (price {price:g})")
+            ch = eng.modify_stop(contract.code, m["entry"] + d * tick, now, f"break-even rule at +{rules.breakeven_at_r}R (price {fmt_num(price)})")
             m["done"].append("breakeven")
             if ch:
                 out.append({"action": "breakeven", **ch})

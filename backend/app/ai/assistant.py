@@ -54,6 +54,13 @@ def classify(q: str) -> str:
     return "explain"
 
 
+def _px(x) -> str:
+    """Price as written on the tick grid: never rounds to 6 significant digits (26952.25 must not become 26952.2)."""
+    if not isinstance(x, (int, float)):
+        return "n/a"
+    return f"{x:.6f}".rstrip("0").rstrip(".")
+
+
 def _money(x) -> str:
     return f"${x:,.2f}" if isinstance(x, (int, float)) else "n/a"
 
@@ -175,8 +182,8 @@ class Assistant:
         if intent in ("risk", "rr", "stop", "invalidate", "entry", "short", "too_late", "why_signal", "exit", "general", "explain"):
             a.add("fact", f"Signal: {sig.get('action', 'NO TRADE')}. " + " ".join((sig.get("reasons") or [])[:2]))
         if best:
-            a.add("plan", f"{best['setup']} ({best['direction']}): entry {best['entry']:g}, stop {best['stop']:g} ({best.get('stop_ticks')} ticks, "
-                          f"${best.get('risk_per_contract_usd', 0):,.2f} per contract with slippage and fees), target {best['target']:g} "
+            a.add("plan", f"{best['setup']} ({best['direction']}): entry {_px(best['entry'])}, stop {_px(best['stop'])} ({best.get('stop_ticks')} ticks, "
+                          f"${best.get('risk_per_contract_usd', 0):,.2f} per contract with slippage and fees), target {_px(best['target'])} "
                           f"({best.get('reward_risk')}R). Invalidation: {best['invalidation']}")
             a.add("evidence", f"Tested evidence: {best.get('evidence_short', 'untested')}. "
                               + ("" if best.get("tradeable_evidence") else "That's why it's watch-only, not a trade."))
@@ -247,8 +254,8 @@ class Assistant:
             below = sorted([x for x in lvls if x[1] < last], key=lambda x: last - x[1])[:2]
             above = sorted([x for x in lvls if x[1] > last], key=lambda x: x[1] - last)[:2]
             tick = float(spec.get("tick_size") or 0.25)
-            fmt = lambda xs: ", ".join(f"{n} {p:g} ({(abs(last - p) / tick):.0f} ticks away)" for n, p in xs) or "none in the data"  # noqa: E731
-            a.add("fact", f"Last {code} price in the analysis: {last:g} (bar at {lv.get('as_of', '?')}).")
+            fmt = lambda xs: ", ".join(f"{n} {_px(p)} ({(abs(last - p) / tick):.0f} ticks away)" for n, p in xs) or "none in the data"  # noqa: E731
+            a.add("fact", f"Last {code} price in the analysis: {_px(last)} (bar at {lv.get('as_of', '?')}).")
             a.add("fact", f"Nearest levels below (possible support): {fmt(below)}.")
             a.add("fact", f"Nearest levels above (possible resistance): {fmt(above)}.")
             a.add("interpretation", "These are reference levels from completed bars, not predictions. Price often reacts near them "
@@ -308,13 +315,13 @@ class Assistant:
             if last is not None:
                 dist = abs(last - best["entry"])
                 stop_d = abs(best["entry"] - best["stop"]) or 1
-                a.add("fact", f"Price {last:g} is {dist:g} points from the planned entry {best['entry']:g} "
+                a.add("fact", f"Price {_px(last)} is {_px(dist)} points from the planned entry {_px(best['entry'])} "
                               f"({dist / stop_d:.0%} of the stop distance).")
                 a.add("interpretation", "More than about a quarter of the stop distance away usually means the reward/risk on the "
                                         "original plan no longer holds; wait for a retest or a new setup." if dist / stop_d > 0.25
                       else "Price is still close to the planned entry.")
         elif intent == "rr" and best:
-            a.add("fact", f"Reward/risk on the plan: {best.get('reward_risk')}R (entry {best['entry']:g}, stop {best['stop']:g}, target {best['target']:g}), "
+            a.add("fact", f"Reward/risk on the plan: {best.get('reward_risk')}R (entry {_px(best['entry'])}, stop {_px(best['stop'])}, target {_px(best['target'])}), "
                           "after fees and slippage.")
 
     def rule_answer(self, intent: str, question: str, ctx: dict, level: str) -> str:

@@ -1,4 +1,4 @@
-# Features and limitations (0.6.0)
+# Features and limitations (0.7.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
@@ -40,6 +40,21 @@
 | | TopstepX screen adapter and platform selector; futures cross-checks (tick grid, contract month, delayed-feed tolerance) | 🟡 tested on synthetic charts only; no real TopstepX screenshots |
 | | Optional read-only TopstepX API (ProjectX) data source | 🟡 tested against a mock server only |
 | | Futures backtest (ES, MES, NQ, CL, GC) | ✅ no setup reliable; all watch-only ([docs/TOPSTEPX.md](docs/TOPSTEPX.md) §9) |
+| 0.7.0 audit fixes | Stops/brackets survive restarts; no fills on delayed data; holiday flat times; EOD trailing floor from the session close; rule changes drop confirmation and resize safely; duplicate-signal protection; event gate; fills uncapped and persisted | ✅ each with a regression test ([docs/AUDIT_0.7.md](docs/AUDIT_0.7.md)) |
+| Futures data (0.7.0) | Labels REAL-TIME / NEAR REAL-TIME / POLLING / DELAYED / HISTORICAL / REPLAY / CACHED / STALE / UNAVAILABLE; bar validation; source health with backoff; explicit DELAYED fallback when the API fails; downtime detection and reconciliation | ✅ |
+| Analysis (0.7.0) | Regime (trend, VWAP side, volatility percentile, day type), 15-minute confirmation from completed bars only | ✅ |
+| Decision pipeline | 13 steps in fixed order, six outcomes, reasoning stored per decision, deterministic ids | ✅ |
+| Strategy research | Walk-forward with parameters chosen on earlier folds + chronological holdout; full metrics, diagnostics, cost sensitivity; strategy registry | ✅ no strategy validated ([docs/BACKTEST_RESULTS_FUTURES.md](docs/BACKTEST_RESULTS_FUTURES.md)) |
+| Automation | Mode A assisted, Mode B automated paper (validated strategies only), Mode C locked with checklist and no order code; persistent monitoring with start/pause/resume/stop, autostart, emergency stop with review; partials, break-even, trailing, invalidation exit, max hold; research sandbox | ✅ tested with recorded bars, replay and injected clocks; 🟡 not run against a live fillable feed |
+| Central risk service | Max loss / daily loss / trailing drawdown, open risk, contracts, consecutive losses, trades per session, min R:R, max slippage, data age, release windows | ✅ simulator only |
+| Evaluation practice | Status, profit target, consistency, trading days, winning days; profiles | ✅ simulator only |
+| Replay | Pause/resume/speed, 1- or 5-minute bars, automation in replay, review, separate storage, survives restarts | ✅ |
+| Journal (futures) | Round trips net of fees with R, mistakes (no stop, chasing, overtrading, against the pipeline), automated vs manual | ✅ |
+| Economic data | BLS actual/previous for CPI, core CPI, PPI, payrolls, unemployment; relevance labels; release warnings | ✅ mocked tests and checked live against BLS (all five series, 2026-11-08) |
+| AI mentor (futures) | Size, nearest support/resistance, why rejected, mistakes, best strategies, late entry, R:R | ✅ |
+| Screen calibration | Labelled screenshots scored per field; per-platform accuracy with intervals and failures; consent-only image storage; synthetic samples excluded | ✅ tool; 🟡 no TopstepX accuracy measured yet |
+| Automation Center | Central futures screen | ✅ |
+| Mobile companion API | Off by default, token shown once and stored hashed, brake-only controls, localhost + optional private host for mobile paths only | ✅ in-process tests; 🟡 no real phone/tunnel test |
 | Earlier stages | Analysis, scanner, paper trading, risk limits, alerts, learning centre | ✅ (see previous releases) |
 
 ## Remaining limitations
@@ -58,4 +73,5 @@
 - **Futures data is delayed by default** (Yahoo reports 10 minutes). Without the optional TopstepX API there are no live
   futures signals or live simulator fills; use replay or delayed practice. Everything not tested against a real TopstepX
   environment is listed in [docs/TOPSTEPX.md](docs/TOPSTEPX.md) §10.
-- Not built: real-money execution (by design), Webull/ToS/IBKR-specific readers, code signing for the installer.
+- Not built: real-money execution (by design), Webull/ToS/IBKR-specific readers, code signing for the installer, a phone app.
+- Full list with what would change each item: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).

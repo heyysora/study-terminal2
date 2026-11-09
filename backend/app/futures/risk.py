@@ -17,6 +17,7 @@ from datetime import datetime, time, timedelta
 from pathlib import Path
 
 from .contracts import CT, ProductSpec, parse_hhmm
+from .contracts import fmt_num
 
 PRESETS_FILE = Path(__file__).with_name("prop_presets.json")
 SIM_ONLY = "Applies to Study Terminal's simulator only; it cannot enforce rules on your real Topstep account."
@@ -392,8 +393,8 @@ class RiskEngine:
             per = mini_equivalent(spec, 1, r)
             limits["position_limit"] = int(max(free, 0) / per + 1e-9)
             if add_me > free + 1e-9:
-                problems.append(f"{qty} {spec.root} would put you at {s.open_mini_equivalent + add_me:g} mini-equivalent contracts; the limit is {cap:g}"
-                                + (f" ({cap * r.micro_ratio:g} micros)" if spec.micro_of else "") + ".")
+                problems.append(f"{qty} {spec.root} would put you at {fmt_num(s.open_mini_equivalent + add_me)} mini-equivalent contracts; the limit is {fmt_num(cap)}"
+                                + (f" ({fmt_num(cap * r.micro_ratio)} micros)" if spec.micro_of else "") + ".")
         if stop is None:
             if p.enabled and p.require_stop:
                 problems.append("A stop loss is required.")
@@ -404,7 +405,7 @@ class RiskEngine:
         if (side > 0 and stop >= entry) or (side < 0 and stop <= entry):
             problems.append("The stop is on the wrong side of the entry.")
         if p.enabled and p.max_slippage_ticks is not None and slippage_ticks > p.max_slippage_ticks:
-            problems.append(f"Expected slippage ({slippage_ticks:g} ticks) is above your maximum ({p.max_slippage_ticks:g}).")
+            problems.append(f"Expected slippage ({fmt_num(slippage_ticks)} ticks) is above your maximum ({fmt_num(p.max_slippage_ticks)}).")
         per = risk_per_contract(entry, stop, spec, slippage_ticks, round_turn_cost)
         total = per["total_usd"] * qty
         risk = {**per, "contracts": qty, "trade_risk_usd": round(total, 2)}
@@ -414,7 +415,7 @@ class RiskEngine:
             rr = reward_ticks / per["stop_ticks"] if per["stop_ticks"] else None
             risk["reward_risk"] = round(rr, 2) if rr is not None else None
             if p.enabled and p.min_reward_risk and rr is not None and rr < p.min_reward_risk:
-                problems.append(f"Reward-to-risk to the first target is {rr:.2f}; your minimum is {p.min_reward_risk:g}.")
+                problems.append(f"Reward-to-risk to the first target is {rr:.2f}; your minimum is {fmt_num(p.min_reward_risk)}.")
         if p.enabled and p.max_risk_per_trade_usd:
             limits["per_trade_risk"] = int(p.max_risk_per_trade_usd // per["total_usd"]) if per["total_usd"] else 0
             if total > p.max_risk_per_trade_usd + 1e-9:

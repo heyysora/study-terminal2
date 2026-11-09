@@ -90,3 +90,17 @@ Futures use a separate data layer (`backend/app/futures/data.py`). Yahoo serves 
 delayed (10 minutes when checked on 2026-11-07), so futures bars from Yahoo are labeled DELAYED and never produce
 signals. The optional, paid TopstepX API (ProjectX Gateway) is the documented way to get real-time TopstepX data;
 Databento is the main paid alternative. Comparison table and setup steps: [TOPSTEPX.md](TOPSTEPX.md) §8.
+
+Labels on every futures quote and chart (0.7.0): **REAL-TIME / NEAR REAL-TIME / POLLING** (fillable), **DELAYED**, **HISTORICAL**,
+**REPLAY**, **CACHED** (fetch failed, last good copy shown with its age), **STALE**, **UNAVAILABLE**. Each label carries the source, bar time,
+fetch time and validation counts (impossible and future-dated bars dropped, duplicates removed, out-of-order bars re-sorted, off-tick prices and missing candles counted).
+If the TopstepX API fails, bars come from Yahoo **labelled DELAYED with a note saying why**; a live label is never kept on
+substituted data. A failing source backs off from 30 s up to 10 minutes. Downtime (sleep, shutdown, stalls) is detected and the
+missed bars are replayed in order (labelled `reconcile`) before any decision.
+
+## 6. Economic data
+
+Event dates and times: Federal Reserve (FOMC) and BEA pages, read live; BLS schedule bundled with its source URLs.
+Published values (actual and previous) for CPI, core CPI, PPI final demand, payrolls and unemployment come from the BLS public
+data API (`api.bls.gov`, free, about 25 requests/day without a key; one request every 6 hours; optional free key in
+`STUDY_BLS_API_KEY`). Consensus forecasts are not shown: no official free source publishes them.

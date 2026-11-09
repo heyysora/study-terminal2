@@ -106,7 +106,7 @@ Tests: 7 in tests/test_futures_p6_p7.py + 1 regression; full suite 322 passed.
 - **Published values** (`app/news/econ_data.py`): actual and previous for CPI, core CPI, PPI final demand, payrolls and unemployment from the BLS
   public API, one request per 6 hours, last good copy kept on refusal, optional `STUDY_BLS_API_KEY` (v2). Shown in the economic calendar with
   period and the BLS "preliminary" flag. Forecast column says "not available": no official free source. Relevance label per event kind.
-  Only `CES0000000001` was checked against the live API in this build (daily limit hit on the shared IP); the other IDs are BLS's standard IDs.
+  All five series were later checked live through the running app (P11): CPI and PPI for September 2026, jobs data for October 2026.
 - **Event warnings**: one alert per high-impact release `events.warn_minutes` (default 30, 0 = off) before it, in the futures event log too.
 - **Futures mentor**: new direct answers for "how many contracts fit" (risk engine's number, limits applied, can't be raised by the mentor),
   nearest support/resistance (levels from completed bars with tick distance), why a decision was rejected (failed pipeline steps + recent decisions),
@@ -126,3 +126,13 @@ Tests: 7 in tests/test_futures_p6_p7.py + 1 regression; full suite 322 passed.
   or set through /api/settings. Not tested with a real phone or tunnel.
 - Fix found while testing: `resume` during an emergency stop silently did nothing; it now refuses with an explanation.
 - Tests: `tests/test_p10_mobile.py` (7). Full suite 346 passed (3.11).
+
+### P11 — desktop, docs, version, verification (done 2026-11-08)
+- Monitoring starts with the app (autostart) and the desktop `--self-test` now also checks that automation loaded with live execution locked.
+- New docs: AUTOMATION_GUIDE, PAPER_TRADING_GUIDE, REPLAY_GUIDE, EVALUATION_GUIDE, MOBILE_API, LIMITATIONS, TEST_RESULTS; README, FEATURES,
+  USER_GUIDE, ARCHITECTURE, DATA_PROVIDERS and TOPSTEPX (incl. §11 TopstepX API endpoints and Topstep's automation rules) updated.
+- Version 0.7.0 (config, pyproject, installer, extension manifest).
+- Live checks: app run against real Yahoo data (all futures DELAYED → NO TRADE, as designed); BLS values for all five series fetched.
+- Bug found during live checks and fixed: futures messages formatted prices with `:g` (6 significant digits), so NQ prices like
+  26952.25 printed as 26952.2. Replaced with an exact formatter in every futures module and the mentor; regression test added.
+- Tests: 348 passed on Python 3.11 and 3.13; frontend build passed; PyInstaller bundle built and self-tested on Linux. Not run on Windows.

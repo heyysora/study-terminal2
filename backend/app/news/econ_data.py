@@ -8,8 +8,8 @@ rather than a number from an unofficial site.
 Limits: the unauthenticated v1 API allows about 25 requests per day per IP address, so values are fetched in ONE request at most
 every 6 hours. If BLS refuses (daily limit) the last good copy is kept and labeled. An optional free BLS registration key
 (STUDY_BLS_API_KEY) switches to v2 with a higher limit.
-Series IDs: CES0000000001 was checked against the live API on 2026-11-08; the others are BLS's standard IDs for these series but
-couldn't be re-checked that day because the shared build IP hit the daily limit.
+Series IDs: all five were checked against the live v1 API on 2026-11-08 (latest periods: September 2026 for CPI/PPI, October
+2026 for the jobs data).
 """
 from __future__ import annotations
 
