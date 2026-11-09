@@ -425,7 +425,7 @@ export function FuturesSettings() {
 
 export function Futures({ symbol }: { symbol?: string }) {
   const settings = usePoll("/settings");
-  const watch: string[] = settings.data?.values?.["futures.watch"] || ["ES", "NQ", "CL", "GC"];
+  const watch: string[] = settings.data?.values?.["futures.watch"] || ["NQ", "MNQ", "ES", "MES", "CL", "GC"];
   const [sym, setSym] = useState(symbol || "");
   const [input, setInput] = useState("");
   const [tab, setTab] = useState(symbol ? "live" : "live");
@@ -445,7 +445,7 @@ export function Futures({ symbol }: { symbol?: string }) {
     <div className="page">
       <div className="spread">
         <div className="row">
-          {Array.from(new Set([...watch, "MES", "MNQ"])).map((r) => <button key={r} className={sym === r ? "primary" : ""} onClick={() => setSym(r)}>{r}</button>)}
+          {Array.from(new Set(["NQ", "MNQ", "ES", "MES", ...watch])).map((r) => <button key={r} className={sym === r ? "primary" : ""} onClick={() => setSym(r)}>{r}</button>)}
           <form onSubmit={(e) => { e.preventDefault(); if (input.trim()) setSym(input.trim().toUpperCase()); }}><input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Contract, e.g. MNQZ26" aria-label="Contract" style={{ width: 160 }} /></form>
         </div>
         <div className="row">{["live", "rules", "replay", "evidence", "settings"].map((t) => <button key={t} className={tab === t ? "primary" : "ghost"} onClick={() => setTab(t)}>{({ live: "Live", rules: "Rules", replay: "Replay", evidence: "Evidence", settings: "Data & simulator" } as any)[t]}</button>)}</div>
