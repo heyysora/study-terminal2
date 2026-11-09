@@ -4,11 +4,12 @@ Runs in the backend, so it keeps working when the page is closed (and while the 
 capture only (the same PrintWindow/mss capture as the screen copilot); frames stay in memory and are never written to disk.
 
 Per chart profile, every capture is classified:
-  SCREEN_CAPTURE   fresh, readable capture (values inside are VISUAL_OBSERVATION or VISUALLY_ESTIMATED)
+  LIVE VISUAL OBSERVATION  fresh, readable screen capture (source: SCREEN CAPTURE; values are DIRECTLY_READ,
+                           CALCULATED_FROM_CALIBRATION, VISUALLY_ESTIMATED or UNAVAILABLE). A changed screenshot is not a market tick.
   STALE            no good reading for `stale_seconds`, or the chart hasn't changed for `frozen_seconds` during the session (frozen)
   UNREADABLE       capture worked but the chart couldn't be read reliably (blank, obscured, low confidence, layout changed)
   DISCONNECTED     the chart window is gone or minimized
-Only SCREEN_CAPTURE can produce a recommendation other than NO TRADE. Screen data is never called an exchange feed.
+Only LIVE VISUAL OBSERVATION can produce a recommendation other than NO TRADE. Screen data is never called an exchange feed.
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ import numpy as np
 from ..futures import contracts as fc
 from ..futures.sessions import FuturesClock
 from . import capture as cap
+from .capture_sources import CaptureManager
 from .chart_profile import ChartProfile, ProfileStore
 from .chart_reader import ChartReading, read_chart
 from .visual_bars import bars_from_reading, visual_frame
@@ -33,7 +35,7 @@ from .visual_recommend import expired
 log = logging.getLogger(__name__)
 IS_WIN = sys.platform == "win32"
 TF_SEC = {"1Min": 60, "2Min": 120, "3Min": 180, "5Min": 300, "15Min": 900, "30Min": 1800, "1Hour": 3600, "4Hour": 14400, "1Day": 86400}
-LABEL_TEXT = {"screen_capture": "SCREEN_CAPTURE", "stale": "STALE", "unreadable": "UNREADABLE", "disconnected": "DISCONNECTED",
+LABEL_TEXT = {"screen_capture": "LIVE VISUAL OBSERVATION", "stale": "STALE", "unreadable": "UNREADABLE", "disconnected": "DISCONNECTED",
               "stopped": "STOPPED", "paused": "PAUSED"}
 
 
@@ -109,6 +111,8 @@ class Runtime:
     capture_method: str | None = None
     history: list[dict] = field(default_factory=list)
     next_due: float = 0.0
+    health: dict = field(default_factory=dict)       # capture method used, methods tried, frame age
+    last_img: np.ndarray | None = None               # newest region image, in memory only (live preview)
 
     def summary(self) -> dict:
         r = self.reading
@@ -117,6 +121,7 @@ class Runtime:
                 "last_capture_at": self.last_capture_at and self.last_capture_at.isoformat(),
                 "last_good_at": self.last_good_at and self.last_good_at.isoformat(),
                 "last_change_at": self.last_change_at and self.last_change_at.isoformat(), "captures": self.captures,
+                "capture_health": self.health, "source": "SCREEN CAPTURE",
                 "readings": self.readings, "capture_method": self.capture_method,
                 "reading": r.to_dict(candles=120) if r else None, "recommendation": self.recommendation, "active": self.active,
                 "history": self.history[-30:][::-1]}
@@ -126,7 +131,8 @@ class VisualMonitor:
     def __init__(self, store: ProfileStore, futures=None, alerts=None, broadcaster=None, settings=None, *,
                  capture_fn=None, list_fn=None, win: WinInfo | None = None, now=None, ocr_fn=None):
         self.store, self.futures, self.alerts, self.broadcaster, self.settings = store, futures, alerts, broadcaster, settings
-        self.capture_fn = capture_fn or cap.capture
+        self.capture_fn = capture_fn                 # tests inject (target) -> (frame, method)
+        self.capture_manager = CaptureManager()
         self.list_fn = list_fn or cap.list_targets
         self.win = win or WinInfo()
         self._now = now or (lambda: datetime.now(timezone.utc))
@@ -183,7 +189,8 @@ class VisualMonitor:
             self._task.cancel()
             self._task = None
         for rt in self.runtimes.values():
-            rt.status, rt.reason, rt.recommendation = "stopped", "Monitoring stopped. Nothing is captured.", None
+            rt.status, rt.reason, rt.recommendation, rt.last_img = "stopped", "Monitoring stopped. Nothing is captured.", None, None
+        self.capture_manager.release()               # end Windows Graphics Capture sessions (removes the capture border)
         self._save_state()
         self._push()
         return self.status()
@@ -237,7 +244,7 @@ class VisualMonitor:
             if kind:
                 self._alert(rt, kind, "medium", f"{rt.profile.name}: {LABEL_TEXT[status]}", reason, fingerprint=status + reason[:40])
         if status == "screen_capture":
-            for k in ("chart_missing", "chart_stale", "low_confidence"):
+            for k in ("chart_missing", "chart_stale", "low_confidence", "calibration_invalid"):
                 self._alerted.pop(f"{rt.profile.id}:{k}", None)
 
     def _resolve_window(self, rt: Runtime) -> bool:
@@ -263,7 +270,9 @@ class VisualMonitor:
         clock = FuturesClock(fc.get(p.root if p.root != "auto" else "MNQ"))
         session_open = clock.window_at(now) is not None
         if not self._resolve_window(rt):
-            self._set(rt, "disconnected", f"No open window matches '{p.window_title_contains}'. Open your TopstepX chart.")
+            self._set(rt, "disconnected", f"No open window matches '{p.window_title_contains}'"
+                                          f"{' in ' + p.window_process if p.window_process else ''}. Open TopstepX in Microsoft Edge "
+                                          "(or re-select the window). Monitoring has stopped producing observations.")
             return self._after(rt, now, None)
         from .vision import is_browser, title_looks_like_trading
         if is_browser(rt.process) and not title_looks_like_trading(rt.title or "", rt.process):
@@ -273,12 +282,21 @@ class VisualMonitor:
         if self.win.minimized(rt.hwnd):
             self._set(rt, "disconnected", "The TopstepX window is minimized; minimized windows can't be captured.")
             return self._after(rt, now, None)
-        frame, method = await asyncio.to_thread(self.capture_fn, cap.Target("window", rt.hwnd, rt.title or "", rt.process))
+        if self.capture_fn is not None:
+            frame, method = await asyncio.to_thread(self.capture_fn, cap.Target("window", rt.hwnd, rt.title or "", rt.process))
+            tried, age = [{"method": method, "error": None if frame is not None else method}], None
+        else:
+            res = await asyncio.to_thread(self.capture_manager.capture, rt.hwnd, p.capture_method,
+                                          lambda h: bool(self.win.obscured(h, p.region)))
+            frame, method, tried, age = res.frame, res.method, res.tried, res.frame_age
         rt.last_capture_at = now
         rt.captures += 1
         rt.capture_method = method
+        rt.health = {"method": method, "requested": p.capture_method, "tried": tried, "frame_age_seconds": None if age is None else round(age, 2),
+                     "at": now.isoformat()}
         if frame is None:
-            self._set(rt, "unreadable", f"Capture failed: {method}.")
+            why = "; ".join(f"{t['method']}: {t['error']}" for t in tried if t.get("error")) or method
+            self._set(rt, "unreadable", f"Capture failed ({why}).")
             return self._after(rt, now, None)
         if method and method.startswith("mss") and self.win.obscured(rt.hwnd, p.region):
             self._set(rt, "unreadable", "Another window covers the chart, and this window can only be captured while visible.")
@@ -293,6 +311,7 @@ class VisualMonitor:
         if img.size == 0 or img.shape[0] < 50 or img.shape[1] < 50:
             self._set(rt, "unreadable", "The capture region is outside the window or too small.")
             return self._after(rt, now, None)
+        rt.last_img = img
         import cv2
         # change detection at full resolution: a quiet market may move only the last candle by a pixel or two
         thumb = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -313,6 +332,8 @@ class VisualMonitor:
         rt.readings += 1
         rt.reading = reading
         if not reading.ok:
+            if not reading.calibration_valid:
+                self._alert(rt, "calibration_invalid", "medium", f"{p.name}: recalibrate", reading.problems[-1], fingerprint="calibration")
             self._set(rt, "unreadable", "; ".join(reading.problems) or "Chart not readable.")
             return self._after(rt, now, reading)
         # layout change: axis or header moved compared with the last good reading -> wait for it to be stable twice
@@ -334,8 +355,9 @@ class VisualMonitor:
 
     def _after(self, rt: Runtime, now: datetime, reading: ChartReading | None, fresh: bool = True) -> None:
         p = rt.profile
-        if rt.status == "screen_capture" and rt.last_good_at and (now - rt.last_good_at).total_seconds() > p.stale_seconds:
-            self._set(rt, "stale", f"No good reading for {int((now - rt.last_good_at).total_seconds())} s.")
+        if rt.status in ("screen_capture", "unreadable") and rt.last_good_at and (now - rt.last_good_at).total_seconds() > p.stale_seconds:
+            self._set(rt, "stale", f"No reliable observation for {int((now - rt.last_good_at).total_seconds())} s"
+                                   + ("" if rt.status == "screen_capture" else f" ({rt.reason})") + ". Monitoring isn't producing reliable observations.")
         rec = self._recommend(rt, now, reading)
         rt.recommendation = rec
         self._alerts_for(rt, rec, now)

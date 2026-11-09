@@ -96,15 +96,19 @@ def build(reading, F, F_htf, *, status: str, status_reason: str, profile, future
                  risk_engine=risk, snapshot=snap, round_turn=eng.round_turn(spec.root), slippage_ticks=eng.cfg.slippage_ticks_market,
                  flat_by_min_from_rth=futures.flat_minutes(clk), validated=validated, mode="visual", check_unvalidated=True)
     plan = dec.plan or {}
+    try:
+        analysis = market_analysis(F, reading, spec)
+    except Exception as e:  # noqa: BLE001 - analysis summary must never block the recommendation
+        analysis = {"error": f"{type(e).__name__}: {str(e)[:120]}"}
     base = {**_base(reading, code, tf, price), "decision_id": dec.id, "pipeline_outcome": dec.outcome, "steps": dec.steps,
-            "regime": dec.regime, "notes": notes or []}
+            "regime": dec.regime, "notes": notes or [], "analysis": analysis}
     if dec.outcome == "APPROVED" or (dec.outcome == "WATCH_ONLY" and plan.get("risk_check", {}).get("ok")):
         d = 1 if plan["direction"] == "long" else -1
         risk_pts = abs(plan["entry"] - plan["stop"])
         t1 = _r(plan["entry"] + d * risk_pts, spec)
         t2 = _r(plan["target"], spec) if (plan["target"] - plan["entry"]) * d > risk_pts else _r(plan["entry"] + 2 * d * risk_pts, spec)
         rec = {**base, "direction": plan["direction"], "setup": plan["setup"], "entry": plan["entry"],
-               "entry_zone": [_r(plan["entry"] - 0.1 * risk_pts * d, spec), _r(plan["entry"], spec)] if d > 0 else
+               "target_levels": [t1, t2], "entry_zone": [_r(plan["entry"] - 0.1 * risk_pts * d, spec), _r(plan["entry"], spec)] if d > 0 else
                              [_r(plan["entry"], spec), _r(plan["entry"] + 0.1 * risk_pts, spec)],
                "stop": plan["stop"], "target_1": t1, "target_2": t2, "reward_risk": round(abs(t2 - plan["entry"]) / risk_pts, 2) if risk_pts else None,
                "invalidation": plan.get("invalidation"), "evidence": [s["detail"] for s in dec.steps if s["passed"]],
@@ -124,10 +128,97 @@ def build(reading, F, F_htf, *, status: str, status_reason: str, profile, future
             "plan": plan or None}
 
 
+def market_analysis(F, reading, spec) -> dict:
+    """What the visible chart says, item by item. Everything here is derived from visually estimated candles (or read lines), so it is
+    labelled VISUALLY_ESTIMATED; items that need history that isn't on screen are UNAVAILABLE with the reason."""
+    import pandas as pd
+
+    from ..futures import features as ff
+    est = "VISUALLY_ESTIMATED"
+    r = F.iloc[-1]
+    price = reading.price.value
+    out: dict = {"class": est, "as_of": r["ts"].isoformat(), "timeframe": reading.timeframe.value}
+    trend = {1: "bullish (the last break of structure was up)", -1: "bearish (the last break of structure was down)",
+             0: "undetermined (no break of structure yet)"}[int(r["trend"])]
+    out["structure"] = trend
+    # swing sequence
+    seq = []
+    for col, kind in (("swing_h", "high"), ("swing_l", "low")):
+        vals = [v for v in F[col].dropna().drop_duplicates().tolist()][-3:]
+        for i in range(1, len(vals)):
+            up = vals[i] > vals[i - 1]
+            seq.append(("HH" if up else "LH") if kind == "high" else ("HL" if up else "LL"))
+    out["swings"] = {"recent_highs": F["swing_h"].dropna().drop_duplicates().tolist()[-3:],
+                     "recent_lows": F["swing_l"].dropna().drop_duplicates().tolist()[-3:], "pattern": seq}
+    ev = F[F["bos_up"] | F["bos_dn"]].tail(1)
+    out["last_structure_break"] = None if ev.empty else {
+        "kind": "CHoCH" if bool(ev["choch"].iloc[0]) else "BOS", "direction": "up" if bool(ev["bos_up"].iloc[0]) else "down",
+        "level": float(ev["swing_h"].iloc[0] if bool(ev["bos_up"].iloc[0]) else ev["swing_l"].iloc[0]), "at": ev["ts"].iloc[0].isoformat()}
+    vw = r.get("vwap")
+    out["vwap"] = {"value": None if pd.isna(vw) else float(vw),
+                   "position": None if pd.isna(vw) or price is None else ("above" if price > vw else "below" if price < vw else "at"),
+                   "class": est if not pd.isna(vw) else "UNAVAILABLE"}
+    emas = {k: v.get("last") for k, v in reading.indicators.items() if k.startswith("EMA") and isinstance(v, dict) and v.get("last") is not None}
+    order = sorted(emas, key=lambda k: int(k.split()[1]))
+    if len(order) >= 2:
+        vals = [emas[k] for k in order]
+        align = "bullish (shorter above longer)" if all(a > b for a, b in zip(vals, vals[1:])) else \
+                "bearish (shorter below longer)" if all(a < b for a, b in zip(vals, vals[1:])) else "mixed"
+    else:
+        align = None
+    out["ema_alignment"] = {"emas": emas, "alignment": align, "class": est if align else "UNAVAILABLE",
+                            "note": None if align else "Assign at least two EMA line colors in the chart profile."}
+    lv = {}
+    for name, col in (("previous_day_high", "pdh"), ("previous_day_low", "pdl"), ("overnight_high", "onh"), ("overnight_low", "onl"),
+                      ("opening_range_high", "or_h"), ("opening_range_low", "or_l")):
+        v = r.get(col)
+        lv[name] = {"value": float(v), "class": est} if v is not None and not pd.isna(v) else \
+            {"value": None, "class": "UNAVAILABLE", "note": "that part of the session isn't visible on the chart"}
+    out["levels"] = lv
+    out["fair_value_gaps"] = ff.recent_fvgs(F, lookback=min(len(F), 120))[:4]
+    keyed = {k: v["value"] for k, v in lv.items() if v["value"] is not None}
+    today = F[F["td"] == r["td"]]
+    out["liquidity_sweeps"] = ff.sweep_events(today, keyed, spec, lookback=len(today))[-3:] if keyed else []
+    if F["v"].sum() > 0 and len(F) >= 21:
+        avg = float(F["v"].iloc[-21:-1].mean())
+        ratio = float(F["v"].iloc[-1]) / avg if avg else None
+        out["volume"] = {"last_vs_20_bar_average": None if ratio is None else round(ratio, 2), "class": est,
+                         "note": "relative bar heights from the volume pane (no contract counts)"}
+    else:
+        out["volume"] = {"class": "UNAVAILABLE", "note": "volume pane not visible or not configured"}
+    sr = sorted({round(x["price"], 4) for x in reading.levels} | {float(v) for v in keyed.values()})
+    if price is not None:
+        below = [x for x in sr if x < price][-2:]
+        above = [x for x in sr if x > price][:2]
+        out["support_resistance"] = {"support": below[::-1], "resistance": above,
+                                     "note": "visible horizontal lines and session levels"}
+    score, why = 0, []
+    t = int(r["trend"])
+    score += t
+    if t:
+        why.append(f"structure {'up' if t > 0 else 'down'}")
+    if out["vwap"]["position"] in ("above", "below"):
+        s = 1 if out["vwap"]["position"] == "above" else -1
+        score += s
+        why.append(f"price {out['vwap']['position']} VWAP")
+    if align and align != "mixed":
+        s = 1 if align.startswith("bullish") else -1
+        score += s
+        why.append(f"EMAs {align.split()[0]}")
+    lb = out["last_structure_break"]
+    if lb:
+        score += 1 if lb["direction"] == "up" else -1
+        why.append(f"last {lb['kind']} {lb['direction']}")
+    out["bias"] = {"label": "bullish" if score >= 2 else "bearish" if score <= -2 else "neutral", "score": int(score), "reasons": why,
+                   "class": est}
+    return out
+
+
 def _base(reading, code, tf, price) -> dict:
     return {"contract": code, "timeframe": tf, "observed_price": price, "price_class": reading.price.cls,
             "data_confidence": round(reading.confidence, 2), "captured_at": reading.captured_at,
-            "data_label": "SCREEN_CAPTURE", "source": "visual observation of your chart, not an exchange feed"}
+            "data_label": "LIVE VISUAL OBSERVATION", "source": "SCREEN CAPTURE: visual observation of your chart, not an exchange feed",
+            "values": "entry/stop/targets come from VISUALLY_ESTIMATED candles; the observed price is DIRECTLY_READ"}
 
 
 def expired(active: dict | None, now: datetime, minutes: int = 240) -> bool:

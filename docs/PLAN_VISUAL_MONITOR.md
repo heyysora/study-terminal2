@@ -56,3 +56,14 @@ Authorized screen capture only: no private endpoints, no token interception, no 
   runs risk/cost/entry checks for unvalidated setups without ever approving them.
 - Tests: 17 new (synthetic screenshots), full suite passes on 3.11 and 3.13; setup and monitor screens checked in Chrome.
 - Not done: real TopstepX screenshots, Windows capture run.
+
+## Edge stage (0.10.0, 2026-11-09)
+- Stage 1, Edge capture source: `screen/capture_sources.py` (Windows Graphics Capture via `windows-capture`, PrintWindow, screen region;
+  frame checks; pinned method; capture health), Edge-first window list, region preview of the live capture.
+- Stage 2, calibration: source classes renamed to DIRECTLY_READ / CALCULATED_FROM_CALIBRATION / VISUALLY_ESTIMATED / UNAVAILABLE;
+  manual calibration invalidated by zoom/rescale/pan (labels disagree) or resize (size differs), pausing analysis until recalibrated.
+- Stage 3, market read: bias, structure, swings, BOS/CHoCH, VWAP position, EMA alignment, session levels when visible, volume, S/R,
+  FVGs, sweeps (all VISUALLY_ESTIMATED); targets list.
+- Stage 4, Live Visual Monitor page: window, live preview, capture time and health, last successful observation, confidence, bias,
+  recommendation, entry/stop/targets, reasoning, invalidation, Recalibrate.
+- Stage 5, tests and docs: 8 new tests; 395 pass on 3.11 and 3.13.

@@ -2,10 +2,10 @@
 horizontal levels. Pure function of the image + the chart profile; no network, nothing stored.
 
 Every value is an Observation with a class:
-  A TEXT        read directly from on-screen text by OCR (e.g. the price tag, the ticker)
-  B CALCULATED  computed from calibrated chart coordinates (e.g. the price of a horizontal line from the fitted axis)
-  C ESTIMATED   estimated from pixels (candle OHLC, indicator lines, relative volume)
-  D UNAVAILABLE not visible or not readable; the value is None, never guessed
+  DIRECTLY_READ                read from on-screen text by OCR (the price tag, the ticker, bid/ask)
+  CALCULATED_FROM_CALIBRATION  computed from the calibrated price axis (e.g. the price of a horizontal line)
+  VISUALLY_ESTIMATED           estimated from pixels (candle OHLC, indicator lines, relative volume); never exact market data
+  UNAVAILABLE                  not visible or not readable; the value is None, never guessed
 plus a confidence (0-1) and the capture time. Overall confidence is the weakest of the values a recommendation depends on.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from ..futures import contracts as fc
 from .chart_profile import ROOTS, ChartProfile
 from .vision import AxisFit, Token, find_price_axis, last_price_tag, ocr, parse_number, tf_from_text
 
-TEXT, CALCULATED, ESTIMATED, UNAVAILABLE = "A_TEXT", "B_CALCULATED", "C_ESTIMATED", "D_UNAVAILABLE"
+TEXT, CALCULATED, ESTIMATED, UNAVAILABLE = "DIRECTLY_READ", "CALCULATED_FROM_CALIBRATION", "VISUALLY_ESTIMATED", "UNAVAILABLE"
 
 
 @dataclass
@@ -77,6 +77,7 @@ class ChartReading:
     plot: tuple[int, int, int, int] | None = None
     colors: dict = field(default_factory=dict)
     confidence: float = 0.0
+    calibration_valid: bool = True
     signature: dict = field(default_factory=dict)
     thumb: object = None                                   # small grayscale image for change detection (not serialized)
 
@@ -85,7 +86,7 @@ class ChartReading:
              "instrument": self.instrument.to_dict(), "timeframe": self.timeframe.to_dict(), "price": self.price.to_dict(),
              "bid": self.bid.to_dict(), "ask": self.ask.to_dict(), "axis": self.axis, "volume": self.volume.to_dict(),
              "candle_confidence": round(self.candle_confidence, 2), "levels": self.levels, "plot": self.plot, "colors": self.colors,
-             "confidence": round(self.confidence, 2), "signature": self.signature,
+             "confidence": round(self.confidence, 2), "signature": self.signature, "calibration_valid": self.calibration_valid,
              "indicators": {k: v for k, v in self.indicators.items()},
              "candles": [{**{k: v for k, v in asdict(c).items()}, "class": ESTIMATED} for c in self.candles[-candles:]]}
         return d
@@ -219,8 +220,14 @@ def refine_axis(fit: AxisFit, axis_toks: list[Token], img: np.ndarray) -> AxisFi
     return AxisFit(float(a), float(b), len(pts), float(resid), fit.x_left)
 
 
+class CalibrationInvalid(Exception):
+    pass
+
+
 def read_axis(tokens: list[Token], w: int, h: int, profile: ChartProfile, img: np.ndarray | None = None
               ) -> tuple[AxisFit | None, list[Token], dict | None, list[str]]:
+    """Automatic axis: refitted from the labels on every capture, so zoom/scale/pan are followed. Manual axis: valid only while the
+    chart keeps the scale and size it had when you calibrated; any sign it changed raises CalibrationInvalid (analysis pauses)."""
     probs = []
     auto, axis_toks = find_price_axis(tokens, w, h)
     if auto is not None and img is not None:
@@ -230,14 +237,23 @@ def read_axis(tokens: list[Token], w: int, h: int, profile: ChartProfile, img: n
         (y1, p1), (y2, p2) = profile.axis_points
         a = (p2 - p1) / (y2 - y1)
         manual = AxisFit(float(a), float(p1 - a * y1), 2, 0.0, float(profile.axis_x if profile.axis_x is not None else w * 0.9))
-    if manual and auto:
-        mid = h / 2
-        diff = abs(manual.price_at(mid) - auto.price_at(mid))
-        span = abs(auto.slope) * h
-        if diff > 0.01 * span:
-            probs.append("The chart's scale no longer matches the manual axis calibration (the chart was rescaled or moved). "
-                         "Using the axis labels instead; recalibrate or switch the profile to automatic axis.")
-            manual = None
+    unverified = False
+    if manual is not None:
+        if profile.axis_size and (abs(profile.axis_size[0] - w) > 2 or abs(profile.axis_size[1] - h) > 2):
+            raise CalibrationInvalid(f"The chart region is {w}x{h} now but was {profile.axis_size[0]}x{profile.axis_size[1]} when you "
+                                     "calibrated (window resized).")
+        if auto is not None:
+            if profile.axis_x is None:
+                manual.x_left = auto.x_left                 # where the axis column starts, from its labels
+            mid = h / 2
+            diff = abs(manual.price_at(mid) - auto.price_at(mid))
+            span = abs(auto.slope) * h
+            if diff > 0.01 * span or abs(manual.slope - auto.slope) > 0.02 * abs(auto.slope):
+                raise CalibrationInvalid("The chart was zoomed, rescaled or panned since you calibrated: the price labels no longer "
+                                         "match the calibration.")
+        else:
+            unverified = True
+            probs.append("Manual calibration can't be checked (no readable price labels); zoom or pan changes won't be detected.")
     fit = manual or auto
     if fit is None:
         probs.append("Price axis not found: no readable price labels and no manual calibration.")
@@ -245,8 +261,8 @@ def read_axis(tokens: list[Token], w: int, h: int, profile: ChartProfile, img: n
     if fit.slope >= 0:
         probs.append("Price axis is inverted or invalid.")
         return None, [], None, probs
-    conf = 0.9 if manual else min(0.95, 0.55 + 0.08 * fit.n) * (1.0 if fit.max_resid_pct < 0.05 else 0.6)
-    info = {"mode": "manual" if manual else "auto", "slope": fit.slope, "intercept": fit.intercept, "labels": fit.n,
+    conf = (0.6 if unverified else 0.9) if manual else min(0.95, 0.55 + 0.08 * fit.n) * (1.0 if fit.max_resid_pct < 0.05 else 0.6)
+    info = {"mode": "manual" if manual else "auto", "verified": not unverified, "slope": fit.slope, "intercept": fit.intercept, "labels": fit.n,
             "max_residual_pct": round(fit.max_resid_pct, 4), "x_left": round(fit.x_left, 1), "class": CALCULATED, "confidence": round(conf, 2),
             "price_per_pixel": round(abs(fit.slope), 6)}
     return fit, axis_toks, info, probs
@@ -412,7 +428,19 @@ def read_chart(img: np.ndarray, profile: ChartProfile, captured_at: datetime, to
     r.instrument, p1 = read_instrument(tokens, h, profile)
     r.timeframe, p2 = read_timeframe(tokens, h, profile)
     r.problems += p1 + p2
-    fit, axis_toks, axis_info, p3 = read_axis(tokens, w, h, profile, img)
+    try:
+        fit, axis_toks, axis_info, p3 = read_axis(tokens, w, h, profile, img)
+    except CalibrationInvalid as e:
+        # pause everything that depends on the axis; text values (price tag) are still read and shown
+        r.calibration_valid = False
+        r.problems.append(f"Calibration invalid: {e} Price-dependent analysis is paused until you recalibrate "
+                          "(Live Visual Monitor > Set up a chart > Recalibrate) or switch the profile to automatic axis.")
+        v, _ = last_price_tag(img, tokens, w)
+        r.price = Observation(v, TEXT, 0.6, "price tag text (axis calibration invalid)") if v is not None else unavailable("not readable")
+        r.bid, r.ask = read_bid_ask(tokens)
+        r.ok, r.confidence = False, 0.0
+        r.signature = {"size": [w, h], "axis_left": -1, "header_h": -1}
+        return r
     r.problems += p3
     r.axis = axis_info
     spec = fc.get(r.instrument.value) if r.instrument.value in ROOTS else None

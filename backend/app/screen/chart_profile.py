@@ -30,6 +30,8 @@ class ChartProfile:
     axis_mode: str = "auto"
     axis_points: list[list[float]] = field(default_factory=list)
     axis_x: int | None = None                       # x (region coords) where the price axis starts; None = find it
+    axis_size: list[int] | None = None              # region size [w, h] when calibrated manually; a different size invalidates it
+    capture_method: str = "auto"                    # auto | wgc | printwindow | screen (see screen/capture_sources.py)
     plot_bottom: float = 0.80                       # fraction of region height where the candle pane ends (volume pane below)
     # colors as [r, g, b]; None = detect automatically (candles) or not used (lines)
     up_color: list[int] | None = None
@@ -58,6 +60,8 @@ class ChartProfile:
             raise ValueError(f"Instrument must be auto or one of {', '.join(ROOTS)}.")
         if self.timeframe != "auto" and self.timeframe not in TIMEFRAMES:
             raise ValueError("Unknown timeframe.")
+        if self.capture_method not in ("auto", "wgc", "printwindow", "screen"):
+            raise ValueError("capture_method must be auto, wgc, printwindow or screen.")
         if self.axis_mode not in ("auto", "manual"):
             raise ValueError("axis_mode must be auto or manual.")
         if self.axis_mode == "manual":

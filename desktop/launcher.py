@@ -305,7 +305,7 @@ def self_test() -> int:
     """Start the backend, check /api/health, shut down cleanly. Used by the installer build. Exit code 0 = OK."""
     b = Backend()
     ok = b.start(timeout=120)
-    health, futures_ok, auto, auto_ok = None, False, {}, False
+    health, futures_ok, auto, auto_ok, wgc = None, False, {}, False, "not checked"
     if ok:
         try:
             health = httpx.get(f"{API}/health", timeout=5).json()
@@ -314,13 +314,18 @@ def self_test() -> int:
             auto = httpx.get(f"{API}/futures/automation", timeout=10).json()   # monitoring loaded; live execution locked
             auto_ok = auto.get("live", {}).get("locked") is True and auto.get("status") in ("running", "stopped", "paused", "emergency_stopped")
             ok = ok and futures_ok and auto_ok
+            try:
+                from app.screen.capture_sources import wgc_available
+                wgc = "available" if wgc_available() else "not available"
+            except Exception:  # noqa: BLE001
+                wgc = "not available"
         except (httpx.HTTPError, ValueError):
             ok, futures_ok, auto, auto_ok = False, False, {}, False
     stopped = b.stop(30)
     print(f"self-test: backend {'up' if ok else 'FAILED'}; clean shutdown {'yes' if stopped else 'NO'}; "
           f"version {VERSION}; brokerage_required={None if not health else health.get('brokerage_required')}; "
           f"futures presets {'loaded' if futures_ok else 'MISSING'}; automation {auto.get('status') if auto_ok else 'FAILED'} "
-          f"(live locked: {auto.get('live', {}).get('locked')})")
+          f"(live locked: {auto.get('live', {}).get('locked')}); Windows Graphics Capture {wgc}")
     return 0 if ok and stopped else 1
 
 

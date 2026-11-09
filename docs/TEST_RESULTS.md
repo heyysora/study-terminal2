@@ -1,4 +1,4 @@
-# Test results (0.9.0, 2026-11-09)
+# Test results (0.10.0, 2026-11-09)
 
 All runs were on **Linux** in the build environment. Nothing here was run on Windows.
 
@@ -6,10 +6,20 @@ All runs were on **Linux** in the build environment. Nothing here was run on Win
 
 | Run | Result |
 |---|---|
-| Python 3.11 (`pytest tests`) | **387 passed**, 0 failed, 0 skipped (≈ 100 s) |
-| Python 3.13 (`pytest tests`) | **387 passed**, 0 failed, 0 skipped (≈ 100 s) |
+| Python 3.11 (`pytest tests`) | **395 passed**, 0 failed, 0 skipped (≈ 105 s) |
+| Python 3.13 (`pytest tests`) | **395 passed**, 0 failed, 0 skipped (≈ 100 s) |
 | Frontend type-check and build (`npm run build` = `tsc -b && vite build`) | passed |
 | Lint (`ruff --select E4,E7,E9,F,B`) on files changed in 0.7 | clean except pre-existing style warnings in older files (B008/E741/B904) |
+
+## 0.10.0 Edge capture tests (SCREENSHOT-BASED, not live-market validation)
+
+`test_edge_capture.py` (7) with fake capture backends and the synthetic recorded screenshots: frame checks (blank, flat, mostly black
+partial GPU frames); Automatic order Graphics Capture → PrintWindow → screen with fallback on blank frames; covered window refused for
+screen capture; pinned method never silently switched; Edge windows listed first; manual calibration invalidated by a zoom/rescale and
+by a resize, one alert, analysis paused, recovery after recalibration; window closed → DISCONNECTED → reopened → LIVE; failing captures
+→ UNREADABLE → STALE → recovery; visual data never reaches the simulator. Plus a market-read test in `test_visual_monitor.py`.
+The page was rendered in Chrome with the app's capture replaced by a recorded synthetic screenshot (`docs/screenshot_live_visual.png`).
+**No test ran against Microsoft Edge, TopstepX, Windows Graphics Capture or live market data.**
 
 ## 0.9.0 Visual Market Monitor tests (SYNTHETIC screenshots)
 
@@ -70,7 +80,7 @@ P11 number formatting 2.
 - **TopstepX API and live stream**: tested against mock servers only. See the real-account checklist in
   [LIVE_MARKET_DATA.md](LIVE_MARKET_DATA.md#what-still-needs-a-real-topstepx-account).
 - **Real TopstepX screenshots**: none available; the Visual Monitor and the calibration tool were tested with synthetic charts (which never count as accuracy).
-- **Visual Monitor window capture on Windows**: not run by me (Linux build machine).
+- **Visual Monitor window capture on Windows, including Windows Graphics Capture of Edge**: not run by me (Linux build machine).
 - **Mobile companion from a real phone / tunnel**: in-process tests only.
 - **Claude / Ollama wording**: no key or local model available.
 

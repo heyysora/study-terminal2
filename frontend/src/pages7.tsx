@@ -6,20 +6,23 @@ const ROOTS = ["auto", "NQ", "MNQ", "ES", "MES"];
 const TFS = ["auto", "1Min", "2Min", "3Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day"];
 const COLOR_KEYS: [string, string][] = [["up_color", "Up candle"], ["down_color", "Down candle"], ["vwap_color", "VWAP line"],
   ["ema:9", "EMA 9"], ["ema:20", "EMA 20"], ["ema:50", "EMA 50"], ["ema:200", "EMA 200"]];
-const LABEL_CLASS: Record<string, string> = { SCREEN_CAPTURE: "pos", STALE: "neg", UNREADABLE: "neg", DISCONNECTED: "neg", PAUSED: "", STOPPED: "" };
-const CLASS_TEXT: Record<string, string> = { A_TEXT: "A · read from text", B_CALCULATED: "B · calculated from axis", C_ESTIMATED: "C · visually estimated",
-  D_UNAVAILABLE: "D · unavailable" };
+const LABEL_CLASS: Record<string, string> = { "LIVE VISUAL OBSERVATION": "pos", STALE: "neg", UNREADABLE: "neg", DISCONNECTED: "neg", PAUSED: "", STOPPED: "" };
+const CLASS_TEXT: Record<string, string> = { DIRECTLY_READ: "DIRECTLY_READ", CALCULATED_FROM_CALIBRATION: "CALCULATED_FROM_CALIBRATION",
+  VISUALLY_ESTIMATED: "VISUALLY_ESTIMATED", UNAVAILABLE: "UNAVAILABLE" };
+const METHODS: [string, string][] = [["auto", "Automatic (Graphics Capture → PrintWindow → screen)"], ["wgc", "Windows Graphics Capture"],
+  ["printwindow", "PrintWindow"], ["screen", "Screen region (window must be visible)"]];
 
 const blank = (): any => ({ name: "TopstepX chart", window_title_contains: "TopstepX", window_process: null, window_hwnd: null, window_size: null,
   region: [0, 0, 0, 0], root: "auto", timeframe: "auto", axis_mode: "auto", axis_points: [], axis_x: null, plot_bottom: 0.8,
   up_color: null, down_color: null, vwap_color: null, ema_colors: {}, color_tolerance: 40, capture_seconds: 2, stale_seconds: 20,
-  frozen_seconds: 90, active: true });
+  frozen_seconds: 90, active: true, capture_method: "auto", axis_size: null });
 
 const hex = (c: number[] | null | undefined) => (c ? "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("") : "");
 
 export function VisualMonitor() {
   const st = usePoll("/visual/status", 5000);
   const [tab, setTab] = useState<"monitor" | "setup">("monitor");
+  const [editing, setEditing] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { ensureLive(); return onLiveMessage((m) => { if (m.type === "visual") st.reload(); }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const act = async (a: string) => { setErr(null); try { await api(`/visual/${a}`, { method: "POST" }); st.reload(); } catch (e: any) { setErr(e.message); } };
@@ -42,27 +45,55 @@ export function VisualMonitor() {
       </div>
       <div className="note small">{s?.note} Monitoring keeps running when you leave this page or close the window to the tray.</div>
       {err && <div className="note bad">{err}</div>}
-      {tab === "setup" ? <Setup onSaved={() => { st.reload(); }} /> : (
-        !charts.length ? <div className="empty">No chart set up yet. Open TopstepX, then use "Set up a chart".</div> :
-          charts.map((c: any) => <ChartCard key={c.profile.id} c={c} />)
+      {tab === "setup" ? <Setup initial={editing} onSaved={() => { st.reload(); }} /> : (
+        !charts.length ? <div className="empty">No chart set up yet. Open TopstepX in Microsoft Edge, then use "Set up a chart".</div> :
+          charts.map((c: any) => <ChartCard key={c.profile.id} c={c} running={s?.state === "running"}
+            onRecalibrate={() => { setEditing(c.profile); setTab("setup"); }} />)
       )}
     </div>
   );
 }
 
-function ChartCard({ c }: { c: any }) {
+function ChartCard({ c, running, onRecalibrate }: { c: any; running: boolean; onRecalibrate: () => void }) {
   const r = c.reading;
   const rec = c.recommendation;
+  const [tick, setTick] = useState(0);
+  useEffect(() => { if (!running) return; const t = setInterval(() => setTick((n) => n + 1), 2000); return () => clearInterval(t); }, [running]);
+  const h = c.capture_health || {};
+  const a = rec?.analysis;
   return (
     <div className="cols c-main" style={{ marginBottom: 16 }}>
       <div className="stack">
-        <Panel title={c.profile.name} sub={c.window?.title || "window not found"}
+        <Panel title={c.profile.name} sub={c.window?.title ? `${c.window.title}${c.window.process ? ` (${c.window.process})` : ""}` : "window not found"}
           right={<span className={`badge ${LABEL_CLASS[c.label] ?? ""}`}>{c.label}</span>}>
           <div className="small">{c.reason}</div>
-          <div className="small faint">Last capture {c.last_capture_at?.slice(11, 19) || "—"} UTC · last good reading {c.last_good_at?.slice(11, 19) || "—"} UTC ·
-            last change {c.last_change_at?.slice(11, 19) || "—"} UTC · {c.captures} captures, {c.readings} readings · {c.capture_method || ""}</div>
+          {running && c.last_capture_at && <img src={`/api/visual/region-preview/${c.profile.id}?t=${tick}`} alt="Live capture of the chart region (memory only)"
+            style={{ width: "100%", marginTop: 8, border: "1px solid var(--rule)", opacity: c.label === "LIVE VISUAL OBSERVATION" ? 1 : 0.45 }} />}
+          <table className="small" style={{ marginTop: 6 }}><tbody>
+            <tr><td className="muted">Source</td><td>SCREEN CAPTURE via {h.method || "—"}{h.requested && h.requested !== "auto" ? " (pinned)" : ""}</td></tr>
+            <tr><td className="muted">Capture time</td><td>{c.last_capture_at ? c.last_capture_at.replace("T", " ").slice(0, 19) + " UTC" : "—"}{h.frame_age_seconds != null ? ` · frame ${h.frame_age_seconds}s old` : ""}</td></tr>
+            <tr><td className="muted">Last successful observation</td><td>{c.last_good_at ? c.last_good_at.replace("T", " ").slice(0, 19) + " UTC" : "none yet"}</td></tr>
+            <tr><td className="muted">Capture health</td><td>{(h.tried || []).map((t: any) => `${t.method}: ${t.error || "ok"}`).join(" · ") || "—"}</td></tr>
+            <tr><td className="muted">Counts</td><td>{c.captures} captures, {c.readings} readings (OCR runs only when the chart changed)</td></tr>
+          </tbody></table>
+          <div className="row" style={{ marginTop: 6 }}><button onClick={onRecalibrate}>Recalibrate / edit region</button></div>
         </Panel>
         {rec && <RecCard rec={rec} label={c.label} />}
+        {a && !a.error && <Panel title="Market read" sub={`bias: ${a.bias?.label} · ${a.class}`}>
+          <table className="small"><tbody>
+            <tr><td className="muted">Bias</td><td>{a.bias?.label} ({a.bias?.reasons?.join(", ") || "no clear signs"})</td></tr>
+            <tr><td className="muted">Structure</td><td>{a.structure} {a.swings?.pattern?.length ? `· ${a.swings.pattern.join(" ")}` : ""}</td></tr>
+            <tr><td className="muted">Last BOS/CHoCH</td><td>{a.last_structure_break ? `${a.last_structure_break.kind} ${a.last_structure_break.direction} through ${a.last_structure_break.level}` : "none visible"}</td></tr>
+            <tr><td className="muted">VWAP</td><td>{a.vwap?.value != null ? `${a.vwap.value} (price ${a.vwap.position})` : "UNAVAILABLE"}</td></tr>
+            <tr><td className="muted">EMAs</td><td>{a.ema_alignment?.alignment || a.ema_alignment?.note}</td></tr>
+            {Object.entries<any>(a.levels || {}).map(([k, v]) => <tr key={k}><td className="muted">{k.replace(/_/g, " ")}</td><td>{v.value ?? `UNAVAILABLE (${v.note})`}</td></tr>)}
+            <tr><td className="muted">Volume</td><td>{a.volume?.last_vs_20_bar_average != null ? `last bar ${a.volume.last_vs_20_bar_average}× the 20-bar average (relative)` : "UNAVAILABLE"}</td></tr>
+            <tr><td className="muted">Support / resistance</td><td>{a.support_resistance ? `${a.support_resistance.support.join(", ") || "—"} / ${a.support_resistance.resistance.join(", ") || "—"}` : "—"}</td></tr>
+            <tr><td className="muted">Fair value gaps</td><td>{(a.fair_value_gaps || []).map((g: any) => `${g.kind} ${g.low}–${g.high}`).join("; ") || "none unfilled"}</td></tr>
+            <tr><td className="muted">Sweeps</td><td>{(a.liquidity_sweeps || []).map((s: any) => s.text).join("; ") || "none"}</td></tr>
+          </tbody></table>
+          <div className="small faint">Derived from visually estimated candles; not exact market data.</div>
+        </Panel>}
         <Panel title="History" flush>
           <div style={{ maxHeight: 220, overflow: "auto" }}>{(c.history || []).map((h: any, i: number) =>
             <div key={i} className="small" style={{ padding: "2px 12px" }}><span className="faint">{h.at.slice(11, 19)}{h.repeats ? ` (×${h.repeats + 1}, since ${h.since.slice(11, 19)})` : ""}</span> {h.status} · {h.action} · {h.price ?? "—"} · {h.reason}</div>)}</div>
@@ -72,16 +103,16 @@ function ChartCard({ c }: { c: any }) {
         <Panel title="What the chart shows" sub={r ? `confidence ${r.confidence}` : ""}>
           {!r ? <div className="muted small">No reading yet.</div> : <>
             <table className="small"><tbody>
-              {(["instrument", "timeframe", "price", "bid", "ask", "volume"] as const).map((k) => <tr key={k}><td className="muted">{k}</td>
+              {(["instrument", "timeframe", "price", "bid", "ask", "volume"] as const).map((k) => <tr key={k}><td className="muted">{k === "price" ? "observed price" : k}</td>
                 <td>{r[k].value ?? "—"}</td><td className="faint">{CLASS_TEXT[r[k].class]} · {r[k].confidence}</td></tr>)}
-              <tr><td className="muted">axis</td><td>{r.axis ? `${r.axis.labels} labels, ${r.axis.price_per_pixel} pts/px` : "—"}</td><td className="faint">{r.axis ? `${CLASS_TEXT[r.axis.class]} (${r.axis.mode})` : ""}</td></tr>
-              <tr><td className="muted">candles</td><td>{r.candles.length}</td><td className="faint">C · visually estimated · {r.candle_confidence}</td></tr>
+              <tr><td className="muted">axis</td><td>{r.axis ? `${r.axis.labels} labels, ${r.axis.price_per_pixel} pts/px` : r.calibration_valid === false ? "calibration invalid" : "—"}</td><td className="faint">{r.axis ? `${CLASS_TEXT[r.axis.class]} (${r.axis.mode}${r.axis.verified === false ? ", unverified" : ""})` : ""}</td></tr>
+              <tr><td className="muted">candles</td><td>{r.candles.length}</td><td className="faint">VISUALLY_ESTIMATED · {r.candle_confidence}</td></tr>
               {Object.entries<any>(r.indicators || {}).map(([k, v]) => <tr key={k}><td className="muted">{k}</td><td>{v.last ?? "—"}</td>
-                <td className="faint">{CLASS_TEXT[v.class]}{v.confidence ? ` · ${v.confidence}` : ""}{v.class === "D_UNAVAILABLE" ? ` (${v.source})` : ""}</td></tr>)}
+                <td className="faint">{CLASS_TEXT[v.class]}{v.confidence ? ` · ${v.confidence}` : ""}{v.class === "UNAVAILABLE" ? ` (${v.source})` : ""}</td></tr>)}
               {(r.levels || []).slice(0, 6).map((l: any, i: number) => <tr key={i}><td className="muted">line {l.label || ""}</td><td>{l.price}</td><td className="faint">{CLASS_TEXT[l.class]}</td></tr>)}
             </tbody></table>
             {r.problems?.length > 0 && <div className="note warn small">{r.problems.join(" ")}</div>}
-            <div className="small faint">Captured {r.captured_at}. Visual observation of your screen, not an exchange feed.</div>
+            <div className="small faint">Captured {r.captured_at}. Live visual observation of your screen, not a verified exchange feed. A changed screenshot is not a market tick.</div>
           </>}
         </Panel>
       </div>
@@ -95,26 +126,28 @@ function RecCard({ rec, label }: { rec: any; label: string }) {
     <Panel title="Recommendation" sub={`${rec.contract || ""} ${rec.timeframe || ""}`} right={<span className={`badge ${cls}`}>{rec.action}{rec.potential ? ` · potential ${rec.potential}` : ""}</span>}>
       <div className="small">{rec.reason}</div>
       {rec.entry != null && <table className="small"><tbody>
-        <tr><td className="muted">Observed price</td><td>{rec.observed_price}</td><td className="muted">Entry zone</td><td>{rec.entry_zone?.join(" – ")}</td></tr>
-        <tr><td className="muted">Stop</td><td>{rec.stop}</td><td className="muted">Target 1 / 2</td><td>{rec.target_1} / {rec.target_2}</td></tr>
+        <tr><td className="muted">Observed price</td><td>{rec.observed_price}</td><td className="muted">Observed entry area</td><td>{rec.entry_zone?.join(" – ")}</td></tr>
+        <tr><td className="muted">Stop-loss area</td><td>{rec.stop}</td><td className="muted">Targets</td><td>{(rec.target_levels || [rec.target_1, rec.target_2]).join(" / ")}</td></tr>
         <tr><td className="muted">Risk/reward</td><td>{rec.reward_risk}R</td><td className="muted">Setup</td><td>{rec.setup} {rec.direction}</td></tr>
         <tr><td className="muted">Evidence tier</td><td>{rec.evidence_tier}</td><td className="muted">Size (risk engine)</td><td>{rec.suggested_contracts ?? "—"}</td></tr>
       </tbody></table>}
-      {rec.invalidation && <div className="small">Invalidation: {rec.invalidation}</div>}
+      {rec.invalidation && <div className="small">What invalidates it: {rec.invalidation}</div>}
+      {rec.values && <div className="small faint">{rec.values}</div>}
       {rec.evidence?.length > 0 && <details><summary className="small">Supporting evidence</summary>{rec.evidence.map((e: string, i: number) => <div key={i} className="small faint">{e}</div>)}</details>}
       {(rec.risk_check?.problems || []).map((p: string) => <div key={p} className="note bad small">{p}</div>)}
       {rec.notes?.length > 0 && <div className="small faint">{rec.notes.join(" ")}</div>}
-      <div className="small faint">Data confidence {rec.data_confidence} · captured {rec.captured_at || "—"} · {label}. Study Terminal never clicks or places orders.</div>
+      <div className="small faint">Data confidence {rec.data_confidence} · captured {rec.captured_at || "—"} · {label} (SCREEN CAPTURE). Study Terminal never clicks or places orders.</div>
     </Panel>
   );
 }
 
 // ---------------- setup ----------------
 
-function Setup({ onSaved }: { onSaved: () => void }) {
+function Setup({ onSaved, initial }: { onSaved: () => void; initial?: any }) {
   const wins = usePoll("/visual/windows");
   const profs = usePoll("/visual/profiles");
-  const [p, setP] = useState<any>(blank());
+  const [p, setP] = useState<any>(initial ? { ...blank(), ...initial } : blank());
+  const [usedMethod, setUsedMethod] = useState<string | null>(null);
   const [hwnd, setHwnd] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [img, setImg] = useState<{ url: string; scale: number; w: number; h: number } | null>(null);
@@ -139,8 +172,9 @@ function Setup({ onSaved }: { onSaved: () => void }) {
         return;
       }
       if (hwnd == null) return;
-      const r = await fetch(`/api/visual/preview?hwnd=${hwnd}`, { headers: { "X-Study-Terminal": "1" } });
+      const r = await fetch(`/api/visual/preview?hwnd=${hwnd}&method=${p.capture_method || "auto"}`, { headers: { "X-Study-Terminal": "1" } });
       if (!r.ok) { setMsg((await r.json()).detail); return; }
+      setUsedMethod(r.headers.get("X-Capture-Method"));
       const b = await r.blob();
       setImg({ url: URL.createObjectURL(b), scale: Number(r.headers.get("X-Scale")), w: Number(r.headers.get("X-Window-Width")), h: Number(r.headers.get("X-Window-Height")) });
     } catch (e: any) { setMsg(e.message); }
@@ -179,11 +213,14 @@ function Setup({ onSaved }: { onSaved: () => void }) {
     const v = Number(price);
     if (!pending || !Number.isFinite(v)) return;
     const pts = [...(p.axis_points || []), [pending.y, v]].slice(-2);
-    setP((x: any) => ({ ...x, axis_points: pts, axis_mode: pts.length === 2 ? "manual" : x.axis_mode }));
+    setP((x: any) => ({ ...x, axis_points: pts, axis_mode: pts.length === 2 ? "manual" : x.axis_mode,
+      axis_size: pts.length === 2 ? [x.region[2] || img?.w, x.region[3] || img?.h] : x.axis_size }));
     setPending(null);
     if (pts.length === 2) setMode("region");
   };
   const body = () => ({ ...p, window_hwnd: hwnd, window_size: img ? [img.w, img.h] : p.window_size,
+    window_process: p.window_process ?? ((wins.data?.windows || []).find((w: any) => w.id === hwnd)?.process || null),
+    capture_method: p.capture_method === "auto" && usedMethod ? usedMethod : p.capture_method,
     region: p.region.map((v: number) => Math.max(0, Math.round(v))) });
   const runTest = async () => {
     setMsg(null); setTest(null);
@@ -204,20 +241,24 @@ function Setup({ onSaved }: { onSaved: () => void }) {
 
   const pct = (v: number, tot: number) => `${(100 * v) / tot}%`;
   const [rx, ry, rw, rh] = p.region;
+  useEffect(() => { if (initial?.window_hwnd && hwnd == null) setHwnd(initial.window_hwnd); }, [initial]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="cols c-main">
       <div className="stack">
-        <Panel title="1 · Pick the TopstepX window" sub={wins.data?.window_capture_supported ? "" : "window capture needs Windows"}>
+        <Panel title="1 · Pick the Microsoft Edge window with TopstepX" sub={wins.data?.window_capture_supported ? (wins.data?.wgc_available ? "Windows Graphics Capture available" : "Graphics Capture not installed: PrintWindow/screen only") : "window capture needs Windows"}>
           <div className="row">
             <select value={hwnd ?? ""} onChange={(e) => { setFile(null); setHwnd(e.target.value ? Number(e.target.value) : null); }} aria-label="Window">
               <option value="">Choose a window…</option>
-              {(wins.data?.windows || []).map((w: any) => <option key={w.id} value={w.id}>{w.looks_like_topstepx ? "★ " : ""}{w.title}{w.process ? ` (${w.process})` : ""}</option>)}
+              {(wins.data?.windows || []).map((w: any) => <option key={w.id} value={w.id}>{w.looks_like_topstepx ? "★ " : ""}{w.is_edge ? "[Edge] " : ""}{w.title}{w.process ? ` (${w.process})` : ""}</option>)}
             </select>
+            <select value={p.capture_method || "auto"} onChange={(e) => set("capture_method", e.target.value)} aria-label="Capture method">
+              {METHODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
             <button onClick={() => wins.reload()}>Refresh</button>
             <button onClick={loadPreview} disabled={hwnd == null && !file}>Refresh preview</button>
             <label className="small">or a saved screenshot <input type="file" accept="image/*" onChange={(e) => { setHwnd(null); setFile(e.target.files?.[0] || null); }} /></label>
           </div>
           {wins.data?.note && <div className="small faint">{wins.data.note}</div>}
+          {usedMethod && <div className="small faint">Preview captured with: {usedMethod}. Saving pins this method so the region always lines up.</div>}
         </Panel>
         <Panel title="2 · Select the chart region" sub={mode === "region" ? "drag on the preview" : mode === "axis" ? "click a price-axis label's line" : "click the color"}>
           {!img ? <div className="muted small">Pick a window to see a preview.</div> :

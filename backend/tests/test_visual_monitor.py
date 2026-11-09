@@ -97,9 +97,13 @@ def test_manual_axis_calibration_and_mismatch():
     pts = [[100.0, a * 100 + b], [500.0, a * 500 + b]]
     man, _ = read("mnq_5m_basic", axis_mode="manual", axis_points=pts)
     assert man.axis["mode"] == "manual" and [c.close for c in man.candles] == [c.close for c in auto.candles]
-    wrong = [[100.0, pts[0][1] + 40], [500.0, pts[1][1] + 40]]                # chart rescaled since calibration
-    bad, _ = read("mnq_5m_basic", axis_mode="manual", axis_points=wrong)
-    assert bad.axis["mode"] == "auto" and any("no longer matches" in p for p in bad.problems)
+    wrong = [[100.0, pts[0][1] + 40], [500.0, pts[1][1] + 40]]                # chart panned/rescaled since calibration
+    bad, t = read("mnq_5m_basic", axis_mode="manual", axis_points=wrong)
+    assert not bad.ok and not bad.calibration_valid and bad.candles == [] and any("Calibration invalid" in p for p in bad.problems)
+    assert bad.price.value == t["price"] and bad.price.cls == TEXT                  # text is still read, but analysis is paused
+    assert vr.quality_gates(bad, "screen_capture", "", None).startswith("The chart couldn't be read")
+    resized, _ = read("mnq_5m_basic", axis_mode="manual", axis_points=pts, axis_size=[1300, 820])
+    assert not resized.calibration_valid and any("resized" in p for p in resized.problems)
 
 
 def test_unreadable_price_and_uncertain_instrument_give_no_trade():
@@ -242,7 +246,7 @@ async def test_window_missing_minimized_capture_failure_obscured_layout(fut):
     assert rt.status == "screen_capture" and rt.reading.ok
     rec = rt.recommendation
     assert rec["action"] in ("NO TRADE", "WAIT", "LONG", "SHORT") and rec["captured_at"] == T_RTH.isoformat()
-    assert rec["data_label"] == "SCREEN_CAPTURE" and "not an exchange feed" in rec["source"]
+    assert rec["data_label"] == "LIVE VISUAL OBSERVATION" and "not an exchange feed" in rec["source"]
 
 
 async def test_frozen_chart_and_stale(fut):
@@ -420,3 +424,17 @@ async def test_browser_tab_privacy_guard(fut):
                             window_title_contains="Google Chrome")
     await m.tick(rt)
     assert rt.status == "unreadable" and "Privacy" in rt.reason and calls == []          # nothing was captured
+
+
+async def test_market_analysis_block(fut):
+    r, _ = read("mnq_5m_basic")
+    spec = fc.get("MNQ")
+    clk = FuturesClock(spec)
+    bars, _ = bars_from_reading(r, 300, clk)
+    F, _ = visual_frame(bars, spec, clk, 300, screen_vwap=r.indicators["VWAP"]["values"])
+    a = vr.market_analysis(F, r, spec)
+    assert a["class"] == "VISUALLY_ESTIMATED" and a["bias"]["label"] in ("bullish", "bearish", "neutral")
+    assert a["vwap"]["position"] in ("above", "below", "at") and a["ema_alignment"]["alignment"] is not None
+    assert a["levels"]["previous_day_high"]["class"] == "UNAVAILABLE"            # previous session isn't on screen
+    assert a["volume"]["class"] == "VISUALLY_ESTIMATED" and "support_resistance" in a
+    assert all(p in ("HH", "LH", "HL", "LL") for p in a["swings"]["pattern"])

@@ -22,3 +22,4 @@ tzdata                       # required on Windows for America/New_York
 pywebview>=5; sys_platform == "win32"
 pystray>=0.19; sys_platform == "win32"
 win11toast>=0.35; sys_platform == "win32"
+windows-capture>=2.0,<3; sys_platform == "win32"   # Windows Graphics Capture (MIT): reads GPU-rendered Edge windows

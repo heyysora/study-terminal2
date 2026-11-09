@@ -1,4 +1,4 @@
-# Known limitations (0.9.0)
+# Known limitations (0.10.0)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -35,6 +35,10 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
   dashboard. End-of-day balance timing at the flat moment, holiday trade-date merges and Express Funded Scaling Plan tiers
   weren't verified against a real account. Fees for YM, MYM and CL weren't in the readable fee table.
 - Study Terminal applies these rules to its own simulator only. It can't see or enforce anything on your real account.
+
+## Live Visual Monitor (Edge)
+- Windows Graphics Capture code follows the `windows-capture` package's documented API but has not been run on Windows by me. Edge may
+  show a yellow capture border; minimized windows can't be captured; a pinned capture method that fails is reported, not swapped.
 
 ## Visual Market Monitor
 - Built and tested on synthetic screenshots only; no real TopstepX screenshots were available, and window capture wasn't run on Windows

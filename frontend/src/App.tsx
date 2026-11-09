@@ -11,7 +11,7 @@ import { VisualMonitor } from "./pages7";
 
 const NAV: [string, string, string?][] = [
   ["dashboard", "Dashboard"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Paper trading"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
+  ["paper", "Paper trading"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
 ];
 
 function ModeSwitch({ mode, onChange }: { mode: string; onChange: (m: string) => void }) {
