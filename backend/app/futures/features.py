@@ -203,6 +203,7 @@ def volume_profile(df: pd.DataFrame, spec: ProductSpec, va_pct: float = 0.70, ta
            and a <= i <= b]
     return {"poc": round_to_tick(centers[poc_i], spec), "vah": round_to_tick(edges[b] + step, spec), "val": round_to_tick(edges[a], spec),
             "hvn": hvn[:6], "lvn": lvn[:6], "bin_ticks": step_ticks,
+            "bins": [[round_to_tick(float(centers[i]), spec), round(float(vol[i]), 2)] for i in range(len(vol)) if vol[i] > 0],
             "note": "Built from bar volume spread across each bar's range, not tick-by-tick trades; treat levels as approximate."}
 
 

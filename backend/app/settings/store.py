@@ -34,7 +34,7 @@ SCHEMA: dict[str, tuple[type, Any]] = {
     "screen.capture_fps": (float, 2.0), "screen.ocr_interval_seconds": (float, 2.0),
     # desktop
     "futures.prop": (dict, {}), "futures.personal": (dict, {}), "futures.paper": (dict, {}), "futures.fees": (dict, {}),
-    "futures.default_root": (str, "MES"), "futures.watch": (list, ["NQ", "MNQ", "ES", "MES", "CL", "GC"]), "futures.data_source": (str, "yahoo"),
+    "futures.default_root": (str, "MES"), "futures.stream_enabled": (bool, True), "futures.stream_stale_seconds": (float, 30.0), "futures.watch": (list, ["NQ", "MNQ", "ES", "MES", "CL", "GC"]), "futures.data_source": (str, "yahoo"),
     "futures.projectx_live_data": (bool, False), "futures.projectx_read_account": (bool, False), "futures.rth": (dict, {}),
     "screen.platform": (str, "auto"), "futures.platform": (str, "topstepx"), "automation.autostart": (bool, True), "futures.profiles": (dict, {}), "screen.read_account_info": (bool, False), "app.market_mode": (str, "equities"),
     "desktop.start_on_login": (bool, False), "desktop.keep_awake_while_monitoring": (bool, False),

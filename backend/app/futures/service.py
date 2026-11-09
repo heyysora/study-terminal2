@@ -9,6 +9,7 @@ from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 
 from ..db.models import FuturesDecisionRecord, FuturesFillRecord, FuturesStateRecord
@@ -54,6 +55,7 @@ class FuturesService:
             self.projectx = ProjectXClient(settings.projectx_username, key, settings.projectx_base_url,
                                            live=bool(store.get("futures.projectx_live_data", False)))
         self.data = FuturesData(provider, store, self.projectx)
+        self.stream = None                          # LiveStream: TopstepX market hub (only with credentials + data source TopstepX)
         presets = load_presets()
         self.fees_default = {**presets["fees"]["round_turn"], **presets["fees"]["derived"]}
         self.engine = FuturesPaperEngine(self.rules(), self.personal(), self.paper_cfg(), self.fees_default)
@@ -249,9 +251,11 @@ class FuturesService:
 
     # ---------------- analysis ----------------
 
-    async def frame(self, contract: fc.Contract, tf: Timeframe = Timeframe.M5, days: float = 6):
+    async def frame(self, contract: fc.Contract, tf: Timeframe = Timeframe.M5, days: float = 6, completed_only: bool = False):
         clk = self.clock(contract.root)
         bars, label, notes = await self.data.bars(contract, tf, clk, days)
+        if completed_only and bars and bars[-1].get("closed") is False:
+            bars = bars[:-1]                         # never decide on a candle that's still forming
         F = ff.build(ff.bars_to_frame(bars, clk), contract.spec, clk, bar_minutes=tf.seconds // 60)
         return F, label, notes, clk
 
@@ -323,7 +327,7 @@ class FuturesService:
             return [{**json.loads(r.data), "first_seen": r.first_seen, "last_seen": r.last_seen, "acted": r.acted} for r in s.scalars(q).all()]
 
     async def evaluate_contract(self, contract: fc.Contract, tf: Timeframe = Timeframe.M5, mode: str = "assisted", record: bool = True):
-        F, label, notes, clk = await self.frame(contract, tf)
+        F, label, notes, clk = await self.frame(contract, tf, completed_only=True)
         cur, _, clk, _lab1 = await self._ref(contract)            # also feeds the simulator with the newest 1-minute bars
         now = datetime.now(timezone.utc)
         self.refresh_events()
@@ -359,6 +363,89 @@ class FuturesService:
                 "data": label, "data_notes": notes, "levels": fsig.levels_snapshot(F, contract.spec), "signal": sig,
                 "evidence": self.evidence.get(contract.root, {}).get("overall"), "evidence_run": self.evidence.get(contract.root, {}).get("run"),
                 "chart": chart}
+
+    LIVE_DAYS = {60: 2, 300: 10, 900: 20, 1800: 30, 3600: 60, 14400: 120, 86400: 365}
+
+    async def live_chart(self, root: str, tf: Timeframe) -> dict:
+        """Everything the Live Market chart draws. Each overlay is a calculated price with the time it refers to; nothing decorative.
+        Levels come from the 5-minute frame (they're price levels, independent of the chart timeframe); structure, swings, FVGs and
+        sweeps come from the chart timeframe's own bars (completed bars only)."""
+        from .setups import key_levels
+        now = datetime.now(timezone.utc)
+        contract = fc.front_contract(root, now.astimezone(fc.CT).date())
+        spec, clk = contract.spec, self.clock(root)
+        bars, label, notes = await self.data.bars(contract, tf, clk, self.LIVE_DAYS[tf.seconds])
+        done = bars[:-1] if bars and bars[-1].get("closed") is False else bars
+        ts_ = lambda t: int(pd.Timestamp(t).timestamp())  # noqa: E731
+        candles = [{"time": ts_(b["ts"]), "open": b["open"], "high": b["high"], "low": b["low"], "close": b["close"],
+                    "volume": b.get("volume") or 0, "closed": b.get("closed", True)} for b in bars]
+        closes = pd.Series([b["close"] for b in bars], dtype=float)
+        emas = {}
+        for n in (9, 20, 50, 200):
+            e = closes.ewm(span=n, adjust=False, min_periods=n).mean()
+            emas[str(n)] = [{"time": c["time"], "value": round(float(v), 4)} for c, v in zip(candles, e, strict=True) if pd.notna(v)]
+        out: dict = {"root": root, "contract": contract.to_dict(), "spec": spec.to_dict(), "timeframe": tf.value, "data": label,
+                     "notes": notes, "candles": candles, "ema": emas, "vwap": [], "levels": {}, "overlays": {}, "generated_at": now.isoformat(),
+                     "stream": self.stream.summary() if self.stream else {"state": "off", "reason": self.stream_off_reason()},
+                     "indicators_note": "EMAs use every bar shown, including the forming one; structure overlays use completed bars only.",
+                     "last_minute": None}
+        feed = self.stream.feed_for(contract.code) if (self.stream and self.data.streaming(contract)) else None
+        if feed and feed.builder.bars:
+            lm = next(reversed(feed.builder.bars.values())).to_dict()
+            out["last_minute"] = {"time": ts_(lm["ts"]), "open": lm["open"], "high": lm["high"], "low": lm["low"], "close": lm["close"],
+                                  "volume": lm["volume"], "closed": lm["closed"]}
+        # levels from the 5-minute frame
+        try:
+            F5, _l5, _, _ = await self.frame(contract, Timeframe.M5, days=6, completed_only=True)
+            L = fsig.levels_snapshot(F5, spec) if len(F5) else {}
+        except Exception as e:  # noqa: BLE001
+            F5, L = pd.DataFrame(), {}
+            notes.append(f"Levels unavailable: {type(e).__name__}")
+        if len(F5):
+            r = F5.iloc[-1]
+            td = r["td"]
+            today = F5[F5["td"] == td]
+            rth_today = today[today["rth"]]
+            sess_open = float(today["o"].iloc[0]) if len(today) else None
+            rth_open = float(rth_today["o"].iloc[0]) if len(rth_today) else None
+            lv = {"prev_day_high": L.get("prev_day_high"), "prev_day_low": L.get("prev_day_low"),
+                  "overnight_high": L.get("overnight_high"), "overnight_low": L.get("overnight_low"),
+                  "session_open": sess_open, "rth_open": rth_open,
+                  "opening_range_high": L.get("opening_range_high"), "opening_range_low": L.get("opening_range_low"),
+                  "ib_high": L.get("ib_high"), "ib_low": L.get("ib_low"), "vwap": L.get("vwap")}
+            out["levels"] = {k: {"price": v, "as_of": L.get("as_of"), "trade_date": str(td)} for k, v in lv.items() if v is not None}
+            sr = {k.lower().replace(" ", "_"): float(v) for k, v in key_levels(r).items() if v is not None and not pd.isna(v)}
+            out["overlays"]["support_resistance"] = [{"name": k, "price": v, "side": "support" if v < r["c"] else "resistance",
+                                                      "as_of": r["ts"].isoformat()} for k, v in sorted(sr.items(), key=lambda kv: kv[1])]
+            out["overlays"]["volume_profile"] = {"previous_rth": L.get("profile_prev_rth"), "today": L.get("profile_today")}
+            out["overlays"]["structure_state"] = {"trend": L.get("trend"), "as_of": L.get("as_of"), "timeframe": "5Min"}
+        # chart-timeframe structure (intraday timeframes, where the feature frame's session logic applies)
+        if done and tf.seconds <= 3600:
+            F = ff.build(ff.bars_to_frame(done, clk), spec, clk, bar_minutes=tf.seconds // 60)
+            if len(F):
+                out["vwap"] = [{"time": ts_(t), "value": round(float(v), 4), "trade_date": str(d)}
+                               for t, v, d in zip(F["ts"], F["vwap"], F["td"], strict=True) if pd.notna(v)]
+                n = ff.LevelParams().swing_n
+                marks, swings = [], []
+                for i in range(len(F)):
+                    x = F.iloc[i]
+                    if x["bos_up"] or x["bos_dn"]:
+                        broke = F["swing_h"].iloc[i] if x["bos_up"] else F["swing_l"].iloc[i]
+                        marks.append({"time": ts_(x["ts"]), "kind": "CHoCH" if x["choch"] else "BOS", "direction": "up" if x["bos_up"] else "down",
+                                      "level": float(broke), "close": float(x["c"])})
+                    for col, kind in (("swing_h", "high"), ("swing_l", "low")):
+                        v, prev = F[col].iloc[i], (F[col].iloc[i - 1] if i else np.nan)
+                        if pd.notna(v) and (pd.isna(prev) or v != prev) and i - n >= 0:
+                            swings.append({"time": ts_(F["ts"].iloc[i - n]), "kind": kind, "price": float(v), "confirmed": ts_(x["ts"])})
+                out["overlays"]["structure"] = marks[-40:]
+                out["overlays"]["swings"] = swings[-60:]
+                out["overlays"]["fvgs"] = [{**g, "formed": ts_(g["formed"])} for g in ff.recent_fvgs(F, lookback=min(len(F), 300))]
+                lvmap = {k: v["price"] for k, v in out["levels"].items() if k != "vwap"}
+                cur = F[F["td"] == F["td"].iloc[-1]]               # today's levels only apply to today's bars
+                out["overlays"]["sweeps"] = [{**s_, "time": ts_(s_["ts"])} for s_ in ff.sweep_events(cur, lvmap, spec, lookback=len(cur))]
+        elif tf.seconds > 3600:
+            notes.append("VWAP resets every session, so it isn't drawn on 4h/daily charts; structure overlays are shown on intraday timeframes.")
+        return out
 
     def _maybe_alert(self, contract: fc.Contract, sig: dict) -> None:
         prev = self.last_actions.get(contract.code)
@@ -510,6 +597,10 @@ class FuturesService:
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._loop())
+        try:
+            await self.sync_stream()
+        except Exception:  # noqa: BLE001
+            log.exception("live stream start failed")
         a = self.automation
         if a.state.status == "running" or (a.state.status == "stopped" and self.store.get("automation.autostart", True)):
             was = a.state.status
@@ -519,7 +610,53 @@ class FuturesService:
         elif a.state.status == "emergency_stopped":
             a._log("high", "Study Terminal started with the emergency stop still active; automation stays off until you clear it.")
 
+    # ---------------- live stream (TopstepX market hub) ----------------
+
+    def stream_wanted(self) -> bool:
+        return bool(self.projectx and self.store.get("futures.data_source", "yahoo") == "projectx"
+                    and self.store.get("futures.stream_enabled", True))
+
+    async def sync_stream(self) -> dict:
+        """Start or stop the live stream to match the settings. Never starts without TopstepX credentials."""
+        from .stream import LiveStream
+        if self.stream_wanted() and self.stream is None:
+            roots = [r for r in (self.automation.state.roots or []) if r] or ["NQ", "MNQ", "ES", "MES"]
+            for r in ("NQ", "MNQ", "ES", "MES"):
+                if r not in roots:
+                    roots.append(r)
+            self.stream = LiveStream(self.projectx, roots, rtc_url=self.settings.projectx_rtc_url,
+                                     stale_seconds=float(self.store.get("futures.stream_stale_seconds", 30.0)),
+                                     broadcaster=self.broadcaster, on_bar_close=self._on_live_bar_close)
+            self.data.stream = self.stream
+            await self.stream.start()
+        elif not self.stream_wanted() and self.stream is not None:
+            await self.stream.stop()
+            self.stream, self.data.stream = None, None
+        return self.stream.summary() if self.stream else {"state": "off", "reason": self.stream_off_reason()}
+
+    def stream_off_reason(self) -> str:
+        if not self.projectx:
+            return ("No TopstepX API credentials. Live futures data needs a ProjectX API Access subscription and "
+                    "STUDY_PROJECTX_USERNAME / STUDY_PROJECTX_API_KEY in the .env file. Charts use Yahoo, labelled DELAYED.")
+        if self.store.get("futures.data_source", "yahoo") != "projectx":
+            return "Data source is Yahoo (Futures > Data & simulator). Choose TopstepX API to stream live data."
+        return "Live streaming is turned off (setting futures.stream_enabled)."
+
+    def _on_live_bar_close(self, root: str, bar: dict):
+        """A streamed minute closed. On each 5-minute boundary, let automation re-evaluate now instead of waiting for its timer.
+        Same pipeline, same risk engine, same evidence gate: nothing is bypassed."""
+        end = bar["ts"] + timedelta(minutes=1)
+        w = self.clock(root).window_at(bar["ts"])
+        if w is None or int((end - w.open).total_seconds()) % 300:
+            return None
+        a = self.automation
+        if a.state.status == "running" and root in a.state.roots and not a._lock.locked():
+            return a.cycle()
+        return None
+
     async def stop(self) -> None:
+        if self.stream is not None:
+            await self.stream.stop()
         if self.automation._task:
             self.automation._task.cancel()
             self.automation._task = None
@@ -576,6 +713,10 @@ class FuturesService:
                                      key="fut:gap", fingerprint=gap["from"])
             self.refresh_events()
             self.event_warnings(datetime.now(timezone.utc))
+            try:
+                await self.sync_stream()
+            except Exception:  # noqa: BLE001
+                log.exception("live stream sync failed")
             try:
                 live = set()
                 for eng in (self.engine, self.sandbox):

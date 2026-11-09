@@ -100,6 +100,7 @@ class Settings(BaseSettings):
     projectx_username: str | None = Field(default=None, alias="STUDY_PROJECTX_USERNAME")
     projectx_api_key: SecretStr | None = Field(default=None, alias="STUDY_PROJECTX_API_KEY")
     projectx_base_url: str = Field(default="https://api.topstepx.com", alias="STUDY_PROJECTX_BASE_URL")
+    projectx_rtc_url: str = Field(default="https://rtc.topstepx.com", alias="STUDY_PROJECTX_RTC_URL")   # SignalR hubs (docs: Connection URLs)
 
     # --- watchlist seeded on first run ---
     default_watchlist: Annotated[list[str], NoDecode] = ["SPY", "QQQ", "AAPL", "TSLA", "NVDA"]

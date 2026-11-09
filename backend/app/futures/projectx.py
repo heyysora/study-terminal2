@@ -109,6 +109,14 @@ class ProjectXClient:
             raise ProjectXError("TopstepX login returned no token.")
         self._token, self._token_at = data["token"], time.monotonic()
 
+    async def token(self) -> str:
+        """Session token for the documented SignalR hubs (passed as ?access_token=). Refreshed before its 24 h expiry."""
+        await self._ensure_token()
+        return self._token
+
+    def invalidate_token(self) -> None:
+        self._token, self._token_at = None, 0.0
+
     async def find_contract(self, name: str) -> dict:
         """Look a contract up by its platform name (e.g. 'MNQZ6'). Never guesses an ID."""
         if name in self._contracts:

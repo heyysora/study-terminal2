@@ -16,6 +16,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from ..market_data.types import Timeframe
+from .candles import aggregate
 from .contracts import Contract
 from .feed import SourceHealth, validate_bars
 from .projectx import ProjectXClient, ProjectXError
@@ -55,6 +56,8 @@ class FuturesData:
         self._lock = asyncio.Lock()
         self.health: dict[str, SourceHealth] = {}
         self.last_validation: dict[str, dict] = {}
+        self.stream = None                      # LiveStream (TopstepX market hub), set by the service when configured
+        self._hist: dict[tuple, tuple[float, list]] = {}
 
     @property
     def source(self) -> str:
@@ -80,7 +83,12 @@ class FuturesData:
     def _h(self, key: str) -> SourceHealth:
         return self.health.setdefault(key, SourceHealth(key))
 
+    def streaming(self, contract: Contract) -> bool:
+        return bool(self.stream is not None and self.source == "projectx" and self.stream.feed_for(contract.code))
+
     async def bars(self, contract: Contract, tf: Timeframe, clock: FuturesClock, days: float = 6, now: datetime | None = None) -> tuple[list[dict], dict, list[str]]:
+        if self.streaming(contract):
+            return await self._stream_bars(contract, tf, clock, days, now or datetime.now(timezone.utc))
         key = (contract.code, tf.value, self.source, round(days, 2))
         ttl = 20 if tf.seconds <= 300 else 60
         hit = self._cache.get(key)
@@ -105,6 +113,8 @@ class FuturesData:
                             "reason": f"Couldn't load data: {h.last_error}. Retrying in {h.to_dict()['retry_in_seconds']} s.",
                             "health": h.to_dict()}, notes
             bars, rep = validate_bars(bars, tf.seconds, contract.spec, clock, now)
+            # session-aligned buckets for every timeframe (identity when the source already is), each marked closed or forming
+            bars = [{k: b[k] for k in ("ts", "open", "high", "low", "close", "volume", "closed")} for b in aggregate(bars, tf.seconds, clock, now)]
             self.last_validation[f"{contract.code}:{tf.value}"] = rep
             label = await self.label(bars, tf, clock, source_used, symbol, now)
             label["validation"] = {k: rep[k] for k in ("summary", "duplicates", "impossible", "future", "off_tick", "missing_total", "ok")}
@@ -120,7 +130,56 @@ class FuturesData:
                            "Not live: no signals or simulator entries until fresh data returns."}
         return hit[1], label, notes + ["Source failing; cached copy shown."]
 
+    async def _rest_history(self, contract: Contract, minutes: int, days: float, now: datetime, ttl: float) -> list[dict]:
+        key = (contract.code, minutes, round(days, 2))
+        hit = self._hist.get(key)
+        if hit and time.monotonic() - hit[0] < ttl:
+            return hit[1]
+        bars = await self.projectx.bars(contract.short_code, minutes, now - timedelta(days=days), now)
+        self._hist[key] = (time.monotonic(), bars)
+        return bars
+
+    async def _stream_bars(self, contract: Contract, tf: Timeframe, clock: FuturesClock, days: float, now: datetime):
+        """REST history + the live stream's 1-minute bars (the stream wins for minutes it built), aggregated per session.
+        Status comes only from the stream: LIVE while connected and receiving data, otherwise STALE / DISCONNECTED."""
+        feed = self.stream.feed_for(contract.code)
+        notes: list[str] = []
+        minute: dict = {}
+        older: list[dict] = []
+        try:
+            if tf.seconds >= 14400:                       # 4h / daily: hourly history for the long view
+                older = await self._rest_history(contract, 60, max(days, 60), now, ttl=1800)
+            for b in await self._rest_history(contract, 1, min(days, 13) if tf.seconds < 14400 else 2, now, ttl=300):
+                minute[b["ts"]] = {**b, "closed": True}
+        except Exception as e:  # noqa: BLE001
+            notes.append(f"TopstepX history request failed ({type(e).__name__}); showing only what the live stream has built.")
+        for b in feed.builder.bars_list():
+            minute[b["ts"]] = b
+        mins = sorted(minute.values(), key=lambda x: x["ts"])
+        first_min = mins[0]["ts"] if mins else None
+        if older and first_min is not None:
+            older = [b for b in older if b["ts"] + timedelta(hours=1) <= first_min]
+        out = aggregate(older + mins, tf.seconds, clock, now)
+        if older and first_min is not None and tf.seconds >= 14400:
+            notes.append("Older 4h/daily bars are built from TopstepX hourly bars, recent ones from minute bars and the live stream.")
+        st = self.stream.status_of(contract.root)
+        closed = [b for b in out if b.get("closed")]
+        label = {"provider": "topstepx-stream", "symbol": contract.short_code, "timeframe": tf.value, **st,
+                 "data_time": out[-1]["ts"].isoformat() if out else None,
+                 "age_seconds": round((now - (closed[-1]["ts"] + timedelta(seconds=tf.seconds))).total_seconds(), 1) if closed else None,
+                 "validation": {"summary": f"{feed.builder.stats.applied} trades applied; {feed.builder.stats.duplicates} duplicate, "
+                                           f"{feed.builder.stats.too_late} too late, {feed.builder.stats.off_tick} off-tick dropped",
+                                "ok": True, **{k: getattr(feed.builder.stats, k) for k in ("duplicates", "off_tick", "too_late")}},
+                 "fetched_at": now.isoformat()}
+        if contract.code != feed.contract.code:
+            notes.append(f"Streaming {feed.contract.code}, not {contract.code}.")
+        return out, label, notes
+
     async def _fetch(self, contract: Contract, tf: Timeframe, days: float, now: datetime, source_used: str):
+        if tf.seconds >= 14400:                           # 4h / daily: session-aligned aggregates of hourly bars
+            bars, symbol, src, notes = await self._fetch(contract, Timeframe.H1, max(days, 30), now, source_used)
+            clock = FuturesClock(contract.spec)
+            return [{k: b[k] for k in ("ts", "open", "high", "low", "close", "volume")} for b in aggregate(bars, tf.seconds, clock)], symbol, src, notes
         notes: list[str] = []
         if source_used == "projectx":
             try:

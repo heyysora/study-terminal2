@@ -55,6 +55,29 @@ async def analysis(symbol: str, request: Request, timeframe: Literal["1Min", "5M
         _err(e)
 
 
+@router.get("/live/chart")
+async def live_chart(request: Request, root: Literal["NQ", "MNQ", "ES", "MES"] = "MNQ",
+                     timeframe: Literal["1Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day"] = "5Min"):
+    """Chart data for the Live Market screen: candles, volume, EMAs, VWAP, levels and structure overlays, each with its
+    price and time, plus the data-integrity status. Live only when the TopstepX stream is connected and fresh."""
+    try:
+        return await _f(request).live_chart(root, Timeframe(timeframe))
+    except Exception as e:  # noqa: BLE001
+        _err(e)
+
+
+@router.get("/live/status")
+async def live_status(request: Request):
+    f = _f(request)
+    return f.stream.summary() if f.stream else {"state": "off", "reason": f.stream_off_reason(), "feeds": {}}
+
+
+@router.post("/live/stream/sync")
+async def live_stream_sync(request: Request):
+    """Start/stop the TopstepX stream to match the settings (data source TopstepX + futures.stream_enabled + credentials)."""
+    return await _f(request).sync_stream()
+
+
 @router.get("/dashboard")
 async def dashboard(request: Request, symbol: str | None = None):
     try:

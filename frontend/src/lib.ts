@@ -66,6 +66,10 @@ type Live = {
 };
 const live: Live = { connected: false, status: null, symbols: {}, paper: null, screen: null, signals: null, alerts: [], toasts: [], version: 0 };
 const subs = new Set<() => void>();
+// raw message listeners (Live Market chart): called for every push before the store is updated
+const rawListeners = new Set<(m: any) => void>();
+export function onLiveMessage(fn: (m: any) => void): () => void { rawListeners.add(fn); return () => { rawListeners.delete(fn); }; }
+export function ensureLive() { if (!started) { started = true; connect(); } }
 let snapshot = { ...live };
 function emit() { live.version++; snapshot = { ...live }; subs.forEach((f) => f()); }
 
@@ -77,6 +81,7 @@ function connect() {
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     const d = m.data;
+    rawListeners.forEach((f) => { try { f(m); } catch { /* a listener error must not break the stream */ } });
     switch (m.type) {
       case "hello":
         live.status = d.status; live.paper = d.paper_account;
@@ -129,11 +134,11 @@ export const etTime = (iso: string | number) => etFmt.format(typeof iso === "num
 export const etDate = (iso: string | number) => etDay.format(typeof iso === "number" ? new Date(iso * 1000) : new Date(iso));
 
 export const STATUS_LEVEL: Record<string, number> = {
-  realtime: 5, near_realtime: 4, polling: 3, delayed: 2, historical: 1, replay: 1, cached: 1, stale: 1, unavailable: 0,
+  realtime: 5, near_realtime: 4, polling: 3, delayed: 2, historical: 1, replay: 1, cached: 1, stale: 1, unavailable: 0, disconnected: 0,
 };
 export const STATUS_TEXT: Record<string, string> = {
-  realtime: "Real-time", near_realtime: "Near real-time", polling: "Polling", delayed: "Delayed", replay: "Replay", reconcile: "Reconciled",
-  historical: "Historical", cached: "Cached copy", stale: "Stale", unavailable: "Unavailable",
+  realtime: "LIVE", disconnected: "DISCONNECTED", near_realtime: "Near real-time", polling: "Polling", delayed: "DELAYED", replay: "Replay", reconcile: "Reconciled",
+  historical: "Historical", cached: "CACHED", stale: "STALE", unavailable: "Unavailable",
 };
 const etSecFmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 export const etTimeSec = (iso: string) => etSecFmt.format(new Date(iso));
