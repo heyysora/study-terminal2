@@ -1,4 +1,4 @@
-# Test results (0.8.0, 2026-11-09)
+# Test results (0.9.0, 2026-11-09)
 
 All runs were on **Linux** in the build environment. Nothing here was run on Windows.
 
@@ -6,10 +6,23 @@ All runs were on **Linux** in the build environment. Nothing here was run on Win
 
 | Run | Result |
 |---|---|
-| Python 3.11 (`pytest tests`) | **370 passed**, 0 failed, 0 skipped (≈ 100 s) |
-| Python 3.13 (`pytest tests`) | **370 passed**, 0 failed, 0 skipped (≈ 100 s) |
+| Python 3.11 (`pytest tests`) | **387 passed**, 0 failed, 0 skipped (≈ 100 s) |
+| Python 3.13 (`pytest tests`) | **387 passed**, 0 failed, 0 skipped (≈ 100 s) |
 | Frontend type-check and build (`npm run build` = `tsc -b && vite build`) | passed |
 | Lint (`ruff --select E4,E7,E9,F,B`) on files changed in 0.7 | clean except pre-existing style warnings in older files (B008/E741/B904) |
+
+## 0.9.0 Visual Market Monitor tests (SYNTHETIC screenshots)
+
+`test_visual_monitor.py` (17) runs on four recorded synthetic screenshots in `tests/fixtures/visual` (generated with exact ground truth by
+`make_fixtures.py`). Results on them: instrument, timeframe, price tag, bid and ask read exactly; 70/70 candles found with open/high/
+low/close within 2 ticks (max error 0.25-0.5 points, i.e. 1-2 MNQ ticks); relative volume within 0.03 on average; VWAP/EMA lines
+within 4 ticks; zoomed-out charts correctly flagged low confidence; blank, missing, minimized, covered, frozen and changed-layout
+charts produce NO TRADE with the reason. **These numbers say nothing about real TopstepX charts**: no real TopstepX screenshot was
+available. The calibration workflow measures that on yours.
+
+The setup and monitor screens were driven in headless Chrome (upload a screenshot, drag the region, Test read, Save, Start): the test
+read showed MNQ, 5Min, the exact price, bid/ask and 70 candles, and the monitor showed DISCONNECTED with NO TRADE (no Windows windows
+exist on the build machine). Screenshots: `docs/screenshot_visual_setup.png`, `docs/screenshot_visual_monitor.png`.
 
 ## 0.8.0 live market data tests (all MOCKED)
 
@@ -56,7 +69,8 @@ P11 number formatting 2.
   replay and injected clocks only.
 - **TopstepX API and live stream**: tested against mock servers only. See the real-account checklist in
   [LIVE_MARKET_DATA.md](LIVE_MARKET_DATA.md#what-still-needs-a-real-topstepx-account).
-- **Real TopstepX screenshots**: none available; calibration tool tested with synthetic charts (which never count as accuracy).
+- **Real TopstepX screenshots**: none available; the Visual Monitor and the calibration tool were tested with synthetic charts (which never count as accuracy).
+- **Visual Monitor window capture on Windows**: not run by me (Linux build machine).
 - **Mobile companion from a real phone / tunnel**: in-process tests only.
 - **Claude / Ollama wording**: no key or local model available.
 

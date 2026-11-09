@@ -7,10 +7,11 @@ import { Journal } from "./pages3";
 import { Futures } from "./pages4";
 import { AutomationCenter } from "./pages5";
 import { LiveMarket } from "./pages6";
+import { VisualMonitor } from "./pages7";
 
 const NAV: [string, string, string?][] = [
   ["dashboard", "Dashboard"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Paper trading"], ["automation", "Automation Center"], ["live", "Live Market"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
+  ["paper", "Paper trading"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["alerts", "Alerts", "System"], ["settings", "Settings"],
 ];
 
 function ModeSwitch({ mode, onChange }: { mode: string; onChange: (m: string) => void }) {
@@ -86,6 +87,7 @@ export default function App() {
       case "futures": return <Futures symbol={route[1]} />;
       case "automation": return <AutomationCenter />;
       case "live": return <LiveMarket />;
+      case "visual": return <VisualMonitor />;
       case "chart": return <ChartPage symbol={route[1]} />;
       case "copilot": return <Copilot />;
       case "scanner": return <Scanner />;

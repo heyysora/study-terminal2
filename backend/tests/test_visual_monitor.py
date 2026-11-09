@@ -180,7 +180,7 @@ class Clock:
 def make_monitor(futures_svc, frame_fn, windows, clock, alerts=None, **pkw):
     class Store:
         def __init__(self):
-            self.p = prof(id="p1", name="MNQ 5m", window_title_contains="TopstepX", **pkw)
+            self.p = prof(**{"id": "p1", "name": "MNQ 5m", "window_title_contains": "TopstepX", **pkw})
 
         def all(self):
             return [self.p]
@@ -411,3 +411,12 @@ async def test_api_profiles_upload_read_control_and_calibration(client):  # noqa
     rep = (await c.get("/api/screen/calibration")).json()["report"]
     assert rep["real_samples"] == 0                                                       # synthetic never counts
     assert (await c.delete(f"/api/visual/profiles/{saved['id']}")).json()["deleted"] == saved["id"]
+
+
+async def test_browser_tab_privacy_guard(fut):
+    calls = []
+    m, rt, _ = make_monitor(fut, lambda t: calls.append(t) or (None, "x"),
+                            [{"kind": "window", "id": 7, "title": "Inbox - Gmail - Google Chrome", "process": "chrome.exe"}], Clock(T_RTH),
+                            window_title_contains="Google Chrome")
+    await m.tick(rt)
+    assert rt.status == "unreadable" and "Privacy" in rt.reason and calls == []          # nothing was captured

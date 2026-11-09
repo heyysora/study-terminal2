@@ -265,6 +265,11 @@ class VisualMonitor:
         if not self._resolve_window(rt):
             self._set(rt, "disconnected", f"No open window matches '{p.window_title_contains}'. Open your TopstepX chart.")
             return self._after(rt, now, None)
+        from .vision import is_browser, title_looks_like_trading
+        if is_browser(rt.process) and not title_looks_like_trading(rt.title or "", rt.process):
+            self._set(rt, "unreadable", "The browser window isn't showing the chart (another tab is open). Privacy: nothing is captured "
+                                        "until you switch back to the TopstepX tab.")
+            return self._after(rt, now, None)
         if self.win.minimized(rt.hwnd):
             self._set(rt, "disconnected", "The TopstepX window is minimized; minimized windows can't be captured.")
             return self._after(rt, now, None)
@@ -334,8 +339,15 @@ class VisualMonitor:
         rec = self._recommend(rt, now, reading)
         rt.recommendation = rec
         self._alerts_for(rt, rec, now)
-        rt.history.append({"at": now.isoformat(), "status": rt.status, "action": rec["action"], "reason": rec["reason"][:160],
-                           "price": rec.get("observed_price"), "confidence": rec.get("data_confidence")})
+        entry = {"at": now.isoformat(), "status": rt.status, "action": rec["action"], "reason": rec["reason"][:160],
+                 "price": rec.get("observed_price"), "confidence": rec.get("data_confidence")}
+        last = rt.history[-1] if rt.history else None
+        if last and all(last[k] == entry[k] for k in ("status", "action", "reason", "price")):
+            last["repeats"] = last.get("repeats", 0) + 1          # same result again: one line, not hundreds
+            last.setdefault("since", last["at"])
+            last["at"] = entry["at"]
+        else:
+            rt.history.append(entry)
         rt.history = rt.history[-300:]
         self._push()
 

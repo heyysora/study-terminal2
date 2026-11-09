@@ -48,3 +48,11 @@ Authorized screen capture only: no private endpoints, no token interception, no 
 - **Evidence rule unchanged.** LONG/SHORT need a strategy that passed walk-forward validation (none has yet). Until then, complete
   setups are reported as WAIT "potential LONG/SHORT setup", with full plans and alerts, and the reason.
 - No order buttons are ever clicked; nothing is sent to TopstepX.
+
+## Done 2026-11-09
+- Built as planned. Extra fixes found while testing: the price-tag detector treated dark navy backgrounds (TopstepX-like) as colored
+  tags (now requires bright color too); header text split on dots ("MNQZ6.1m"); full-resolution change detection (a quiet market moves
+  only a pixel or two, which a thumbnail misses); the monitor applies the browser-tab privacy guard; pipeline option `check_unvalidated`
+  runs risk/cost/entry checks for unvalidated setups without ever approving them.
+- Tests: 17 new (synthetic screenshots), full suite passes on 3.11 and 3.13; setup and monitor screens checked in Chrome.
+- Not done: real TopstepX screenshots, Windows capture run.

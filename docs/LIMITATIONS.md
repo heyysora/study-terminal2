@@ -1,4 +1,4 @@
-# Known limitations (0.8.0)
+# Known limitations (0.9.0)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -35,6 +35,13 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
   dashboard. End-of-day balance timing at the flat moment, holiday trade-date merges and Express Funded Scaling Plan tiers
   weren't verified against a real account. Fees for YM, MYM and CL weren't in the readable fee table.
 - Study Terminal applies these rules to its own simulator only. It can't see or enforce anything on your real account.
+
+## Visual Market Monitor
+- Built and tested on synthetic screenshots only; no real TopstepX screenshots were available, and window capture wasn't run on Windows
+  by me. Measure accuracy on your own charts (docs/VISUAL_MONITOR.md, "Check it on your charts").
+- Candle values are pixel estimates (about 1–3 NQ ticks on a normal zoom). Exact prices come only from on-screen text.
+- Only visible history exists; volume is relative; indicator names come from the colors you assign; candle times are calculated.
+- LONG/SHORT still need a validated strategy; complete unvalidated setups are WAIT "potential".
 
 ## Screen copilot
 - Accuracy was measured on real TradingView screenshots (stocks). **No real TopstepX screenshots were available**: the TopstepX

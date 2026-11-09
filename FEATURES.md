@@ -1,4 +1,4 @@
-# Features and limitations (0.8.0)
+# Features and limitations (0.9.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
@@ -61,6 +61,7 @@
 | | Labels LIVE / STALE / DISCONNECTED / DELAYED / CACHED with source, exchange and receipt times, contract, price; only LIVE can drive signals or fills | ✅ |
 | | Decisions use completed bars only; automation re-evaluates on each streamed 5-minute close | ✅ |
 | Live Market screen | NQ/MNQ/ES/MES, 7 timeframes, in-place updates over WebSocket, bid/ask, EMA 9/20/50/200, VWAP, volume, PDH/PDL, overnight, session and RTH open, OR, IB, BOS/CHoCH, swings, FVGs, sweeps, S/R, volume profile, toggles; greyed "NOT LIVE" when stale/disconnected/delayed | ✅ checked in a browser against the mock server; 🟡 not with real TopstepX data |
+| Visual Market Monitor (0.9.0) | Chart profiles per layout (window, region, instrument/timeframe auto or fixed, auto or 2-point axis, colors, timing); reader with A/B/C/D value classes, confidence and capture time (price tag, bid/ask, axis, candles, relative volume, VWAP/EMA by color, horizontal lines); background monitor with start/pause/resume/stop; missing/minimized/covered window, blank, frozen, layout-change and low-confidence detection; NO TRADE gates; pipeline + risk engine; LONG/SHORT/WAIT/EXIT/NO TRADE; de-duplicated alerts; setup screen with live preview, region drag, color picking, test read; calibration with candle fields | ✅ on synthetic screenshots and in a browser; 🟡 not yet on real TopstepX charts or on Windows |
 | Earlier stages | Analysis, scanner, paper trading, risk limits, alerts, learning centre | ✅ (see previous releases) |
 
 ## Remaining limitations

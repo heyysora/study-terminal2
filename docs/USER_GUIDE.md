@@ -123,6 +123,10 @@ grounded data in friendlier language and are told never to invent prices, news o
 18 lessons with quizzes, a glossary, and "spot the setup" exercises on real charts. The mentor adapts explanations to
 your level and the terms you've learned.
 
+## Visual Monitor (your TopstepX chart as the input)
+Menu > **Visual Monitor**. Set up each chart once (window, region, colors), then start monitoring. Full steps, labels and limits:
+[VISUAL_MONITOR.md](VISUAL_MONITOR.md).
+
 ## Futures and TopstepX
 Click **Futures** at the top left. The **Automation Center** opens: monitoring status and mode, controls including the
 emergency stop, the latest decision per contract, recent decisions with every pipeline step, the practice account,

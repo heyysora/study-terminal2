@@ -54,6 +54,9 @@ One Python process on your PC (plus the WebView2 window it opens):
                   backtest (scan + simulate) ; research (walk-forward + holdout, strategy registry) ; replay ; journal ; service
    futures/stream.py      TopstepX SignalR market hub client (read-only, two subscribe calls), LiveStream: status, gaps, backfill, rollover
    futures/candles.py     trades -> 1-minute bars (dedupe, late prints, tick grid), session-aligned aggregation for every timeframe
+   screen/chart_profile.py, chart_reader.py, visual_bars.py, visual_recommend.py, visual_monitor.py
+                          Visual Market Monitor: saved chart layouts, chart reading with value classes, candles -> bars -> feature frame,
+                          quality gates + pipeline + risk engine, background monitor and alerts (api/routes_visual.py)
    screen/calibration.py  labelled-screenshot scoring and per-platform accuracy report (images kept only with consent)
    news/econ_data.py      BLS published values (actual/previous) for CPI, PPI, payrolls, unemployment
    api/routes_mobile.py   token-protected, brake-only mobile companion API
