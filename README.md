@@ -49,7 +49,16 @@ Docs: [Visual Monitor (start here for TopstepX)](docs/VISUAL_MONITOR.md) · [Tru
 3. Wait 5-10 minutes. It installs Python and Inno Setup with winget if they're missing, builds the app, installs it and opens it.
 
 After that, open Study Terminal from the desktop shortcut or the Start menu like any other app. To update, unzip the new
-version and double-click the same file again; your data is kept. If something fails, the details are in `install-log.txt`.
+version and double-click the same file again.
+
+What it does and doesn't touch:
+- Your data in `%LOCALAPPDATA%\StudyTerminal` (journal, paper accounts, settings, validation evidence, `.env`) is never read,
+  moved or written by the installer scripts or the setup program.
+- Nothing is installed unless the build and its self-test pass. The self-test uses a temporary data folder and ignores your `.env`.
+- Before upgrading, the installed program files are copied to `%LOCALAPPDATA%\Programs\Study Terminal (previous version backup)`;
+  if setup fails they're put back, and on success the copy is removed.
+- Everything printed, including pip/PyInstaller/winget output, goes to `install-log.txt`; the setup program's own log is
+  `install-setup-log.txt`.
 
 ## Option A: install like a normal Windows app (step by step)
 

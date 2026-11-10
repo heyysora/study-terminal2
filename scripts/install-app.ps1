@@ -1,95 +1,94 @@
 # One-click install. Started by "Install Study Terminal.cmd" in the project folder.
-# Builds Study Terminal from this folder and installs it like a normal Windows app
-# (Start menu entry, desktop shortcut, uninstall from Windows Settings > Apps).
-# Run it again after unzipping a new version to update. Your data is kept.
+# 1-3. Builds and self-tests the app (scripts\install-build.ps1). Nothing is installed if that fails.
+# 4.   Backs up the currently installed program files, runs the installer, and puts the backup back if it fails.
+# 5.   Opens the app.
+# Your data (%LOCALAPPDATA%\StudyTerminal: journal, paper account, settings, validation evidence, .env) is never
+# read, moved or written by this script or the installer. Every line of output goes to install-log.txt.
 $ErrorActionPreference = "Stop"
+if (-not $env:LOCALAPPDATA -or -not (Test-Path $env:LOCALAPPDATA)) { Write-Host "LOCALAPPDATA isn't set; stopping before doing anything." -ForegroundColor Red; exit 1 }
 $Root = Split-Path -Parent $PSScriptRoot
-$log = Join-Path $Root "install-log.txt"
-try { Start-Transcript -Path $log -Force | Out-Null } catch { }
-$env:ST_ONE_CLICK = "1"
+$logPath = Join-Path $Root "install-log.txt"
+$setupLogPath = Join-Path $Root "install-setup-log.txt"
+$appDir = Join-Path $env:LOCALAPPDATA "Programs\Study Terminal"
+$backupDir = Join-Path $env:LOCALAPPDATA "Programs\Study Terminal (previous version backup)"
+$dataDir = Join-Path $env:LOCALAPPDATA "StudyTerminal"
+
+$log = New-Object System.IO.StreamWriter($logPath, $false, (New-Object System.Text.UTF8Encoding($false)))  # replaces the previous log
+$log.AutoFlush = $true
+function Say($msg, $color = "Gray") { Write-Host $msg -ForegroundColor $color; $log.WriteLine($msg) }
+
 $failed = $false
-
-function Step($n, $text) { Write-Host "`n[$n/5] $text" -ForegroundColor Cyan }
-
-function Update-PathFromRegistry {
-    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
-}
-
-function Install-WithWinget($id, $label) {
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        throw "$label is missing and winget isn't available to install it. Install $label yourself, then double-click the installer again."
-    }
-    Write-Host "  Installing $label (a few minutes)..."
-    $ErrorActionPreference = "Continue"
-    winget install -e --id $id --silent --accept-package-agreements --accept-source-agreements
-    $ErrorActionPreference = "Stop"
-    Update-PathFromRegistry
-}
-
-function Test-Python {
-    # The Microsoft Store "python" shortcut exists but fails; it's skipped by the exit-code check.
-    $ErrorActionPreference = "Continue"
-    foreach ($cand in @(@("py", "-3.13"), @("py", "-3.12"), @("py", "-3.11"), @("python"))) {
-        $exe = $cand[0]
-        if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) { continue }
-        $rest = @($cand | Select-Object -Skip 1)
-        $v = $null
-        try { $v = & $exe @rest -c "import sys; print(sys.version_info[0] * 100 + sys.version_info[1])" 2>$null } catch { continue }
-        if ($LASTEXITCODE -eq 0 -and $v -and [int]("$v".Trim()) -ge 311) { return $true }
-    }
-    return $false
-}
-
-function Find-InnoSetup {
-    @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
-        Where-Object { Test-Path $_ } | Select-Object -First 1
-}
-
+$backedUp = $false
 try {
-    Write-Host "Study Terminal one-click install" -ForegroundColor Green
-    Write-Host "This takes about 5-10 minutes the first time. Leave this window open."
+    Say "Study Terminal one-click install - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "Green"
+    Say "Project folder: $Root"
+    Say "Program folder: $appDir"
+    Say "Your data:      $dataDir (not touched by this script or the installer)"
+    Say "Windows: $([Environment]::OSVersion.VersionString); PowerShell $($PSVersionTable.PSVersion)"
+    Say "This takes about 5-10 minutes the first time. Leave this window open."
 
-    Step 1 "Checking Python and Inno Setup"
-    if (-not (Test-Python)) {
-        Install-WithWinget "Python.Python.3.12" "Python 3.12"
-        if (-not (Test-Python)) { throw "Python was installed but Windows hasn't picked it up yet. Restart your PC, then double-click the installer again." }
+    # ---- steps 1-3: build in a child process so all of its output (pip, PyInstaller, npm, winget) is captured
+    $ErrorActionPreference = "Continue"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "install-build.ps1") 2>&1 | ForEach-Object {
+        $line = "$_"
+        Write-Host $line
+        $log.WriteLine($line)
     }
-    Write-Host "  Python OK"
-    if (-not (Find-InnoSetup)) {
-        Install-WithWinget "JRSoftware.InnoSetup" "Inno Setup 6"
-        if (-not (Find-InnoSetup)) { throw "Inno Setup didn't install. Run 'winget install JRSoftware.InnoSetup' yourself, then try again." }
-    }
-    Write-Host "  Inno Setup OK"
+    $buildExit = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($buildExit -ne 0) { throw "The build failed (exit code $buildExit). Nothing was installed." }
 
-    Step 2 "Installing the app's Python packages"
-    & (Join-Path $PSScriptRoot "setup.ps1")
-
-    Step 3 "Building the app and its installer (the longest step)"
-    & (Join-Path $PSScriptRoot "build-installer.ps1")
     $version = (Select-String -Path (Join-Path $Root "backend\app\config.py") -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
     $setupExe = Join-Path $Root "dist-installer\StudyTerminal-Setup-$version.exe"
-    if (-not (Test-Path $setupExe)) { throw "The build finished but $setupExe is missing." }
+    if (-not (Test-Path $setupExe)) { throw "The build finished but $setupExe is missing. Nothing was installed." }
 
-    Step 4 "Installing Study Terminal $version"
+    # ---- step 4: install, with a backup of the current program files
+    Say "`n[4/5] Installing Study Terminal $version" "Cyan"
     while (Get-Process -Name "StudyTerminal" -ErrorAction SilentlyContinue) {
-        Write-Host "  Study Terminal is open. Quit it from the tray icon (right-click > Quit), then press Enter here." -ForegroundColor Yellow
+        Say "  Study Terminal is open. Quit it from the tray icon (right-click > Quit), then press Enter here." "Yellow"
         [void](Read-Host)
     }
-    $p = Start-Process -FilePath $setupExe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", '/MERGETASKS="desktopicon"' -Wait -PassThru
+    if (Test-Path (Join-Path $appDir "StudyTerminal.exe")) {
+        Say "  Backing up the installed program files to: $backupDir"
+        & robocopy.exe $appDir $backupDir /MIR /R:1 /W:1 /NP /NFL /NDL /NJH /NJS | ForEach-Object { $log.WriteLine("  robocopy: $_") }
+        if ($LASTEXITCODE -ge 8) { throw "Couldn't back up the current program files (robocopy exit $LASTEXITCODE). Nothing was installed." }
+        $backedUp = $true
+    } else {
+        Say "  No existing installation found (fresh install)."
+    }
+    Say "  Running $setupExe (silent; its own log: $setupLogPath)"
+    $p = Start-Process -FilePath $setupExe -Wait -PassThru -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+        '/MERGETASKS="desktopicon"', "/LOG=`"$setupLogPath`""
+    if (Test-Path $setupLogPath) { Get-Content $setupLogPath | ForEach-Object { $log.WriteLine("  setup: $_") } }
+    $app = Join-Path $appDir "StudyTerminal.exe"
     if ($p.ExitCode -ne 0) { throw "The installer exited with code $($p.ExitCode)." }
+    if (-not (Test-Path $app)) { throw "The installer finished but $app is missing." }
+    if ($backedUp) {
+        Remove-Item -LiteralPath $backupDir -Recurse -Force -ErrorAction SilentlyContinue
+        Say "  Installed. Removed the program-files backup (your data was never part of it)."
+    }
 
-    Step 5 "Opening Study Terminal"
-    $app = Join-Path $env:LOCALAPPDATA "Programs\Study Terminal\StudyTerminal.exe"
-    if (-not (Test-Path $app)) { throw "Installed, but $app wasn't found." }
+    # ---- step 5
+    Say "`n[5/5] Opening Study Terminal" "Cyan"
     Start-Process -FilePath $app
-    Write-Host "`nDone. Study Terminal $version is installed." -ForegroundColor Green
-    Write-Host "Open it any time from the desktop shortcut or the Start menu (type 'Study Terminal')."
-    Write-Host "To share or reinstall without rebuilding, keep: $setupExe"
+    Say "`nDone. Study Terminal $version is installed." "Green"
+    Say "Open it any time from the desktop shortcut or the Start menu (type 'Study Terminal')."
+    Say "To reinstall without rebuilding, keep: $setupExe"
 } catch {
     $failed = $true
-    Write-Host "`nInstall stopped: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "The full log is in $log"
+    Say "`nInstall stopped: $($_.Exception.Message)" "Red"
+    if ($backedUp) {
+        Say "  Restoring the previous program files from the backup..." "Yellow"
+        & robocopy.exe $backupDir $appDir /MIR /R:2 /W:2 /NP /NFL /NDL /NJH /NJS | ForEach-Object { $log.WriteLine("  robocopy: $_") }
+        if ($LASTEXITCODE -lt 8) {
+            Say "  Previous version restored. The backup is kept at $backupDir until the next successful install." "Yellow"
+        } else {
+            Say "  Restore failed (robocopy exit $LASTEXITCODE). Your previous program files are still in $backupDir." "Red"
+        }
+    }
+    Say "Your data in $dataDir was not touched."
+    Say "The full log is in $logPath"
 } finally {
-    try { Stop-Transcript | Out-Null } catch { }
+    $log.Close()
 }
 if ($failed) { exit 1 } else { exit 0 }

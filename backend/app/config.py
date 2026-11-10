@@ -34,6 +34,9 @@ def _default_data_dir() -> Path:
 # Optional settings file. Installed app: %LOCALAPPDATA%\StudyTerminal\.env (survives updates and uninstall).
 # From source: the repo's .env as well (it wins if both set the same key).
 ENV_FILES = tuple(str(p) for p in (_default_data_dir() / ".env", REPO_ROOT / ".env"))
+# The installer build's self-test sets this so a test run never loads your real settings or credentials.
+if os.environ.get("STUDY_TERMINAL_NO_ENV_FILE") == "1":
+    ENV_FILES = ()
 
 
 class Settings(BaseSettings):

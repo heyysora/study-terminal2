@@ -6,8 +6,8 @@ All runs were on **Linux** in the build environment. Nothing here was run on Win
 
 | Run | Result |
 |---|---|
-| Python 3.11 (`pytest tests`) | **404 passed**, 0 failed, 0 skipped (≈ 120 s) |
-| Python 3.13 (`pytest tests`) | **404 passed**, 0 failed, 0 skipped (≈ 100 s) |
+| Python 3.11 (`pytest tests`) | **405 passed**, 0 failed, 0 skipped (≈ 120 s) |
+| Python 3.13 (`pytest tests`) | **405 passed**, 0 failed, 0 skipped (≈ 100 s) |
 | Frontend type-check and build (`npm run build` = `tsc -b && vite build`) | passed |
 | Lint (`ruff --select E4,E7,E9,F,B`) on files changed in 0.7 | clean except pre-existing style warnings in older files (B008/E741/B904) |
 

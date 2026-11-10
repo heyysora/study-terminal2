@@ -34,8 +34,9 @@ if (-not (Test-Path $exe)) { throw "PyInstaller did not produce $exe" }
 Write-Host "[4/5] Self-test of the packaged app" -ForegroundColor Cyan
 $env:STUDY_TERMINAL_DATA_DIR = Join-Path $env:TEMP "StudyTerminal-selftest"
 $env:PORT = "8799"
+$env:STUDY_TERMINAL_NO_ENV_FILE = "1"   # the test run never reads your real .env (settings, credentials)
 $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru -NoNewWindow
-Remove-Item Env:STUDY_TERMINAL_DATA_DIR, Env:PORT
+Remove-Item Env:STUDY_TERMINAL_DATA_DIR, Env:PORT, Env:STUDY_TERMINAL_NO_ENV_FILE
 if ($p.ExitCode -ne 0) { throw "Packaged app self-test failed (exit $($p.ExitCode)). See $env:TEMP\StudyTerminal-selftest\logs" }
 Write-Host "  self-test passed" -ForegroundColor Green
 
