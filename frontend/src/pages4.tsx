@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Action, CandleChart, Meter, Panel, PriceLine, TIER_TEXT } from "./components";
 import { STATUS_TEXT, api, etDate, etTime, money, num, sign, usePoll } from "./lib";
+import { uiMode, useUiMode } from "./plain";
+import { Term, WhyBlock } from "./simple";
 
 const ctTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hour12: false });
 const ct = (iso?: string) => (iso ? `${ctTime.format(new Date(iso))} CT` : "—");
@@ -16,9 +18,9 @@ export function FuturesPlan({ s, decimals = 2, onUse }: { s: any; decimals?: num
       {s.label && <div className="note watch small">{s.label}</div>}
       {!s.tradeable_evidence && !s.label && <div className="note watch small"><b>Watch only.</b> Tested evidence: {s.evidence_short}. Study it; it isn't a trade call.</div>}
       <div className="levels">
-        <div><div className="k">Entry</div><div className="v">{px(s.entry, decimals)}{s.entry_range && <span className="small faint"> ({px(s.entry_range[0], decimals)}–{px(s.entry_range[1], decimals)})</span>}</div></div>
-        <div><div className="k">Stop</div><div className="v down">{px(s.stop, decimals)} <span className="small faint">{s.stop_ticks} ticks</span></div></div>
-        <div><div className="k">Target</div><div className="v up">{px(s.target, decimals)} <span className="small faint">{s.reward_risk}R</span></div></div>
+        <div><div className="k"><Term k="entry" /></div><div className="v">{px(s.entry, decimals)}{s.entry_range && <span className="small faint"> ({px(s.entry_range[0], decimals)}–{px(s.entry_range[1], decimals)})</span>}</div></div>
+        <div><div className="k"><Term k="stop" /></div><div className="v down">{px(s.stop, decimals)} <span className="small faint">{s.stop_ticks} ticks</span></div></div>
+        <div><div className="k"><Term k="target" /></div><div className="v up">{px(s.target, decimals)} <span className="small faint">{s.reward_risk}R</span></div></div>
         <div><div className="k">Risk / contract</div><div className="v">{money(s.risk_per_contract_usd)}</div></div>
         <div><div className="k">Suggested size</div><div className="v">{s.suggested_contracts ?? "—"}</div></div>
       </div>
@@ -28,7 +30,7 @@ export function FuturesPlan({ s, decimals = 2, onUse }: { s: any; decimals?: num
       <div className="small muted">{s.sizing_note}</div>
       {s.risk_check?.problems?.length > 0 && <div className="note bad small">{s.risk_check.problems.join(" ")}</div>}
       {s.risk_check?.warnings?.length > 0 && <div className="note warn small">{s.risk_check.warnings.join(" ")}</div>}
-      {onUse && <button className="small" onClick={() => onUse(s)}>Practice this plan in the simulator</button>}
+      {onUse && <button className="small" onClick={() => onUse(s)}>Practice this plan</button>}
     </div>
   );
 }
@@ -37,7 +39,7 @@ export function DecisionSteps({ d }: { d: any }) {
   if (!d?.steps) return null;
   return (
     <details>
-      <summary className="small">Decision pipeline: {d.outcome.replace("_", " ")} · {d.reason}</summary>
+      <summary className="small">{uiMode() === "simple" ? "Every check, step by step" : `Decision pipeline: ${d.outcome.replace("_", " ")} · ${d.reason}`}</summary>
       <table className="small"><tbody>{d.steps.map((s: any) => <tr key={s.n}>
         <td style={{ width: 22 }} className={s.passed === false ? "down" : s.passed ? "up" : "faint"}>{s.passed === false ? "✗" : s.passed ? "✓" : "–"}</td>
         <td>{s.n}. {s.step}</td><td className="faint">{s.detail}</td></tr>)}</tbody></table>
@@ -82,7 +84,7 @@ function RiskPanel({ acct, onChange }: { acct: any; onChange: () => void }) {
         <div className="small faint">{r.sim_only_note}</div>
         <div className="row">
           <button onClick={() => act(() => api("/futures/paper/flatten", { method: "POST", json: {} }))}>Flatten all</button>
-          <button className="danger" onClick={() => confirm("Reset the simulated futures account? Its history is erased.") && act(() => api("/futures/paper/reset", { method: "POST", json: { confirm: true } }))}>Reset account</button>
+          <button className="danger" onClick={() => confirm("Reset the futures practice account? Its history is erased.") && act(() => api("/futures/paper/reset", { method: "POST", json: { confirm: true } }))}>Reset account</button>
         </div>
         {msg && <div className="note small">{msg}</div>}
       </div>
@@ -112,7 +114,7 @@ function Ticket({ contract, spec, prefill, replay, onDone }: { contract: string;
   };
   const tick = spec?.tick_size;
   return (
-    <Panel title={replay ? "Replay order" : "Paper order"} sub={`${contract} · tick ${tick} = ${money(spec?.tick_value)}`}>
+    <Panel title={replay ? "Replay order" : "Practice order"} sub={`${contract} · tick ${tick} = ${money(spec?.tick_value)}`}>
       <div className="stack">
         <div className="row">
           <button className={f.side === 1 ? "primary" : ""} onClick={() => setF({ ...f, side: 1 })}>Buy</button>
@@ -125,14 +127,14 @@ function Ticket({ contract, spec, prefill, replay, onDone }: { contract: string;
           <label className="f">Stop loss<input type="number" step={tick} value={f.stop} onChange={(e) => setF({ ...f, stop: e.target.value })} /></label>
           <label className="f">Target<input type="number" step={tick} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} /></label>
         </div>
-        <div className="row">{!replay && <button onClick={preview}>Review</button>}<button className="primary" onClick={submit} disabled={!replay && !pv?.ok}>Place {replay ? "replay" : "paper"} order</button></div>
+        <div className="row">{!replay && <button onClick={preview}>Review</button>}<button className="primary" onClick={submit} disabled={!replay && !pv?.ok}>Place {replay ? "replay" : "practice"} order</button></div>
         {pv && <div className="stack small">
           {pv.risk && <div>Risk: {pv.risk.stop_ticks} ticks, {money(pv.risk.trade_risk_usd)} incl. slippage and fees{pv.risk.reward_risk ? `, ${pv.risk.reward_risk}R to target` : ""}. Est. fees {money(pv.est_fees_round_turn)}.</div>}
           {pv.problems?.map((p: string) => <div key={p} className="note bad">{p}</div>)}
           {pv.warnings?.map((p: string) => <div key={p} className="note warn">{p}</div>)}
         </div>}
         {err && <div className="note bad small">{err}</div>}
-        <div className="small faint">Simulator only. Nothing is sent to TopstepX or any broker.</div>
+        <div className="small faint">Practice only. Nothing is sent to TopstepX or any broker.</div>
       </div>
     </Panel>
   );
@@ -333,7 +335,7 @@ export function FuturesRules({ info, onChange }: { info: any; onChange: () => vo
             {nf(prop, setProp, "max_minis", "Max contracts (minis)")}{nf(prop, setProp, "micro_ratio", "Micros per mini")}
             {tf(prop, setProp, "flat_by_ct", "Flat by (CT)")}{tf(prop, setProp, "no_new_entries_after_ct", "No new entries after (CT)")}
           </div>
-          <label className="check"><input type="checkbox" checked={!!prop.enabled} onChange={(e) => setProp({ ...prop, enabled: e.target.checked })} />Apply these rules to the simulator</label>
+          <label className="check"><input type="checkbox" checked={!!prop.enabled} onChange={(e) => setProp({ ...prop, enabled: e.target.checked })} />Apply these rules to my practice account</label>
           <div className="row"><button onClick={() => put("/futures/risk/prop", { values: prop })}>Save</button>
             <button className="primary" onClick={() => put("/futures/risk/prop", { values: prop, confirm: true }, "Confirmed.")}>I checked these against my Topstep account: confirm</button></div>
           <div className="small muted">Starting values come from Topstep's help center as of {presets.verified_on}. Rules change, so check your own dashboard. Study Terminal applies them to its simulator only; it can't enforce anything on your real account.</div>
@@ -374,7 +376,7 @@ function Profiles({ onChange }: { onChange: () => void }) {
           <button onClick={() => act("save", name)} disabled={!name.trim()}>Save current rules and limits</button></div>
         {Object.entries(p.data?.profiles || {}).map(([k, v]: any) => <div key={k} className="spread"><span>{k} <span className="faint">({v.prop.label}, saved {etDate(v.saved_at)})</span></span>
           <span className="row"><button className="small" onClick={() => act("load", k)}>Load</button><button className="ghost small" onClick={() => act("delete", k)}>Delete</button></span></div>)}
-        <div className="faint">Loading a profile with a different account size asks you to reset the simulated account, so results from different rules never mix.</div>
+        <div className="faint">Loading a profile with a different account size asks you to reset the practice account, so results from different rules never mix.</div>
         {msg && <div className="note">{msg}</div>}
       </div>
     </Panel>
@@ -404,7 +406,7 @@ export function FuturesSettings() {
             <tbody>{info.data.sources.map((x: any) => <tr key={x.id}><td>{x.name}</td><td>{x.realtime}</td><td>{x.cost}</td><td>{x.status_in_app}</td></tr>)}</tbody></table>
         </div>
       </Panel>
-      <Panel title="Futures simulator">
+      <Panel title="Futures practice account">
         <div className="stack">
           <div className="form">
             {(["slippage_ticks_market", "slippage_ticks_stop", "participation"] as const).map((k) => <label key={k} className="f">{({ slippage_ticks_market: "Market slippage (ticks)", slippage_ticks_stop: "Stop slippage (ticks)", participation: "Max share of bar volume per fill" } as any)[k]}
@@ -424,6 +426,7 @@ export function FuturesSettings() {
 }
 
 export function Futures({ symbol }: { symbol?: string }) {
+  const simple = useUiMode() === "simple";
   const settings = usePoll("/settings");
   const watch: string[] = settings.data?.values?.["futures.watch"] || ["NQ", "MNQ", "ES", "MES", "CL", "GC"];
   const [sym, setSym] = useState(symbol || "");
@@ -448,7 +451,7 @@ export function Futures({ symbol }: { symbol?: string }) {
           {Array.from(new Set(["NQ", "MNQ", "ES", "MES", ...watch])).map((r) => <button key={r} className={sym === r ? "primary" : ""} onClick={() => setSym(r)}>{r}</button>)}
           <form onSubmit={(e) => { e.preventDefault(); if (input.trim()) setSym(input.trim().toUpperCase()); }}><input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Contract, e.g. MNQZ26" aria-label="Contract" style={{ width: 160 }} /></form>
         </div>
-        <div className="row">{["live", "rules", "replay", "evidence", "settings"].map((t) => <button key={t} className={tab === t ? "primary" : "ghost"} onClick={() => setTab(t)}>{({ live: "Live", rules: "Rules", replay: "Replay", evidence: "Evidence", settings: "Data & simulator" } as any)[t]}</button>)}</div>
+        <div className="row">{["live", "rules", "replay", "evidence", "settings"].map((t) => <button key={t} className={tab === t ? "primary" : "ghost"} onClick={() => setTab(t)}>{({ live: "Live", rules: "Rules", replay: "Replay", evidence: "Evidence", settings: "Data & practice account" } as any)[t]}</button>)}</div>
       </div>
       {d.error && <div className="note bad">{d.error}</div>}
       {tab === "rules" && <FuturesRules info={info.data} onChange={reload} />}
@@ -470,7 +473,7 @@ export function Futures({ symbol }: { symbol?: string }) {
             <CandleChart bars={bars} lines={lines} height={420} />
             <Panel title="Signal" sub={`${sig?.timeframe} · last closed bar ${sig?.market_data_time ? etTime(sig.market_data_time) + " ET" : "—"}`} right={<Action a={sig?.action} />}>
               <div className="stack">
-                <div className="small">{sig?.reasons?.join(" ")}</div>
+                {simple ? <WhyBlock reason={sig?.decision?.reason || sig?.reasons?.[0]} /> : <div className="small">{sig?.reasons?.join(" ")}</div>}
                 {plan && <FuturesPlan s={plan} decimals={dec} onUse={(s) => setPrefill({ ...s })} />}
                 {sig?.position && <div className="note small">{sig.position.reasons.join(" ")}</div>}
                 <DecisionSteps d={sig?.decision} />

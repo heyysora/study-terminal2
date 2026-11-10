@@ -30,7 +30,7 @@ export function Backtest() {
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   return (
     <div className="page">
-      <Panel title="Test a strategy on history" sub="same setups and fill rules as live paper trading" right={<button className="primary" onClick={run} disabled={busy}>{busy ? "Running… (walk-forward can take a few minutes)" : "Run"}</button>}>
+      <Panel title="Test a strategy on history" sub="same setups and fill rules as live practice trading" right={<button className="primary" onClick={run} disabled={busy}>{busy ? "Running… (walk-forward can take a few minutes)" : "Run"}</button>}>
         <div className="stack">
           <div className="form">
             <label className="f" style={{ gridColumn: "span 2" }}>Symbols<input value={f.symbols} onChange={set("symbols")} /></label>
@@ -72,7 +72,7 @@ export function Backtest() {
           <Evidence ev={res.evidence} title={res.out_of_sample ? "Statistical evidence (out-of-sample)" : "Statistical evidence (last part of the period only)"} />
           {res.search && <div className="note small">{res.search.note}</div>}
           <Diagnostics d={res.diagnostics} setupNames={setups} />
-          <div className="note">Past results do not guarantee future results. A positive backtest is a reason to keep paper testing, not proof of an edge.</div>
+          <div className="note">Past results do not guarantee future results. A positive backtest is a reason to keep practice testing, not proof of an edge.</div>
           {res.equity?.length > 1 && <Panel title="Equity curve" sub={res.out_of_sample ? "out-of-sample only" : "full period"}><LineChart points={res.equity} /></Panel>}
           <div className="cols c-2">
             {[["By setup", res.by_setup], ["By market regime", res.by_regime], ["By symbol", res.by_symbol]].filter(([, d]) => d).map(([title, d]: any) => (
@@ -273,13 +273,13 @@ export function Settings() {
     <div className="page">
       {saved && <div className="note">{saved}</div>}
       <div className="cols c-2">
-        <Panel title="Risk limits" sub="applied immediately to paper trading">
+        <Panel title="Risk limits" sub="applied immediately to practice trading">
           <div className="form">{n("risk.max_per_trade_pct", "Max risk per trade (%)")}{n("risk.max_daily_loss_pct", "Max daily loss (%)")}{n("risk.max_open_positions", "Max open positions", "1")}
             {n("risk.min_reward_risk", "Preferred reward:risk")}{n("risk.max_consecutive_losses", "Losses in a row before pausing", "1")}{n("risk.max_exposure_pct", "Max exposure (% of equity)")}</div>
           <div style={{ marginTop: 10 }}>{b("risk.require_stop", "Every entry needs a stop loss")}</div>
           <p className="small muted" style={{ marginTop: 8 }}>Empty fields use the defaults from your configuration (0.5% per trade, 2% per day, 3 positions, 2:1).</p>
         </Panel>
-        <Panel title="Paper simulator">
+        <Panel title="Practice account settings (stocks)">
           <div className="form">{n("paper.slippage_bps", "Slippage (bps)")}{n("paper.slippage_min", "Min slippage ($/share)")}{n("paper.commission_per_share", "Commission ($/share)")}
             {n("paper.commission_per_order", "Commission ($/order)")}{n("paper.margin_multiplier", "Margin multiplier")}{n("paper.borrow_fee_annual_pct", "Short borrow fee (%/yr)")}</div>
           <div style={{ marginTop: 10 }}>{b("paper.allow_short", "Allow short selling")}</div>
@@ -366,7 +366,7 @@ function AboutFiles() {
   return (
     <Panel title="About and files" sub={i ? `version ${i.version}${i.installed_app ? ", installed app" : ", running from source"}` : ""}>
       {!i ? <span className="muted small">Loading…</span> : <div className="stack small">
-        <div><span className="muted">Your data (journal, paper account, settings, backtests): </span><code>{i.data_dir}</code></div>
+        <div><span className="muted">Your data (journal, practice account, settings, backtests): </span><code>{i.data_dir}</code></div>
         <div><span className="muted">Log file: </span><code>{i.log_file}</code></div>
         <div><span className="muted">Optional settings file (API keys etc.): </span><code>{i.settings_files[0]}</code></div>
         <div className="row"><button onClick={() => open("logs")}>Open logs folder</button><button className="ghost" onClick={() => open("data")}>Open data folder</button>

@@ -1,5 +1,6 @@
 // API client, live WebSocket store, and formatting helpers.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { say } from "./plain";
 
 export async function api<T = any>(path: string, opts: RequestInit & { json?: unknown } = {}): Promise<T> {
   const { json, ...rest } = opts;
@@ -15,7 +16,7 @@ export async function api<T = any>(path: string, opts: RequestInit & { json?: un
   if (!res.ok) {
     const d = data?.detail;
     const msg = typeof d === "string" ? d : d?.message || JSON.stringify(d ?? data);
-    throw new ApiError(msg, res.status, data);
+    throw new ApiError(say(msg), res.status, data);   // plain words in Simple mode; unchanged in Advanced
   }
   return data as T;
 }

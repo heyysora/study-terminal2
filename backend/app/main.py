@@ -17,7 +17,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_futures, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
+from .api import routes, routes2, routes_extension, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -53,6 +53,11 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     async def lifespan(app: FastAPI):
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         configure_logging(settings.log_level, settings.data_dir / "logs", settings.secret_values())
+        from .backup import backup_before_upgrade
+        from .config import BUILD
+        backup = backup_before_upgrade(settings.data_dir, BUILD)   # copies existing data before this build opens it
+        if backup["made"]:
+            log.info("data backed up before first start of %s: %s", BUILD, backup["path"])
         db = Database(settings.resolved_database_url)
         db.create_all()
         db.seed_default_watchlist(settings.default_watchlist)
@@ -70,6 +75,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         scanner = ScannerService(monitor, analysis, signals)
         education = EducationService(db, analysis)
         s = app.state
+        s.backup = backup
         s.settings, s.db, s.monitor, s.paper, s.settings_store = settings, db, monitor, paper, store
         s.analysis, s.backtests, s.models, s.alerts, s.signals = analysis, backtests, models, alerts, signals
         s.scanner, s.education = scanner, education
@@ -252,6 +258,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_mobile.router)
     app.include_router(routes_visual.router)
     app.include_router(routes_trust.router)
+    app.include_router(routes_home.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

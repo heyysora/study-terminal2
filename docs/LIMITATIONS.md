@@ -1,4 +1,4 @@
-# Known limitations (0.11.0)
+# Known limitations (0.12.0 preview 1)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -35,6 +35,17 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
   dashboard. End-of-day balance timing at the flat moment, holiday trade-date merges and Express Funded Scaling Plan tiers
   weren't verified against a real account. Fees for YM, MYM and CL weren't in the readable fee table.
 - Study Terminal applies these rules to its own simulator only. It can't see or enforce anything on your real account.
+
+## Interface (0.12.0 preview 1)
+- Simple mode covers Home, the top bar, the recommendation card, action and status words, alerts and error messages. Deeper screens
+  (Backtest, Journal analytics, Live Market, most of Settings) still use trading terms; they are planned for audit stages 4-7.
+- The menu in Simple mode is a short list, not yet the final five sections (audit stage 4). Connecting a chart still uses the
+  existing three-step setup screen (audit stage 5).
+- Sentences that come from deeper in the app are simplified by word replacement, so an occasional phrase can read a little stiffly.
+  The original wording is always under "More detail" or in Advanced mode.
+- Stop everything stops what Study Terminal does by itself. Practice trades you placed by hand stay open (by design).
+- The dollar amounts on Home's practice plan are before fees and price slip.
+- No real person has usability-tested this yet; the beginner checklist in UX_AUDIT.md section 8 is still to be run.
 
 ## Trust & Validation
 - Statuses only reflect evidence recorded in this install's data folder. Reinstalling with a fresh data folder resets them.

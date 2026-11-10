@@ -1,4 +1,4 @@
-# Test results (0.11.0, 2026-11-09)
+# Test results (0.12.0 preview 1, 2026-11-10)
 
 All runs were on **Linux** in the build environment. Nothing here was run on Windows.
 
@@ -6,10 +6,27 @@ All runs were on **Linux** in the build environment. Nothing here was run on Win
 
 | Run | Result |
 |---|---|
-| Python 3.11 (`pytest tests`) | **405 passed**, 0 failed, 0 skipped (≈ 120 s) |
-| Python 3.13 (`pytest tests`) | **405 passed**, 0 failed, 0 skipped (≈ 100 s) |
+| Python 3.11 (`pytest tests`) | **437 passed**, 0 failed, 0 skipped (≈ 120 s) |
+| Python 3.13 (`pytest tests`) | **437 passed**, 0 failed, 0 skipped (≈ 100 s) |
 | Frontend type-check and build (`npm run build` = `tsc -b && vite build`) | passed |
 | Lint (`ruff --select E4,E7,E9,F,B`) on files changed in 0.7 | clean except pre-existing style warnings in older files (B008/E741/B904) |
+
+## 0.12.0 preview 1: interface foundation
+
+| Check | Result |
+|---|---|
+| `test_plain.py` (10): word list in sync with the frontend; every pipeline reason and every chart-quality reason has plain words; risk messages keep their numbers; every non-approved outcome reads WAIT; only live statuses read "Working" and delayed is never called live; unknown reasons pass through unchanged | passed |
+| `test_home.py` (16): the five answers for working, frozen, minimized and unreadable charts; an idea shows what it could lose; an untested idea stays WAIT; a stored decision is never shown as an idea; tightest loss limit; next step from real setup state; stopped state; stocks view; through the real app: fresh install, Simple vs Advanced leave settings, limits, risk status and the live lock identical, Stop everything (needs confirmation, leaves hand-placed practice trades, can't be switched back on without a written note, starts nothing by itself), Home survives a failing part | passed |
+| `test_backup.py` (6): no backup on a fresh folder; database and data files copied, `.env` and logs never copied, originals byte-identical; one backup per build; only the newest 10 kept; a failed backup reports and never raises; the app backs up on first start of a new build | passed |
+| Frontend type-check and production build | passed |
+| Upgrade 0.11.0 -> 0.12.0 on one data folder (seeded with the real 0.11.0 code) | all 4 data files byte-identical; all 10 user-visible views identical; 25 of 30 database rows identical, the other 5 are the monitoring heartbeat and re-evaluated decision timestamps (same as on every start); the automatic backup's database is identical to the pre-upgrade database |
+| Packaged app self-test (PyInstaller, Linux) | passed: backend up, clean shutdown, live locked; a second start on the same folder makes no second backup |
+| Screens checked in headless Chrome (Linux) with a SYNTHETIC demo chart: Home first run, Home with a readable chart, Home with a frozen chart, Stop everything dialog and stopped state, Advanced mode, narrow window | looked at by eye; screenshots in docs/ |
+
+Not tested: anything on Windows (the desktop window, the installer, real Edge/TopstepX capture feeding Home), and no usability test
+with a real beginner. The packaged Linux self-test logs one error from the `websockets` library while shutting down under uvloop
+(`'ClientConnection' object has no attribute 'recv_messages'`); it comes from the library closing a half-open connection, the
+self-test still exits 0, and Windows doesn't use uvloop.
 
 ## 0.11.0 Trust & Validation rules
 

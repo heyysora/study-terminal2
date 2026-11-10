@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react";
 import { Action, Meter, Panel } from "./components";
 import { api, money, usePoll } from "./lib";
+import { actionWord, explain, useUiMode } from "./plain";
 import { DecisionSteps } from "./pages4";
 
 const STATUS_TEXT: Record<string, string> = {
@@ -16,6 +17,7 @@ function ago(iso?: string | null) {
 function usd(x: any) { return typeof x === "number" ? money(x) : "-"; }
 
 export function AutomationCenter() {
+  const simple = useUiMode() === "simple";
   const a = usePoll("/futures/automation", 5000);
   const acct = usePoll("/futures/paper", 10000);
   const sb = usePoll("/futures/sandbox", 15000);
@@ -51,7 +53,7 @@ export function AutomationCenter() {
       <div className={`note ${estop ? "bad" : "small"}`}>
         {estop ? <><b>Emergency stop active.</b> {st.emergency?.reason} ({st.emergency?.at?.slice(0, 19).replace("T", " ")} UTC). Working simulated orders were cancelled and
           simulated positions flattened. Write what happened to clear it.</> :
-          <>Everything here is <b>simulated</b>. Study Terminal never sends orders to TopstepX or any broker, and it can't enforce limits on your real Topstep account.</>}
+          <>Everything here is <b>practice, with pretend money</b>. Study Terminal never sends orders to TopstepX or any broker, and it can't enforce limits on your real Topstep account.</>}
       </div>
       {err && <div className="note bad">{err}</div>}
       <div className="cols c-main">
@@ -60,20 +62,20 @@ export function AutomationCenter() {
             right={<span className={`live-dot ${st.status === "running" ? "rec" : ""}`} aria-label={st.status === "running" ? "monitoring on" : "monitoring off"} />}>
             <div className="stack">
               <div className="row">
-                {[["assisted", "A · Assisted"], ["paper_auto", "B · Automated paper"]].map(([m, l]) =>
+                {[["assisted", "I place practice trades myself"], ["paper_auto", "The app places practice trades for me"]].map(([m, l]) =>
                   <button key={m} className={st.mode === m ? "primary" : ""} onClick={() => mode(m)}>{l}</button>)}
-                <button disabled title="Live execution is locked" aria-disabled>C · Live (locked)</button>
               </div>
               <div className="small muted">{st.mode === "assisted"
-                ? "A: the app watches the market and records decisions; you place every simulated order yourself."
-                : "B: the app enters and manages simulated trades on its own, only for strategies that passed walk-forward validation, inside every risk limit."}</div>
+                ? "The app watches the market and records what it decided; you place every practice order yourself."
+                : "The app starts and manages practice trades on its own, only for ideas that passed testing on days they hadn't seen, and always inside your limits."}</div>
+              <div className="small faint">Real-money trading is not part of Study Terminal. There is no setting that turns it on.</div>
               <div className="row">
                 {st.status === "running" && <button onClick={() => act("pause")}>Pause</button>}
                 {st.status === "paused" && <button className="primary" onClick={() => act("resume")}>Resume</button>}
                 {st.status === "stopped" && <button className="primary" onClick={() => act("start")}>Start monitoring</button>}
                 {(st.status === "running" || st.status === "paused") && <button onClick={() => act("stop")}>Stop</button>}
                 <button onClick={() => act("cycle")} disabled={estop}>Evaluate now</button>
-                {!estop && <button className="danger" onClick={() => { if (confirm("Emergency stop: cancel all simulated working orders, flatten simulated positions and stop automation?")) act("emergency-stop", { reason: "Emergency stop pressed in the Automation Center" }); }}>Emergency stop</button>}
+                {!estop && <button className="danger" onClick={() => { if (confirm("Emergency stop: cancel the practice orders the app placed, close the practice trades it manages and stop watching?")) act("emergency-stop", { reason: "Emergency stop pressed in the Automation Center" }); }}>Emergency stop</button>}
               </div>
               {estop && <div className="row"><input style={{ flex: 1 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened and what you checked" aria-label="Review note" />
                 <button disabled={note.trim().length < 10} onClick={() => act("clear-emergency", { note })}>Clear emergency stop</button></div>}
@@ -100,11 +102,11 @@ export function AutomationCenter() {
               </tbody></table>
           </Panel>
 
-          <Panel title="Recent decisions" sub="every pipeline result is stored with its reasoning" flush>
+          <Panel title={simple ? "What the app decided" : "Recent decisions"} sub={simple ? "click a row for the full detail" : "every pipeline result is stored with its reasoning"} flush>
             <table><tbody>{(dec.data?.decisions || []).map((d: any) => <Fragment key={d.id}>
               <tr onClick={() => setOpen(open === d.id ? null : d.id)} style={{ cursor: "pointer" }}>
                 <td className="small">{d.evaluated_at?.slice(5, 16).replace("T", " ")}</td><td>{d.contract}</td>
-                <td className="small">{d.outcome?.replace(/_/g, " ")}</td><td className="small">{d.reason}</td>
+                <td className="small">{simple ? actionWord(d.outcome).word : d.outcome?.replace(/_/g, " ")}</td><td className="small">{simple ? explain(d.reason).headline : d.reason}</td>
                 <td className="small">{d.acted ? `acted (${d.acted.slice(0, 8)})` : ""}</td></tr>
               {open === d.id && <tr><td colSpan={5}><DecisionSteps d={d} /></td></tr>}</Fragment>)}
               {!(dec.data?.decisions || []).length && <tr><td className="muted">No decisions yet.</td></tr>}</tbody></table>
@@ -118,7 +120,7 @@ export function AutomationCenter() {
         </div>
 
         <div className="stack">
-          <Panel title="Practice account" sub={off.label || "simulator"}>
+          <Panel title="Practice account" sub={off.label || "pretend money"}>
             <table><tbody>
               <tr><td className="muted">Balance / equity</td><td className="num">{usd(acct.data?.balance)} / {usd(acct.data?.equity)}</td></tr>
               <tr><td className="muted">Day P&L</td><td className={`num ${met.day_pnl >= 0 ? "pos" : "neg"}`}>{usd(met.day_pnl)}</td></tr>

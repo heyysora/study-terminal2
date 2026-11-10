@@ -9,11 +9,19 @@ import { AutomationCenter } from "./pages5";
 import { LiveMarket } from "./pages6";
 import { VisualMonitor } from "./pages7";
 import { TrustDashboard } from "./pages8";
+import { Home } from "./pagesHome";
+import { say, setUiMode, useHome, useUiMode } from "./plain";
+import { OfflineBanner, SimpleStrip, TopBar } from "./simple";
 
 const NAV: [string, string, string?][] = [
-  ["dashboard", "Dashboard"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Paper trading"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["alerts", "Alerts"], ["settings", "Settings"],
+  ["home", "Home"], ["dashboard", "Stock overview"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
+  ["paper", "Practice trading (stocks)"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["alerts", "Alerts"], ["settings", "Settings"],
 ];
+// Simple mode: the few places a beginner needs. Every other screen is one click away under "All tools".
+const NAV_SIMPLE: Record<string, [string, string][]> = {
+  futures: [["home", "Home"], ["visual", "My chart"], ["futures", "Practice"], ["trust", "Can I trust it?"], ["learn", "Learn"], ["alerts", "Messages"], ["settings", "Settings"]],
+  equities: [["home", "Home"], ["chart", "Charts"], ["paper", "Practice"], ["journal", "My trades"], ["trust", "Can I trust it?"], ["learn", "Learn"], ["alerts", "Messages"], ["settings", "Settings"]],
+};
 
 function ModeSwitch({ mode, onChange }: { mode: string; onChange: (m: string) => void }) {
   return (
@@ -31,13 +39,12 @@ function FuturesStrip({ mode, onMode }: { mode: string; onMode: (m: string) => v
   return (
     <div className="strip" role="status">
       <ModeSwitch mode={mode} onChange={onMode} />
-      <div className="cell"><span className="k">Futures sim balance</span><span className="v">{a.data ? money(m.balance) : "—"}</span></div>
+      <div className="cell"><span className="k">Practice balance</span><span className="v">{a.data ? money(m.balance) : "—"}</span></div>
       <div className="cell"><span className="k">Day P&amp;L</span><span className={`v ${sign(m.day_pnl)}`}>{a.data ? money(m.day_pnl) : "—"}</span></div>
       <div className="cell"><span className="k">Room above max loss</span><span className="v">{o.mll_remaining != null ? money(o.mll_remaining) : "—"}</span></div>
       <div className="cell"><span className="k">Rules</span><span className="v">{o.label || "—"}{o.enabled && !o.confirmed ? <span className="small down"> unconfirmed</span> : null}</span></div>
       <div className="cell"><span className="k">Entries</span><span className={`v ${r?.blocked ? "down" : ""}`}>{r ? (r.blocked ? "Blocked" : "Allowed") : "—"}</span></div>
       <div className="cell grow" />
-      <div className="cell"><span className="k">Execution</span><span className="v">Simulator only</span></div>
     </div>
   );
 }
@@ -59,13 +66,12 @@ function StatusStrip({ mode, onMode }: { mode: string; onMode: (m: string) => vo
         {!L.connected ? "App offline" : !st?.monitoring_enabled ? "Paused" : streamOk ? "Stream + polling" : st?.healthy ? "Polling only" : "Problem"}</span></div>
       <div className="cell"><span className="k">Screen</span><span className="v"><span className={`live-dot ${scr?.state === "running" ? "rec" : ""}`} />
         {scr?.state === "running" ? "Watching" : scr?.state === "paused" ? "Paused" : "Off"}</span></div>
-      <div className="cell"><span className="k">Paper equity</span><span className="v">{acct ? money(acct.equity) : "—"}</span></div>
+      <div className="cell"><span className="k">Practice equity</span><span className="v">{acct ? money(acct.equity) : "—"}</span></div>
       <div className="cell"><span className="k">Day P&amp;L</span><span className={`v ${sign(acct?.day_pnl)}`}>{acct ? money(acct.day_pnl) : "—"}
         {acct?.daily_loss_limit_hit && <span className="down small">limit hit</span>}</span></div>
       <div className="cell"><span className="k">Market bias</span><span className="v">{L.signals?.market?.bias ? `SPY ${L.signals.market.bias}` : "—"}
         {L.signals?.market?.spy_change_pct != null && <span className={sign(L.signals.market.spy_change_pct)}>{pct(L.signals.market.spy_change_pct)}</span>}</span></div>
       <div className="cell grow" />
-      <div className="cell"><span className="k">Execution</span><span className="v">Paper only</span></div>
     </div>
   );
 }
@@ -73,22 +79,24 @@ function StatusStrip({ mode, onMode }: { mode: string; onMode: (m: string) => vo
 export default function App() {
   const [route] = useHashRoute();
   const L = useLive();
+  const H = useHome();
+  const ui = useUiMode();
   const unread = L.alerts.length;
   const settings = usePoll("/settings");
   const [mode, setMode] = useState<string | null>(null);
-  const curMode = mode ?? settings.data?.values?.["app.market_mode"] ?? "equities";
+  const curMode = mode ?? (H.data ? (H.data.trades === "futures" ? "futures" : "equities") : settings.data?.values?.["app.market_mode"] ?? "equities");
   const switchMode = async (m: string) => {
     setMode(m);
-    try { await api("/settings", { method: "PUT", json: { "app.market_mode": m } }); } catch { /* the switch still works for this session */ }
-    location.hash = m === "futures" ? "#/automation" : "#/dashboard";
+    try { await api("/settings", { method: "PUT", json: { "app.market_mode": m, "ui.trades_chosen": true } }); } catch { /* the switch still works for this session */ }
+    location.hash = ui === "simple" ? "#/home" : m === "futures" ? "#/automation" : "#/dashboard";
   };
-  const page = route[0] || (curMode === "futures" ? "automation" : "dashboard");
+  const page = route[0] || "home";
   const view = (() => {
     switch (page) {
       case "futures": return <Futures symbol={route[1]} />;
       case "automation": return <AutomationCenter />;
       case "live": return <LiveMarket />;
-      case "visual": return <VisualMonitor />;
+      case "visual": return <VisualMonitor tab={route[1]} />;
       case "trust": return <TrustDashboard />;
       case "chart": return <ChartPage symbol={route[1]} />;
       case "copilot": return <Copilot />;
@@ -99,29 +107,38 @@ export default function App() {
       case "learn": return <Learn id={route[1]} />;
       case "alerts": return <Alerts />;
       case "settings": return <Settings />;
-      default: return <Dashboard />;
+      case "dashboard": return <Dashboard />;
+      default: return <Home />;
     }
   })();
+  const nav: [string, string, string?][] = ui === "simple" ? NAV_SIMPLE[curMode] || NAV_SIMPLE.equities : NAV;
   return (
-    <div className="shell">
-      <div className="brand"><span className="brand-mark" />Study Terminal</div>
-      {curMode === "futures" || page === "futures" ? <FuturesStrip mode="futures" onMode={switchMode} /> : <StatusStrip mode={curMode} onMode={switchMode} />}
+    <div className={`shell ui-${ui}`}>
+      <TopBar connected={L.connected} />
       <nav className="rail" aria-label="Main">
-        {NAV.map(([id, label, group]) => (
+        {nav.map(([id, label, group]) => (
           <div key={id}>
             {group && <div className="group">{group}</div>}
-            <a href={`#/${id}`} className={page === id || (page === "" && id === "dashboard") ? "on" : ""}>
+            <a href={`#/${id}`} className={page === id ? "on" : ""}>
               {label}{id === "alerts" && unread > 0 && <span className="badge">{unread > 99 ? "99+" : unread}</span>}
             </a>
           </div>
         ))}
+        {ui === "simple"
+          ? <button className="ghost more" onClick={() => setUiMode("advanced")} title="Shows every screen and the full trading terms. Your limits and safety rules stay the same.">All tools (Advanced)</button>
+          : <button className="ghost more" onClick={() => { setUiMode("simple"); location.hash = "#/home"; }}>Back to Simple</button>}
       </nav>
+      <div className="under">
+        <OfflineBanner connected={L.connected} />
+        {ui === "simple" ? <SimpleStrip trades={curMode} onTrades={switchMode} />
+          : curMode === "futures" || page === "futures" ? <FuturesStrip mode="futures" onMode={switchMode} /> : <StatusStrip mode={curMode} onMode={switchMode} />}
+      </div>
       <main className="main">{view}</main>
       <div className="toast-stack" aria-live="polite">
         {L.toasts.map((t) => (
           <div key={t.id} className={`toast ${t.severity}`} role="alert">
-            <div className="spread"><b>{t.title}</b><button className="ghost" onClick={() => dismissToast(t)} aria-label="Dismiss">✕</button></div>
-            <div className="small muted" style={{ whiteSpace: "pre-wrap", maxHeight: 110, overflow: "hidden" }}>{t.body}</div>
+            <div className="spread"><b>{ui === "simple" ? say(t.title) : t.title}</b><button className="ghost" onClick={() => dismissToast(t)} aria-label="Dismiss">✕</button></div>
+            <div className="small muted" style={{ whiteSpace: "pre-wrap", maxHeight: 110, overflow: "hidden" }}>{ui === "simple" ? say(t.body) : t.body}</div>
             {t.symbol && <a href={`#/chart/${t.symbol}`} className="small">Open chart and full analysis</a>}
           </div>
         ))}

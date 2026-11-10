@@ -74,7 +74,7 @@ export function Dashboard() {
         </div>
 
         <div className="stack">
-          <Panel title="Paper account" sub="simulated">
+          <Panel title="Practice account" sub="pretend money">
             {L.paper ? (
               <div className="stack">
                 <div className="spread"><span className="muted">Equity</span><span className="num" style={{ fontSize: 20 }}>{money(L.paper.equity)}</span></div>
@@ -85,7 +85,7 @@ export function Dashboard() {
                 {L.paper.daily_loss_limit_hit && <div className="note bad">Daily loss limit reached. New entries are off for today. This is the moment to stop.</div>}
               </div>) : <div className="muted">Loading…</div>}
           </Panel>
-          <Panel title="Positions" flush right={<a href="#/paper" className="small">Paper trading</a>}>
+          <Panel title="Positions" flush right={<a href="#/paper" className="small">Practice trading</a>}>
             {!pos.data?.length ? <div className="empty">No open positions.</div> :
               <table><tbody>{pos.data.map((p: any) => {
                 const adv = sigs.data?.positions?.[p.symbol];
@@ -208,7 +208,7 @@ export function ChartPage({ symbol: routeSym }: { symbol?: string }) {
           {snap && <Panel title="Evidence" sub={`bias ${snap.bias.label} (${snap.bias.score})`}>
             {snap.factors.map((f: any) => <p key={f.factor} className="small"><span className={f.direction === "bullish" ? "up" : f.direction === "bearish" ? "down" : "muted"}>{f.factor}.</span> {f.why}</p>)}
             {snap.candles.map((c: any, i: number) => <p key={i} className="small muted">{c.meaning}</p>)}</Panel>}
-          <Panel title="Paper order"><OrderTicket symbol={sym} prefill={prefill} /></Panel>
+          <Panel title="Practice order"><OrderTicket symbol={sym} prefill={prefill} /></Panel>
         </div>
       </div>
     </div>
@@ -416,7 +416,7 @@ export function Paper() {
     pos.reload(); orders.reload();
   };
   const reset = async () => {
-    const cash = prompt("Reset the paper account? All positions, orders and history will be erased. Starting cash:", "25000");
+    const cash = prompt("Reset the practice account? All positions, orders and history will be erased. Starting cash:", "25000");
     if (!cash) return;
     await api("/paper/reset", { method: "POST", json: { confirm: true, starting_cash: Number(cash) } });
     acct.reload(); pos.reload(); orders.reload(); fills.reload();
@@ -434,7 +434,7 @@ export function Paper() {
       <div className="cols c-chart">
         <div className="stack">
           <Panel title="Open positions" flush>
-            {!pos.data?.length ? <div className="empty">No open positions. Use the ticket to place a paper trade.</div> :
+            {!pos.data?.length ? <div className="empty">No open positions. Use the ticket to place a practice trade.</div> :
               <table><thead><tr><th>Symbol</th><th>Side</th><th className="r">Qty</th><th className="r">Avg</th><th className="r">Mark</th><th>Data</th><th className="r">Unrealized</th><th className="r">Stop</th><th className="r">Target</th><th>Advice</th><th /></tr></thead>
                 <tbody>{pos.data.map((p: any) => {
                   const adv = sigs.data?.positions?.[p.symbol];

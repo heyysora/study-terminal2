@@ -171,7 +171,7 @@ export function Journal() {
   const reload = () => { trades.reload(); perf.reload(); };
   return (
     <div className="page">
-      <Panel title="Trading journal" sub="every paper trade and signal, recorded automatically">
+      <Panel title="Trading journal" sub="every practice trade and signal, recorded automatically">
         <div className="form">
           <label className="f">From<input type="date" value={f.start} onChange={set("start")} /></label>
           <label className="f">To<input type="date" value={f.end} onChange={set("end")} /></label>

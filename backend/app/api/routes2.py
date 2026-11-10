@@ -482,10 +482,10 @@ def desktop_startup(request: Request, enabled: bool):
 @router.get("/desktop/info")
 def desktop_info(request: Request):
     """Version and where your data, settings and logs live (so you can find, back up or send logs)."""
-    from ..config import ENV_FILES, FROZEN, VERSION
+    from ..config import BUILD, ENV_FILES, FROZEN, VERSION
 
     s = st(request).settings
-    return {"version": VERSION, "installed_app": FROZEN, "data_dir": str(s.data_dir), "log_file": str(s.data_dir / "logs" / "study_terminal.log"),
+    return {"version": VERSION, "build": BUILD, "installed_app": FROZEN, "data_dir": str(s.data_dir), "log_file": str(s.data_dir / "logs" / "study_terminal.log"),
             "database": s.resolved_database_url.replace("sqlite:///", ""), "settings_files": list(ENV_FILES),
             "start_on_login": bool(st(request).settings_store.get("desktop.start_on_login", False)),
             "update_procedure": "Download the new installer and run it: it replaces the program files and keeps your data, settings "

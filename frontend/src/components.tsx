@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   CandlestickSeries, ColorType, HistogramSeries, IChartApi, ISeriesApi, LineSeries, LineStyle, createChart,
 } from "lightweight-charts";
+import { actionWord, statusWord, useUiMode } from "./plain";
 import { SOURCE_TEXT, STATUS_LEVEL, STATUS_TEXT, actionClass, ago, api, etDate, etTimeSec, money, num, pct } from "./lib";
 
 /** Signal meter: how live the data is. 5 = real-time ... 0 = unavailable. */
 export function Meter({ status, big, withText, reason }: { status?: string; big?: boolean; withText?: boolean; reason?: string }) {
+  const simple = useUiMode() === "simple";
   const lvl = status ? STATUS_LEVEL[status] ?? 0 : 0;
-  const text = status ? STATUS_TEXT[status] || status : "No data";
+  const text = simple ? (status ? statusWord(status).word : "No prices") : status ? STATUS_TEXT[status] || status : "No data";
   return (
     <span className="row" style={{ gap: 6, display: "inline-flex" }} title={reason || text}>
       <span className={`meter l${lvl}${big ? " big" : ""}`} aria-label={`Data: ${text}`}><i /><i /><i /><i /><i /></span>
@@ -47,7 +49,9 @@ export function ChartStamp({ data }: { data?: any }) {
 }
 
 export function Action({ a }: { a?: string }) {
-  return <span className={actionClass(a)}>{a || "NO TRADE"}</span>;
+  const simple = useUiMode() === "simple";
+  // Simple mode: every "don't trade" outcome reads WAIT, ideas read as practice ideas. The original stays in the tooltip.
+  return <span className={actionClass(a)} title={simple && a ? `Advanced wording: ${a}` : undefined}>{simple ? actionWord(a || "NO TRADE").word : a || "NO TRADE"}</span>;
 }
 
 export function Panel({ title, sub, right, children, flush }: { title: string; sub?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; flush?: boolean }) {
@@ -185,7 +189,7 @@ export function SignalCard({ s, onTrade }: { s: any; onTrade?: (s: any) => void 
         {s.supporting_indicators.map((f: any) => <p key={f.factor} className="small"><b>{f.factor}.</b> {f.why}</p>)}
         <p className="small muted">Volume: RVOL {num(s.volume.rvol)}x, signal bar {num(s.volume.signal_bar_vol_ratio)}x average. Market: SPY {s.market.bias}{s.market.spy_change_pct !== null ? `, ${pct(s.market.spy_change_pct)}` : ""}.</p>
       </details>
-      {onTrade && s.action !== "NO TRADE" && <div className="row"><button onClick={() => onTrade(s)}>Load into paper order ticket</button></div>}
+      {onTrade && s.action !== "NO TRADE" && <div className="row"><button onClick={() => onTrade(s)}>Load into practice order ticket</button></div>}
     </div>
   );
 }
@@ -252,14 +256,14 @@ export function OrderTicket({ symbol, prefill, onDone }: { symbol: string; prefi
       </div>
       {f.type === "limit" && <label className="check"><input type="checkbox" checked={f.extended_hours} onChange={set("extended_hours")} />Allow premarket / after-hours fills</label>}
       <div className="row"><button onClick={preview} disabled={busy}>Preview order</button>
-        {p?.ok && <button className="primary" onClick={place} disabled={busy}>Place paper order</button>}</div>
+        {p?.ok && <button className="primary" onClick={place} disabled={busy}>Place practice order</button>}</div>
       {p && (
         <div className="stack small">
           <div className="muted">Price used: {pv.price ? `${money(pv.price.price)} (${pv.price.status})` : "none available"} · est. fill {money(p.est_fill_price)} · notional {money(p.est_notional)} · buying power {money(p.buying_power)}</div>
           {p.risk_dollars !== null && <div>Risk {money(p.risk_dollars)} of {money(p.max_risk_dollars)} allowed{p.reward_risk ? `, reward:risk ${p.reward_risk}:1` : ""}{p.suggested_qty !== null ? `, suggested size ${p.suggested_qty} sh` : ""}</div>}
           {p.errors.map((e: string, i: number) => <div key={i} className="note bad">{e}</div>)}
           {p.warnings.map((e: string, i: number) => <div key={i} className="note warn">{e}</div>)}
-          {p.ok && <div className="note">Paper order only - nothing goes to a broker. Review, then place it.</div>}
+          {p.ok && <div className="note">Practice order only: nothing goes to a broker. Review, then place it.</div>}
         </div>
       )}
       {msg && <div className={`note ${msg.kind}`}>{msg.text}</div>}

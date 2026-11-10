@@ -2,6 +2,10 @@
 
 Audit date: 2026-11-10. Nothing in the app was changed for this audit. It is a list of problems and proposed fixes for you to approve.
 
+**Status (0.12.0 preview 1):** stages 1-3 of section 9 are implemented (top bar, plain-language layer, Home and setup guide), plus a
+first Simple/Advanced switch. Stages 4-7 are still open. Findings addressed so far: A4, A5, B1-B6, B8, B12 (interface labels),
+C1-C5, D1, D3, D5, G1 (wording), G5 (Stop everything dialog). Details in `docs/CHANGELOG.md`.
+
 **The test used throughout:** a 10-year-old who has never traded and never used trading software should be able to find their way around, understand what the app is telling them, and use the basic features.
 
 **Design rule this audit is held to:** the software should do the complicated thinking. The user should not have to do the complicated navigating.

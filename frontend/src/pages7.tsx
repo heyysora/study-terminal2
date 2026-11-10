@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel } from "./components";
 import { api, ensureLive, onLiveMessage, usePoll } from "./lib";
+import { confidenceWord, say, sourceClass, useUiMode } from "./plain";
+import { ActionWord, Term, WhyBlock } from "./simple";
 
 const ROOTS = ["auto", "NQ", "MNQ", "ES", "MES"];
 const TFS = ["auto", "1Min", "2Min", "3Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day"];
 const COLOR_KEYS: [string, string][] = [["up_color", "Up candle"], ["down_color", "Down candle"], ["vwap_color", "VWAP line"],
   ["ema:9", "EMA 9"], ["ema:20", "EMA 20"], ["ema:50", "EMA 50"], ["ema:200", "EMA 200"]];
 const LABEL_CLASS: Record<string, string> = { "LIVE VISUAL OBSERVATION": "pos", STALE: "neg", UNREADABLE: "neg", DISCONNECTED: "neg", PAUSED: "", STOPPED: "" };
-const CLASS_TEXT: Record<string, string> = { DIRECTLY_READ: "DIRECTLY_READ", CALCULATED_FROM_CALIBRATION: "CALCULATED_FROM_CALIBRATION",
-  VISUALLY_ESTIMATED: "VISUALLY_ESTIMATED", UNAVAILABLE: "UNAVAILABLE" };
+// how a value was obtained: plain words in Simple mode, the exact class name in Advanced
+const CLASS_TEXT = new Proxy({} as Record<string, string>, { get: (_t, k) => sourceClass(String(k)) });
 const METHODS: [string, string][] = [["auto", "Automatic (Graphics Capture → PrintWindow → screen)"], ["wgc", "Windows Graphics Capture"],
   ["printwindow", "PrintWindow"], ["screen", "Screen region (window must be visible)"]];
 
@@ -19,9 +21,11 @@ const blank = (): any => ({ name: "TopstepX chart", window_title_contains: "Tops
 
 const hex = (c: number[] | null | undefined) => (c ? "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("") : "");
 
-export function VisualMonitor() {
+export function VisualMonitor({ tab: startTab }: { tab?: string } = {}) {
   const st = usePoll("/visual/status", 5000);
-  const [tab, setTab] = useState<"monitor" | "setup">("monitor");
+  const [tab, setTab] = useState<"monitor" | "setup">(startTab === "setup" ? "setup" : "monitor");
+  useEffect(() => { if (startTab === "setup") setTab("setup"); }, [startTab]);
+  useUiMode();
   const [editing, setEditing] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { ensureLive(); return onLiveMessage((m) => { if (m.type === "visual") st.reload(); }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -106,7 +110,7 @@ function ChartCard({ c, running, onRecalibrate }: { c: any; running: boolean; on
               {(["instrument", "timeframe", "price", "bid", "ask", "volume"] as const).map((k) => <tr key={k}><td className="muted">{k === "price" ? "observed price" : k}</td>
                 <td>{r[k].value ?? "—"}</td><td className="faint">{CLASS_TEXT[r[k].class]} · {r[k].confidence}</td></tr>)}
               <tr><td className="muted">axis</td><td>{r.axis ? `${r.axis.labels} labels, ${r.axis.price_per_pixel} pts/px` : r.calibration_valid === false ? "calibration invalid" : "—"}</td><td className="faint">{r.axis ? `${CLASS_TEXT[r.axis.class]} (${r.axis.mode}${r.axis.verified === false ? ", unverified" : ""})` : ""}</td></tr>
-              <tr><td className="muted">candles</td><td>{r.candles.length}</td><td className="faint">VISUALLY_ESTIMATED · {r.candle_confidence}</td></tr>
+              <tr><td className="muted">candles</td><td>{r.candles.length}</td><td className="faint">{CLASS_TEXT.VISUALLY_ESTIMATED} · {r.candle_confidence}</td></tr>
               {Object.entries<any>(r.indicators || {}).map(([k, v]) => <tr key={k}><td className="muted">{k}</td><td>{v.last ?? "—"}</td>
                 <td className="faint">{CLASS_TEXT[v.class]}{v.confidence ? ` · ${v.confidence}` : ""}{v.class === "UNAVAILABLE" ? ` (${v.source})` : ""}</td></tr>)}
               {(r.levels || []).slice(0, 6).map((l: any, i: number) => <tr key={i}><td className="muted">line {l.label || ""}</td><td>{l.price}</td><td className="faint">{CLASS_TEXT[l.class]}</td></tr>)}
@@ -121,22 +125,27 @@ function ChartCard({ c, running, onRecalibrate }: { c: any; running: boolean; on
 }
 
 function RecCard({ rec, label }: { rec: any; label: string }) {
+  const simple = useUiMode() === "simple";
   const cls = rec.action === "LONG" ? "pos" : rec.action === "SHORT" || rec.action === "EXIT" ? "neg" : "";
+  const plan = rec.entry != null && <table className="small"><tbody>
+    <tr><td className="muted">Price I read</td><td>{rec.observed_price}</td><td className="muted"><Term k="entry" /></td><td>{rec.entry_zone?.join(" – ")}</td></tr>
+    <tr><td className="muted"><Term k="stop" /></td><td>{rec.stop}</td><td className="muted"><Term k="target" /></td><td>{(rec.target_levels || [rec.target_1, rec.target_2]).join(" / ")}</td></tr>
+    <tr><td className="muted"><Term k="reward_risk" /></td><td>{simple ? `$${rec.reward_risk} for every $1 risked` : `${rec.reward_risk}R`}</td><td className="muted">{simple ? "Kind of idea" : "Setup"}</td><td>{say(`${rec.setup} ${rec.direction}`)}</td></tr>
+    <tr><td className="muted"><Term k="evidence_tier" /></td><td>{rec.evidence_tier}</td><td className="muted">{simple ? "Contracts (within your limits)" : "Size (risk engine)"}</td><td>{rec.suggested_contracts ?? "—"}</td></tr>
+  </tbody></table>;
   return (
-    <Panel title="Recommendation" sub={`${rec.contract || ""} ${rec.timeframe || ""}`} right={<span className={`badge ${cls}`}>{rec.action}{rec.potential ? ` · potential ${rec.potential}` : ""}</span>}>
-      <div className="small">{rec.reason}</div>
-      {rec.entry != null && <table className="small"><tbody>
-        <tr><td className="muted">Observed price</td><td>{rec.observed_price}</td><td className="muted">Observed entry area</td><td>{rec.entry_zone?.join(" – ")}</td></tr>
-        <tr><td className="muted">Stop-loss area</td><td>{rec.stop}</td><td className="muted">Targets</td><td>{(rec.target_levels || [rec.target_1, rec.target_2]).join(" / ")}</td></tr>
-        <tr><td className="muted">Risk/reward</td><td>{rec.reward_risk}R</td><td className="muted">Setup</td><td>{rec.setup} {rec.direction}</td></tr>
-        <tr><td className="muted">Evidence tier</td><td>{rec.evidence_tier}</td><td className="muted">Size (risk engine)</td><td>{rec.suggested_contracts ?? "—"}</td></tr>
-      </tbody></table>}
-      {rec.invalidation && <div className="small">What invalidates it: {rec.invalidation}</div>}
-      {rec.values && <div className="small faint">{rec.values}</div>}
-      {rec.evidence?.length > 0 && <details><summary className="small">Supporting evidence</summary>{rec.evidence.map((e: string, i: number) => <div key={i} className="small faint">{e}</div>)}</details>}
-      {(rec.risk_check?.problems || []).map((p: string) => <div key={p} className="note bad small">{p}</div>)}
-      {rec.notes?.length > 0 && <div className="small faint">{rec.notes.join(" ")}</div>}
-      <div className="small faint">Data confidence {rec.data_confidence} · captured {rec.captured_at || "—"} · {label} (SCREEN CAPTURE). Study Terminal never clicks or places orders.</div>
+    <Panel title={simple ? "Practice a trade or wait?" : "Recommendation"} sub={`${rec.contract || ""} ${rec.timeframe || ""}`}
+      right={simple ? <ActionWord a={rec.action} /> : <span className={`badge ${cls}`}>{rec.action}{rec.potential ? ` · potential ${rec.potential}` : ""}</span>}>
+      <WhyBlock reason={rec.reason} />
+      {simple && rec.potential && plan ? <details><summary className="small">The idea I noticed (for watching, not trading)</summary>{plan}</details> : plan}
+      {rec.invalidation && <div className="small">{simple ? "The plan is cancelled if" : "What invalidates it"}: {say(rec.invalidation)}</div>}
+      {!simple && rec.values && <div className="small faint">{rec.values}</div>}
+      {rec.evidence?.length > 0 && <details><summary className="small">{simple ? "Checks it passed" : "Supporting evidence"}</summary>{rec.evidence.map((e: string, i: number) => <div key={i} className="small faint">{e}</div>)}</details>}
+      {(rec.risk_check?.problems || []).map((p: string) => <WhyBlock key={p} reason={p} />)}
+      {rec.notes?.length > 0 && <div className="small faint">{say(rec.notes.join(" "))}</div>}
+      <div className="small faint">{simple
+        ? <><Term k="data_confidence" />: {confidenceWord(rec.data_confidence)} (this is not the chance of winning). Read from your screen at {rec.captured_at || "—"}. Study Terminal never clicks or places orders.</>
+        : <>Data confidence {rec.data_confidence} · captured {rec.captured_at || "—"} · {label} (SCREEN CAPTURE). Study Terminal never clicks or places orders.</>}</div>
     </Panel>
   );
 }

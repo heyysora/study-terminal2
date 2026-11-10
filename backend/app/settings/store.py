@@ -37,6 +37,8 @@ SCHEMA: dict[str, tuple[type, Any]] = {
     "futures.default_root": (str, "MES"), "futures.stream_enabled": (bool, True), "futures.stream_stale_seconds": (float, 30.0), "futures.watch": (list, ["NQ", "MNQ", "ES", "MES", "CL", "GC"]), "futures.data_source": (str, "yahoo"),
     "futures.projectx_live_data": (bool, False), "futures.projectx_read_account": (bool, False), "futures.rth": (dict, {}),
     "screen.platform": (str, "auto"), "futures.platform": (str, "topstepx"), "automation.autostart": (bool, True), "futures.profiles": (dict, {}), "screen.read_account_info": (bool, False), "app.market_mode": (str, "equities"),
+    # interface: display only. Changing these never changes limits, permissions or calculations.
+    "ui.mode": (str, "simple"), "ui.setup_dismissed": (bool, False), "ui.trades_chosen": (bool, False),
     "desktop.start_on_login": (bool, False), "desktop.keep_awake_while_monitoring": (bool, False),
 }
 
@@ -75,6 +77,8 @@ class SettingsStore:
                 v = int(v)
             if not isinstance(v, typ) or (typ is int and isinstance(v, bool)):
                 raise ValueError(f"{k} must be {typ.__name__}")
+            if k == "ui.mode" and v not in ("simple", "advanced"):
+                raise ValueError("ui.mode must be simple or advanced")
             if typ in (float, int) and v < 0:
                 raise ValueError(f"{k} cannot be negative")
             clean[k] = v

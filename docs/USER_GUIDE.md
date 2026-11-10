@@ -123,6 +123,13 @@ grounded data in friendlier language and are told never to invent prices, news o
 18 lessons with quizzes, a glossary, and "spot the setup" exercises on real charts. The mentor adapts explanations to
 your level and the terms you've learned.
 
+## Home, Simple mode and the top bar (0.12)
+Study Terminal opens on **Home**, which answers five questions in plain words and shows a getting-started guide until setup is done.
+The top bar is on every screen: **PRACTICE MODE** (always: there is no real-money mode), a health light (Working / Not watching /
+Needs attention / Not working) and **Stop everything**. Stop everything stops chart watching, market checking and anything the app
+was practicing by itself; to start again you write one sentence about why you stopped. **Simple / Advanced** changes only what is
+shown. Advanced has every screen and the trading terms; your limits and safety rules are the same in both.
+
 ## Trust & Validation
 Menu > Trust & Validation shows nine validation statuses and the overall readiness level, with exactly what's still missing for the
 next level. It only counts real recorded evidence. To add visual evidence, use Live copilot > Calibrate: upload a real TopstepX

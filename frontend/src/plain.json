@@ -1,0 +1,707 @@
+{
+ "actions": {
+  "APPROVED": {
+   "tone": "idea",
+   "word": "PRACTICE IDEA"
+  },
+  "BLOCKED": {
+   "tone": "stop",
+   "word": "STOPPED"
+  },
+  "EXIT": {
+   "tone": "exit",
+   "word": "CLOSE THE PRACTICE TRADE"
+  },
+  "INVALIDATED": {
+   "tone": "wait",
+   "word": "WAIT"
+  },
+  "LONG": {
+   "tone": "idea",
+   "word": "PRACTICE IDEA: UP"
+  },
+  "NO TRADE": {
+   "tone": "wait",
+   "word": "WAIT"
+  },
+  "NO_TRADE": {
+   "tone": "wait",
+   "word": "WAIT"
+  },
+  "REJECTED": {
+   "tone": "wait",
+   "word": "WAIT"
+  },
+  "SHORT": {
+   "tone": "idea",
+   "word": "PRACTICE IDEA: DOWN"
+  },
+  "WAIT": {
+   "tone": "wait",
+   "word": "WAIT"
+  },
+  "WAIT FOR CONFIRMATION": {
+   "tone": "wait",
+   "word": "WAIT"
+  },
+  "WATCH ONLY": {
+   "tone": "wait",
+   "word": "WAIT"
+  },
+  "WATCH_ONLY": {
+   "tone": "wait",
+   "word": "WAIT"
+  }
+ },
+ "reasons": [
+  [
+   "another tab is open",
+   "chart",
+   "Your browser is showing a different tab, so I'm not looking.",
+   "Switch back to the TopstepX tab. For privacy, nothing else is ever read."
+  ],
+  [
+   "window is minimized",
+   "chart",
+   "The TopstepX window is minimized, so I can't see it.",
+   "Open the window again. It can sit behind other windows, but not minimized."
+  ],
+  [
+   "Another window covers the chart",
+   "chart",
+   "Another window is covering your chart.",
+   "Move the other window off the chart."
+  ],
+  [
+   "Layout changed|layout changed|capture region is outside|calibration|Recalibrate",
+   "chart",
+   "Your chart looks different from when it was set up.",
+   "Check chart settings and select the chart area again."
+  ],
+  [
+   "Chart frozen",
+   "chart",
+   "Your chart has stopped moving.",
+   "Check that TopstepX is connected and not paused or in replay."
+  ],
+  [
+   "^STALE\\b",
+   "chart",
+   "Your chart isn't updating.",
+   "Check that TopstepX is open and the chart is moving. Study Terminal starts again by itself when it does."
+  ],
+  [
+   "^DISCONNECTED\\b",
+   "chart",
+   "I can't find your chart window.",
+   "Open TopstepX in Microsoft Edge and don't minimize it."
+  ],
+  [
+   "^UNREADABLE\\b|^The chart couldn't be read",
+   "chart",
+   "I can't read your chart right now.",
+   "Make sure nothing is covering the chart. If it keeps happening, check chart settings."
+  ],
+  [
+   "^(PAUSED|STOPPED)\\b",
+   "chart",
+   "Watching is turned off.",
+   "Turn watching on to get a suggestion."
+  ],
+  [
+   "^Instrument uncertain",
+   "chart",
+   "I'm not sure which market this chart shows.",
+   "Make sure the market name (for example MNQ) is visible at the top of the chart."
+  ],
+  [
+   "^Timeframe uncertain",
+   "chart",
+   "I'm not sure how much time each candle on this chart covers.",
+   "Make sure the timeframe (for example 5m) is visible at the top of the chart."
+  ],
+  [
+   "^Current price can't be read",
+   "chart",
+   "I can't read the current price on your chart.",
+   "Make sure the price scale on the right side of the chart is visible."
+  ],
+  [
+   "^Only (\\d+) candles readable",
+   "chart",
+   "I can only see \\1 candles, which isn't enough to judge.",
+   "Zoom the chart out a little so more candles are visible."
+  ],
+  [
+   "^Candle bodies",
+   "chart",
+   "I can't make out the recent candles clearly.",
+   "Zoom in a little, or check the candle colors in chart settings."
+  ],
+  [
+   "recognition confidence is low",
+   "chart",
+   "I'm not confident I'm reading your chart correctly.",
+   "Check chart settings."
+  ],
+  [
+   "^Data incomplete",
+   "data",
+   "I don't have enough of the chart yet to judge.",
+   "Nothing to do. This fills in after the market has been open for a while."
+  ],
+  [
+   "^Market data failed validation",
+   "data",
+   "The prices I received don't look right, so I'm not using them.",
+   "Nothing to do. I check again every few minutes."
+  ],
+  [
+   "^No decisions on delayed data",
+   "data",
+   "I only have old (delayed) prices, so I won't suggest a trade from them.",
+   "Connect your TopstepX chart so I can see current prices."
+  ],
+  [
+   "^No decisions on (\\w+) data",
+   "data",
+   "I don't have current prices right now.",
+   "Connect your TopstepX chart, or wait until the market is open."
+  ],
+  [
+   "^Market data is too old|^Market data is [\\d.,]+ s old",
+   "data",
+   "The last price I saw is too old to act on.",
+   "Nothing to do if the market is closed. Otherwise check that your chart is updating."
+  ],
+  [
+   "has expired\\.$|^Past the roll date",
+   "market",
+   "This chart shows an old contract that traders have moved on from.",
+   "Switch your TopstepX chart to the current contract."
+  ],
+  [
+   "^Outside RTH",
+   "time",
+   "It's outside the main trading hours.",
+   "Nothing to do. Come back during the main trading hours."
+  ],
+  [
+   "^Too close to the flat-by time",
+   "time",
+   "It's too close to the end of the trading day to start something new.",
+   "Nothing to do. Try again tomorrow."
+  ],
+  [
+   "isn't trading right now",
+   "time",
+   "This market is closed right now.",
+   "Nothing to do. It reopens after the break, weekend or holiday."
+  ],
+  [
+   "^Extreme volatility",
+   "market",
+   "The market is moving too wildly right now.",
+   "Wait for it to calm down."
+  ],
+  [
+   "^Move already extended",
+   "market",
+   "The move has already happened. Jumping in late is risky.",
+   "Wait for the next clear chance."
+  ],
+  [
+   "^Price is near a key level",
+   "market",
+   "Price is close to an important level. I'm waiting to see what it does there.",
+   "Keep watching. I'll tell you if a plan forms."
+  ],
+  [
+   "^No setup",
+   "market",
+   "Nothing worth trading right now.",
+   "That's normal. Most of the time the right move is to wait."
+  ],
+  [
+   "^Against the 15-minute",
+   "market",
+   "The bigger chart points the other way.",
+   "Wait until the short-term and bigger charts agree."
+  ],
+  [
+   "invalidated before entry",
+   "market",
+   "The idea I was watching stopped making sense before it started.",
+   "Nothing to do. I'm looking for the next one."
+  ],
+  [
+   "^Entry is gone",
+   "market",
+   "The good starting price has already passed.",
+   "Don't chase it. Wait for the next chance."
+  ],
+  [
+   "^Potential (LONG|SHORT) setup",
+   "testing",
+   "I noticed a possible move, but this kind of idea hasn't passed testing yet.",
+   "You can watch how it plays out. It isn't a suggestion to trade."
+  ],
+  [
+   "isn't a validated strategy",
+   "testing",
+   "This kind of idea hasn't passed testing yet, so it's for watching only.",
+   "You can watch how it plays out. It isn't a suggestion to trade."
+  ],
+  [
+   "^Reward/risk too low|^Reward-to-risk to the first target is ([\\d.]+); your minimum is ([\\d.]+)",
+   "risk",
+   "The possible gain is too small for the possible loss.",
+   "Wait for a better chance."
+  ],
+  [
+   "^Even one contract would exceed",
+   "risk",
+   "Even the smallest trade would risk more than your limits allow.",
+   "Wait for a trade with a closer exit-if-wrong price."
+  ],
+  [
+   "^This trade risks \\$([\\d,]+(?:\\.\\d+)?) .*per-trade limit is \\$([\\d,]+(?:\\.\\d+)?)",
+   "risk",
+   "This trade could lose $\\1 and your limit is $\\2 per trade.",
+   "Wait for a smaller trade, or review your limits in Settings."
+  ],
+  [
+   "^Open risk would be \\$([\\d,]+(?:\\.\\d+)?); your limit is \\$([\\d,]+(?:\\.\\d+)?)",
+   "risk",
+   "With this trade you would have $\\1 at risk and your limit is $\\2.",
+   "Close a practice trade first, or wait."
+  ],
+  [
+   "Maximum Loss Limit",
+   "risk",
+   "If this trade lost, the account would fail.",
+   "Wait. Protecting the account comes first."
+  ],
+  [
+   "Daily Loss Limit|your own daily limit",
+   "risk",
+   "This trade could lose more than you have left to lose today.",
+   "Stop for today, or wait for a smaller trade."
+  ],
+  [
+   "the limit is (\\d+(?:\\.\\d+)?)",
+   "risk",
+   "That would be more contracts than your limit of \\1.",
+   "Use fewer contracts."
+  ],
+  [
+   "^A stop loss is required",
+   "risk",
+   "Every practice trade needs an exit-if-wrong price.",
+   "Add one before placing the trade."
+  ],
+  [
+   "^Risk checks couldn't run",
+   "risk",
+   "I couldn't check this trade against your limits, so the answer is wait.",
+   "Nothing to do. I'll check again."
+  ],
+  [
+   "^Costs are too large",
+   "risk",
+   "Fees would eat too much of this trade.",
+   "Wait for a trade with more room."
+  ],
+  [
+   "^Expected slippage",
+   "risk",
+   "The price is jumping around too much to get a fair starting price.",
+   "Wait for calmer prices."
+  ],
+  [
+   "passed every check",
+   "idea",
+   "This plan passed every check.",
+   "You can practice it. It is not a promise that it will work."
+  ],
+  [
+   "^Stop [\\d.,]+ reached",
+   "exit",
+   "The price reached the plan's exit-if-wrong price.",
+   "Close the practice trade. A small loss is part of the plan."
+  ],
+  [
+   "^Target 2 [\\d.,]+ reached",
+   "exit",
+   "The price reached the plan's take-the-gain price.",
+   "Close the practice trade."
+  ]
+ ],
+ "simplify": [
+  [
+   "\\bRTH\\b",
+   "main trading hours",
+   "i"
+  ],
+  [
+   "\\bpaper[- ]trading\\b",
+   "practice trading",
+   "i"
+  ],
+  [
+   "\\bpaper (account|position|order|trade|simulator|equity)",
+   "practice \\1",
+   "i"
+  ],
+  [
+   "\\bthe simulator\\b",
+   "the practice account",
+   "i"
+  ],
+  [
+   "\\bsimulated\\b",
+   "practice",
+   "i"
+  ],
+  [
+   "\\bsim balance\\b",
+   "practice money",
+   "i"
+  ],
+  [
+   "\\bis stale\\b",
+   "isn't updating",
+   "i"
+  ],
+  [
+   "\\bstale\\b",
+   "not updating",
+   "i"
+  ],
+  [
+   "\\breward[-/ ]to[-/ ]risk\\b|\\breward/risk\\b|\\brisk/reward\\b",
+   "possible gain vs. possible loss",
+   "i"
+  ],
+  [
+   "\\bvalidated strategy\\b",
+   "tested idea",
+   "i"
+  ],
+  [
+   "\\bwalk-forward\\b|\\bout-of-sample\\b",
+   "tested on unseen days",
+   "i"
+  ],
+  [
+   "\\bslippage\\b",
+   "price slip",
+   "i"
+  ],
+  [
+   "\\bflattened\\b",
+   "closed",
+   "i"
+  ],
+  [
+   "\\bflatten\\b",
+   "close",
+   "i"
+  ],
+  [
+   "\\bEMERGENCY STOP\\b",
+   "Stop everything",
+   ""
+  ],
+  [
+   "\\bautomation orders\\b",
+   "practice orders the app placed",
+   "i"
+  ],
+  [
+   "\\bmini-equivalent contracts\\b",
+   "contracts (counting 10 micros as 1)",
+   "i"
+  ],
+  [
+   "\\bcalibration\\b",
+   "chart settings check",
+   "i"
+  ],
+  [
+   "\\brisk engine\\b",
+   "your limits",
+   "i"
+  ],
+  [
+   "\\bLONG\\b",
+   "UP",
+   ""
+  ],
+  [
+   "\\bSHORT\\b",
+   "DOWN",
+   ""
+  ],
+  [
+   "the last break of structure was (up|down)",
+   "price last pushed \\1 through a recent turning point",
+   "i"
+  ],
+  [
+   "\\bbreak of structure\\b|\\bBOS\\b",
+   "push through a recent turning point",
+   "i"
+  ],
+  [
+   "\\bIBL\\b",
+   "the first hour's low",
+   ""
+  ],
+  [
+   "\\bIBH\\b",
+   "the first hour's high",
+   ""
+  ],
+  [
+   "\\bVWAP\\b",
+   "today's average price",
+   ""
+  ],
+  [
+   "\\bbullish\\b",
+   "leaning up",
+   "i"
+  ],
+  [
+   "\\bbearish\\b",
+   "leaning down",
+   "i"
+  ]
+ ],
+ "source_classes": {
+  "CALCULATED_FROM_CALIBRATION": "Worked out from the chart",
+  "DIRECTLY_READ": "Read from the chart",
+  "UNAVAILABLE": "Couldn't read",
+  "VISUALLY_ESTIMATED": "Estimated from the picture"
+ },
+ "statuses": {
+  "cached": {
+   "explain": "The newest prices couldn't be fetched, so an earlier copy is shown.",
+   "level": "slow",
+   "word": "Saved earlier"
+  },
+  "delayed": {
+   "explain": "These prices are several minutes behind the real market. They are fine for learning, not for timing a trade.",
+   "level": "slow",
+   "word": "Old prices (delayed)"
+  },
+  "disconnected": {
+   "explain": "The chart window is closed, hidden or minimized.",
+   "level": "bad",
+   "word": "Can't find the chart"
+  },
+  "historical": {
+   "explain": "These are prices from the past, not from right now.",
+   "level": "slow",
+   "word": "Past prices"
+  },
+  "near_realtime": {
+   "explain": "Prices are arriving within a few seconds.",
+   "level": "ok",
+   "word": "Working"
+  },
+  "paused": {
+   "explain": "Watching is paused.",
+   "level": "off",
+   "word": "Paused"
+  },
+  "polling": {
+   "explain": "Prices are checked every few seconds.",
+   "level": "ok",
+   "word": "Working"
+  },
+  "realtime": {
+   "explain": "Prices are arriving live.",
+   "level": "ok",
+   "word": "Working"
+  },
+  "reconcile": {
+   "explain": "Study Terminal is filling in prices it missed.",
+   "level": "slow",
+   "word": "Catching up"
+  },
+  "replay": {
+   "explain": "You are replaying an earlier day. Nothing here is happening now.",
+   "level": "slow",
+   "word": "Replay of a past day"
+  },
+  "screen_capture": {
+   "explain": "Study Terminal is reading your chart from the screen.",
+   "level": "ok",
+   "word": "Working"
+  },
+  "stale": {
+   "explain": "The prices have stopped changing, so they can't be trusted right now.",
+   "level": "bad",
+   "word": "Chart isn't updating"
+  },
+  "stopped": {
+   "explain": "Watching is turned off. Nothing is being read.",
+   "level": "off",
+   "word": "Not watching"
+  },
+  "unavailable": {
+   "explain": "No prices are arriving.",
+   "level": "bad",
+   "word": "No prices"
+  },
+  "unreadable": {
+   "explain": "Study Terminal can see the chart window but can't read the numbers on it.",
+   "level": "bad",
+   "word": "Can't read the chart"
+  }
+ },
+ "terms": {
+  "automation": {
+   "explain": "Study Terminal checking the market for you on a timer.",
+   "simple": "Watching",
+   "technical": "Automation"
+  },
+  "bias": {
+   "explain": "Whether the signs point more up, more down, or neither.",
+   "simple": "Which way it's leaning",
+   "technical": "Bias"
+  },
+  "calibration": {
+   "explain": "Making sure Study Terminal lines up the prices on your chart correctly.",
+   "simple": "Check chart settings",
+   "technical": "Calibration"
+  },
+  "contract": {
+   "explain": "One unit of a futures market. More contracts means bigger gains and bigger losses.",
+   "simple": "Contract",
+   "technical": "Contract"
+  },
+  "data_confidence": {
+   "explain": "High, medium or low. This is about reading the chart, not about the trade working.",
+   "simple": "How sure am I that I'm reading the chart right?",
+   "technical": "Data confidence"
+  },
+  "dll": {
+   "explain": "Once today's losses reach this amount, new practice trades are stopped until tomorrow.",
+   "simple": "Most you can lose today",
+   "technical": "Daily loss limit"
+  },
+  "drawdown": {
+   "explain": "How far the account has dropped from its highest value.",
+   "simple": "Money lost from your best point",
+   "technical": "Drawdown"
+  },
+  "ema": {
+   "explain": "A smoothed line of recent prices. It shows the general direction.",
+   "simple": "Moving average",
+   "technical": "EMA"
+  },
+  "entry": {
+   "explain": "The price where the practice trade would begin.",
+   "simple": "Start price",
+   "technical": "Entry"
+  },
+  "evidence_tier": {
+   "explain": "How much independent testing supports the idea.",
+   "simple": "How well tested is this idea?",
+   "technical": "Evidence tier"
+  },
+  "expectancy": {
+   "explain": "What a trade made or lost on average, counting wins and losses together.",
+   "simple": "Average result per trade",
+   "technical": "Expectancy"
+  },
+  "flatten": {
+   "explain": "Close every open practice trade.",
+   "simple": "Close everything",
+   "technical": "Flatten"
+  },
+  "market_structure": {
+   "explain": "Whether price has been making higher highs (going up), lower lows (going down) or neither.",
+   "simple": "Market direction",
+   "technical": "Market structure"
+  },
+  "mll": {
+   "explain": "If the account drops below this line, the trading firm closes it.",
+   "simple": "Money left before the account fails",
+   "technical": "Maximum Loss Limit"
+  },
+  "mtf": {
+   "explain": "Whether the short-term chart and the bigger chart point the same way.",
+   "simple": "Do the charts agree?",
+   "technical": "Multi-timeframe agreement"
+  },
+  "open_risk": {
+   "explain": "What you would lose if every open practice trade hit its exit-if-wrong price.",
+   "simple": "At risk right now",
+   "technical": "Open risk"
+  },
+  "paper": {
+   "explain": "Pretend trading with pretend money. Nothing is sent to a real account.",
+   "simple": "Practice",
+   "technical": "Paper trading / simulator"
+  },
+  "profit_factor": {
+   "explain": "Total winnings divided by total losses. Above 1 means winnings were bigger.",
+   "simple": "Money won for every $1 lost",
+   "technical": "Profit factor"
+  },
+  "reward_risk": {
+   "explain": "How much you could gain for every $1 you could lose. 2 means $2 gained per $1 risked.",
+   "simple": "Possible gain vs. possible loss",
+   "technical": "Reward/risk (R)"
+  },
+  "rth": {
+   "explain": "The busiest part of the trading day, when the stock market is open.",
+   "simple": "Main trading hours",
+   "technical": "RTH"
+  },
+  "slippage": {
+   "explain": "The small difference between the price you wanted and the price you actually got.",
+   "simple": "Price slip",
+   "technical": "Slippage"
+  },
+  "stop": {
+   "explain": "The price where the plan gives up and takes a small loss so it can't become a big one.",
+   "simple": "Exit-if-wrong price",
+   "technical": "Stop loss"
+  },
+  "target": {
+   "explain": "The price where the plan takes its profit.",
+   "simple": "Take-the-gain price",
+   "technical": "Target"
+  },
+  "tick": {
+   "explain": "The smallest amount the price can move.",
+   "simple": "Smallest price step",
+   "technical": "Tick"
+  },
+  "validated": {
+   "explain": "A trading idea that kept working on days it had never seen during testing.",
+   "simple": "Tested idea",
+   "technical": "Validated strategy"
+  },
+  "volatility": {
+   "explain": "How big the price swings are right now.",
+   "simple": "How fast is the market moving?",
+   "technical": "Volatility"
+  },
+  "vwap": {
+   "explain": "The average price paid today, weighted by how much traded. Above it, buyers have been in control.",
+   "simple": "Today's average price",
+   "technical": "VWAP"
+  },
+  "walk_forward": {
+   "explain": "The idea is tuned on older days, then checked on later days it wasn't tuned on.",
+   "simple": "Tested on days it hadn't seen",
+   "technical": "Walk-forward / out-of-sample"
+  }
+ }
+}
