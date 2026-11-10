@@ -24,7 +24,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-FIELDS = ("ticker", "timeframe", "price", "price_axis", "last_candle")
+FIELDS = ("ticker", "timeframe", "price", "price_axis", "last_candle", "indicators")
+INDICATOR_LABELS = {"vwap": "VWAP", "ema9": "EMA 9", "ema20": "EMA 20", "ema50": "EMA 50", "ema200": "EMA 200"}
 MIN_SAMPLES = 20
 _TF_ALIASES = {"1": "1Min", "1m": "1Min", "1min": "1Min", "5": "5Min", "5m": "5Min", "5min": "5Min", "15": "15Min", "15m": "15Min",
                "15min": "15Min", "30m": "30Min", "30min": "30Min", "1h": "1Hour", "60": "1Hour", "1hour": "1Hour", "60m": "1Hour",
@@ -118,6 +119,19 @@ def score_last_candle(obs: dict, labels: dict, tick_size: float | None) -> dict 
     errs = {k: (None if c.get(k) is None else round(float(c[k]) - v, 6)) for k, v in want.items()}
     ok = all(e is not None and abs(e) <= tol + 1e-9 for e in errs.values())
     return {"ok": ok, "read": {k: c.get(k) for k in want}, "truth": want, "error": errs, "tolerance": tol}
+
+
+def score_indicators(reading: dict, labels: dict, tick_size: float | None) -> dict | None:
+    """Indicator values you typed (as TopstepX shows them for the newest candle) vs the line read from the chart."""
+    want = {name: float(labels[k]) for k, name in INDICATOR_LABELS.items() if labels.get(k) not in (None, "")}
+    if not want:
+        return None
+    tol = 2 * float(labels.get("tolerance_ticks") or 2) * (tick_size or 0.25)
+    inds = reading.get("indicators") or {}
+    read = {n: (inds.get(n) or {}).get("last") for n in want}
+    errs = {n: (None if read[n] is None else round(float(read[n]) - v, 6)) for n, v in want.items()}
+    ok = all(e is not None and abs(e) <= tol + 1e-9 for e in errs.values())
+    return {"ok": ok, "read": read, "truth": want, "error": errs, "tolerance": tol}
 
 
 class CalibrationStore:

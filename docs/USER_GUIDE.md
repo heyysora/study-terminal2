@@ -123,6 +123,12 @@ grounded data in friendlier language and are told never to invent prices, news o
 18 lessons with quizzes, a glossary, and "spot the setup" exercises on real charts. The mentor adapts explanations to
 your level and the terms you've learned.
 
+## Trust & Validation
+Menu > Trust & Validation shows nine validation statuses and the overall readiness level, with exactly what's still missing for the
+next level. It only counts real recorded evidence. To add visual evidence, use Live copilot > Calibrate: upload a real TopstepX
+screenshot, pick your Visual Monitor profile and type what the chart shows (price, contract, timeframe, last completed candle O/H/L/C,
+VWAP and EMA values). Details: [TRUST_VALIDATION.md](TRUST_VALIDATION.md).
+
 ## Visual Monitor (your TopstepX chart as the input)
 Menu > **Visual Monitor**. Set up each chart once (window, region, colors), then start monitoring. Full steps, labels and limits:
 [VISUAL_MONITOR.md](VISUAL_MONITOR.md).

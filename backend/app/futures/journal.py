@@ -17,7 +17,8 @@ def round_trips(fills: list, orders: dict) -> list[dict]:
             t = cur[f.contract] = {"contract": f.contract, "root": f.root, "direction": "long" if f.side > 0 else "short", "opened": f.ts,
                                    "qty": 0, "max_qty": 0, "entry_value": 0.0, "exit_value": 0.0, "exit_qty": 0, "fees": 0.0, "realized": 0.0,
                                    "stop": stop, "signal_id": o.signal_id if o else None, "origin": getattr(f, "origin", None) or (o.origin if o else "manual"),
-                                   "limit": (o.limit_price if o else None), "exits": [], "bases": set()}
+                                   "limit": (o.limit_price if o else None), "exits": [], "bases": set(),
+                                   "entry_basis": f.basis.split(";")[0]}
         t["fees"] += f.fee
         t["bases"].add(f.basis.split(";")[0])
         sgn = 1 if t["direction"] == "long" else -1
@@ -41,7 +42,7 @@ def round_trips(fills: list, orders: dict) -> list[dict]:
                           "gross": round(t["realized"], 2), "fees": round(t["fees"], 2), "net": net, "stop": t["stop"],
                           "r": round(net / risk, 2) if risk else None, "exit_reason": t["exits"][-1] if t["exits"] else None,
                           "signal_id": t["signal_id"], "origin": t["origin"], "trade_date": f.trade_date,
-                          "execution": "simulated: " + ", ".join(sorted(t["bases"]))})
+                          "execution": "simulated: " + ", ".join(sorted(t["bases"])), "entry_basis": t["entry_basis"]})
             del cur[f.contract]
     return trips
 

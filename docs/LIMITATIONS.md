@@ -1,4 +1,4 @@
-# Known limitations (0.10.0)
+# Known limitations (0.11.0)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -35,6 +35,12 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
   dashboard. End-of-day balance timing at the flat moment, holiday trade-date merges and Express Funded Scaling Plan tiers
   weren't verified against a real account. Fees for YM, MYM and CL weren't in the readable fee table.
 - Study Terminal applies these rules to its own simulator only. It can't see or enforce anything on your real account.
+
+## Trust & Validation
+- Statuses only reflect evidence recorded in this install's data folder. Reinstalling with a fresh data folder resets them.
+- Calibration accuracy depends on the values you type being right; a typo counts as a reader error.
+- Capture statistics measure readability, not price correctness; price correctness comes from the calibration samples.
+- Thresholds are fixed in code (`backend/app/validation/trust.py`, `CRIT`) and shown on the page. Reaching LIVE ELIGIBILITY REVIEW does not enable anything.
 
 ## Live Visual Monitor (Edge)
 - Windows Graphics Capture code follows the `windows-capture` package's documented API but has not been run on Windows by me. Edge may

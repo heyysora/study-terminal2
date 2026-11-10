@@ -492,7 +492,9 @@ function SizeCalc() {
 
 function CalibrationPanel() {
   const cal = usePoll("/screen/calibration", 0);
-  const [f, setF] = useState<any>({ ticker: "", timeframe: "", price: "", tolerance_ticks: 2, platform: "topstepx", synthetic: false, keep_image: false, keep_result: true });
+  const profs = usePoll("/visual/profiles", 0);
+  const [f, setF] = useState<any>({ ticker: "", timeframe: "", price: "", tolerance_ticks: 2, platform: "topstepx", synthetic: false, keep_image: false, keep_result: true,
+    profile_id: "", last_open: "", last_high: "", last_low: "", last_close: "", vwap: "", ema9: "", ema20: "", ema50: "", ema200: "" });
   const [file, setFile] = useState<File | null>(null);
   const [res, setRes] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -527,6 +529,16 @@ function CalibrationPanel() {
           <label className="f">Platform<select value={f.platform} onChange={set("platform")}><option value="topstepx">TopstepX</option>
             <option value="tradingview">TradingView</option><option value="generic">Other</option><option value="auto">Detect</option></select></label>
         </div>
+        <label className="f small">Read it with Live Visual Monitor profile (needed for the Trust &amp; Validation dashboard)
+          <select value={f.profile_id} onChange={set("profile_id")}><option value="">— screen copilot reader —</option>
+            {(profs.data?.profiles || []).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+        {f.profile_id && <>
+          <div className="small muted">Last COMPLETED candle (the one left of the forming candle), as TopstepX shows it when you hover it:</div>
+          <div className="row">{["open", "high", "low", "close"].map((k) => <label key={k} className="f">{k}<input value={f[`last_${k}`]} onChange={set(`last_${k}`)} style={{ width: 100 }} /></label>)}</div>
+          <div className="small muted">Indicator values on the newest candle (only lines whose colors your profile assigns):</div>
+          <div className="row">{[["vwap", "VWAP"], ["ema9", "EMA 9"], ["ema20", "EMA 20"], ["ema50", "EMA 50"], ["ema200", "EMA 200"]].map(([k, l]) =>
+            <label key={k} className="f">{l}<input value={f[k]} onChange={set(k)} style={{ width: 100 }} /></label>)}</div>
+        </>}
         <label className="check"><input type="checkbox" checked={f.keep_image} onChange={set("keep_image")} />Keep this screenshot on this computer (lets me re-score it after updates)</label>
         <label className="check"><input type="checkbox" checked={f.keep_result} onChange={set("keep_result")} />Count it in the accuracy report</label>
         <label className="check"><input type="checkbox" checked={f.synthetic} onChange={set("synthetic")} />This is a generated test chart (scored, but never counted as accuracy)</label>

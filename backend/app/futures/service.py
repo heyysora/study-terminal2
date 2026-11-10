@@ -326,6 +326,12 @@ class FuturesService:
         with self.db.session() as s:
             return [{**json.loads(r.data), "first_seen": r.first_seen, "last_seen": r.last_seen, "acted": r.acted} for r in s.scalars(q).all()]
 
+    def all_decisions(self) -> list[dict]:
+        """Every stored decision (for the Trust & Validation dashboard)."""
+        from sqlalchemy import select
+        with self.db.session() as s:
+            return [{**json.loads(r.data), "acted": r.acted} for r in s.scalars(select(FuturesDecisionRecord)).all()]
+
     async def evaluate_contract(self, contract: fc.Contract, tf: Timeframe = Timeframe.M5, mode: str = "assisted", record: bool = True):
         F, label, notes, clk = await self.frame(contract, tf, completed_only=True)
         cur, _, clk, _lab1 = await self._ref(contract)            # also feeds the simulator with the newest 1-minute bars

@@ -127,12 +127,57 @@ class Runtime:
                 "history": self.history[-30:][::-1]}
 
 
+class CaptureStats:
+    """Per-day counts of what monitoring actually observed on your screen (real captures only), kept for the Trust & Validation
+    dashboard. Written to <data dir>/visual_capture_stats.json at most every 30 s."""
+
+    def __init__(self, path):
+        import json
+        from pathlib import Path
+        self.path = Path(path) if path else None
+        self.days: dict = {}
+        self._dirty, self._t = False, 0.0
+        if self.path and self.path.exists():
+            try:
+                self.days = json.loads(self.path.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                self.days = {}
+
+    def record(self, day: str, status: str, method: str | None) -> None:
+        d = self.days.setdefault(day, {"attempts": 0, "window_found": 0, "live": 0, "unreadable": 0, "stale": 0, "disconnected": 0, "methods": {}})
+        d["attempts"] += 1
+        if status != "disconnected":
+            d["window_found"] += 1
+        if status == "screen_capture":
+            d["live"] += 1
+        elif status in ("unreadable", "stale", "disconnected"):
+            d[status] += 1
+        if method:
+            d["methods"][method] = d["methods"].get(method, 0) + 1
+        self._dirty = True
+        if time.monotonic() - self._t > 30:
+            self.flush()
+
+    def flush(self) -> None:
+        import json
+        if not (self.path and self._dirty):
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self.days), encoding="utf-8")
+            self._dirty, self._t = False, time.monotonic()
+        except Exception:  # noqa: BLE001
+            log.exception("could not save capture statistics")
+
+
 class VisualMonitor:
     def __init__(self, store: ProfileStore, futures=None, alerts=None, broadcaster=None, settings=None, *,
                  capture_fn=None, list_fn=None, win: WinInfo | None = None, now=None, ocr_fn=None):
         self.store, self.futures, self.alerts, self.broadcaster, self.settings = store, futures, alerts, broadcaster, settings
         self.capture_fn = capture_fn                 # tests inject (target) -> (frame, method)
         self.capture_manager = CaptureManager()
+        sp = getattr(store, "path", None)
+        self.capture_stats = CaptureStats(sp.parent / "visual_capture_stats.json" if sp is not None and capture_fn is None else None)
         self.list_fn = list_fn or cap.list_targets
         self.win = win or WinInfo()
         self._now = now or (lambda: datetime.now(timezone.utc))
@@ -191,6 +236,7 @@ class VisualMonitor:
         for rt in self.runtimes.values():
             rt.status, rt.reason, rt.recommendation, rt.last_img = "stopped", "Monitoring stopped. Nothing is captured.", None, None
         self.capture_manager.release()               # end Windows Graphics Capture sessions (removes the capture border)
+        self.capture_stats.flush()
         self._save_state()
         self._push()
         return self.status()
@@ -358,6 +404,8 @@ class VisualMonitor:
         if rt.status in ("screen_capture", "unreadable") and rt.last_good_at and (now - rt.last_good_at).total_seconds() > p.stale_seconds:
             self._set(rt, "stale", f"No reliable observation for {int((now - rt.last_good_at).total_seconds())} s"
                                    + ("" if rt.status == "screen_capture" else f" ({rt.reason})") + ". Monitoring isn't producing reliable observations.")
+        if self.state == "running" and self.capture_fn is None:      # only real screen captures count as evidence
+            self.capture_stats.record(now.date().isoformat(), rt.status, rt.capture_method if rt.status != "disconnected" else None)
         rec = self._recommend(rt, now, reading)
         rt.recommendation = rec
         self._alerts_for(rt, rec, now)

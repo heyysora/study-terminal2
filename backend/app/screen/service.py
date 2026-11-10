@@ -304,6 +304,10 @@ class ScreenService:
             lc = score_last_candle(obs, labels, self._tick_for(labels.get("ticker")))
             if lc is not None:
                 res["last_candle"] = lc
+            from .calibration import score_indicators
+            ind = score_indicators(rd, labels, self._tick_for(labels.get("ticker")))
+            if ind is not None:
+                res["indicators"] = ind
             obs.pop("all_candles", None)
             plat = f"topstepx-visual: {prof.name}"
             labels = {k: v for k, v in labels.items() if k != "profile"} | {"profile_name": prof.name}
@@ -320,6 +324,8 @@ class ScreenService:
         from .calibration import score
         n = 0
         for r in self.calibration.samples():
+            if str(r.get("platform", "")).startswith("topstepx-visual"):
+                continue                  # scored with a chart profile; re-scoring with the copilot reader would mix readers
             png = self.calibration.image(r["id"])
             if not png:
                 continue

@@ -162,8 +162,8 @@ def market_analysis(F, reading, spec) -> dict:
     order = sorted(emas, key=lambda k: int(k.split()[1]))
     if len(order) >= 2:
         vals = [emas[k] for k in order]
-        align = "bullish (shorter above longer)" if all(a > b for a, b in zip(vals, vals[1:])) else \
-                "bearish (shorter below longer)" if all(a < b for a, b in zip(vals, vals[1:])) else "mixed"
+        align = "bullish (shorter above longer)" if all(a > b for a, b in zip(vals, vals[1:], strict=False)) else \
+                "bearish (shorter below longer)" if all(a < b for a, b in zip(vals, vals[1:], strict=False)) else "mixed"
     else:
         align = None
     out["ema_alignment"] = {"emas": emas, "alignment": align, "class": est if align else "UNAVAILABLE",

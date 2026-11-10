@@ -360,7 +360,9 @@ async def screen_calibration_sample(request: Request, file: UploadFile = File(..
                                     price: str = Form(""), tolerance_ticks: float = Form(2), platform: str = Form("auto"),
                                     title: str = Form(""), axis_visible: bool = Form(True), synthetic: bool = Form(False),
                                     keep_image: bool = Form(False), keep_result: bool = Form(True), profile_id: str = Form(""),
-                                    last_open: str = Form(""), last_high: str = Form(""), last_low: str = Form(""), last_close: str = Form("")):
+                                    last_open: str = Form(""), last_high: str = Form(""), last_low: str = Form(""), last_close: str = Form(""),
+                                    vwap: str = Form(""), ema9: str = Form(""), ema20: str = Form(""), ema50: str = Form(""),
+                                    ema200: str = Form("")):
     """Score a labelled screenshot. The image is stored only when keep_image is true (explicit consent)."""
     data = await file.read()
     if len(data) > 25_000_000:
@@ -374,13 +376,14 @@ async def screen_calibration_sample(request: Request, file: UploadFile = File(..
             raise HTTPException(422, "Price must be a number")
     labels = {"ticker": ticker.strip() or None, "timeframe": timeframe.strip() or None, "price": price.strip() or None,
               "tolerance_ticks": tolerance_ticks, "title": title, "axis_visible": axis_visible, "synthetic": synthetic,
-              "last_open": last_open or None, "last_high": last_high or None, "last_low": last_low or None, "last_close": last_close or None}
+              "last_open": last_open or None, "last_high": last_high or None, "last_low": last_low or None, "last_close": last_close or None,
+              "vwap": vwap or None, "ema9": ema9 or None, "ema20": ema20 or None, "ema50": ema50 or None, "ema200": ema200 or None}
     if profile_id:
         prof = request.app.state.visual.store.get(profile_id)
         if prof is None:
             raise HTTPException(404, "No such chart profile")
         labels["profile"] = prof.to_dict()
-    for k in ("last_open", "last_high", "last_low", "last_close"):
+    for k in ("last_open", "last_high", "last_low", "last_close", "vwap", "ema9", "ema20", "ema50", "ema200"):
         if labels[k] is not None:
             try:
                 float(labels[k])

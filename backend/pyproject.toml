@@ -1,6 +1,6 @@
 [project]
 name = "study-terminal-backend"
-version = "0.10.0"
+version = "0.11.0"
 description = "Study Terminal - AI day trading copilot (backend)"
 requires-python = ">=3.11"
 

@@ -1,4 +1,4 @@
-# Test results (0.10.0, 2026-11-09)
+# Test results (0.11.0, 2026-11-09)
 
 All runs were on **Linux** in the build environment. Nothing here was run on Windows.
 
@@ -6,10 +6,16 @@ All runs were on **Linux** in the build environment. Nothing here was run on Win
 
 | Run | Result |
 |---|---|
-| Python 3.11 (`pytest tests`) | **395 passed**, 0 failed, 0 skipped (≈ 105 s) |
-| Python 3.13 (`pytest tests`) | **395 passed**, 0 failed, 0 skipped (≈ 100 s) |
+| Python 3.11 (`pytest tests`) | **404 passed**, 0 failed, 0 skipped (≈ 120 s) |
+| Python 3.13 (`pytest tests`) | **404 passed**, 0 failed, 0 skipped (≈ 100 s) |
 | Frontend type-check and build (`npm run build` = `tsc -b && vite build`) | passed |
 | Lint (`ruff --select E4,E7,E9,F,B`) on files changed in 0.7 | clean except pre-existing style warnings in older files (B008/E741/B904) |
+
+## 0.11.0 Trust & Validation rules
+
+`test_trust.py` (9) tests the validation RULES with hand-built records (see docs/TRUST_VALIDATION.md). They don't produce evidence.
+On a fresh install the dashboard reports EXPERIMENTAL: categories 1-5 and 8-9 UNTESTED, 6-7 IN PROGRESS from the bundled research
+(NQ/MNQ inconclusive, ES/MES losing; no validated strategy).
 
 ## 0.10.0 Edge capture tests (SCREENSHOT-BASED, not live-market validation)
 
