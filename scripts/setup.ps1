@@ -39,4 +39,6 @@ if (Test-Path $envFile) {
         Write-Host "Your .env still contains ALPACA_ settings. They are ignored now; you can delete those lines." -ForegroundColor Yellow
     }
 }
-Write-Host "`nSetup complete. Next: .\scripts\test.ps1, then .\scripts\check.ps1, then .\scripts\run-backend.ps1" -ForegroundColor Green
+if ($env:ST_ONE_CLICK) { Write-Host "  Python packages OK" } else {
+    Write-Host "`nSetup complete. Next: .\scripts\test.ps1, then .\scripts\check.ps1, then .\scripts\run-backend.ps1" -ForegroundColor Green
+}

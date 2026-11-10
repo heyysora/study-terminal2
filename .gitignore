@@ -26,3 +26,4 @@ Thumbs.db
 node_modules/
 dist/
 src-tauri/target/
+install-log.txt

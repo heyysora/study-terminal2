@@ -42,7 +42,16 @@ Docs: [Visual Monitor (start here for TopstepX)](docs/VISUAL_MONITOR.md) · [Tru
 
 ---
 
-## Option A: install like a normal Windows app
+## Easiest: one double-click
+
+1. Unzip the folder anywhere (for example `Documents\study-terminal`).
+2. Double-click **`Install Study Terminal.cmd`**. If Windows shows "Windows protected your PC", click **More info > Run anyway**.
+3. Wait 5-10 minutes. It installs Python and Inno Setup with winget if they're missing, builds the app, installs it and opens it.
+
+After that, open Study Terminal from the desktop shortcut or the Start menu like any other app. To update, unzip the new
+version and double-click the same file again; your data is kept. If something fails, the details are in `install-log.txt`.
+
+## Option A: install like a normal Windows app (step by step)
 
 You build the installer once on your PC (it can't be built on Linux, and an unsigned download would trigger
 SmartScreen warnings anyway):
