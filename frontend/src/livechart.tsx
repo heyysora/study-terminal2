@@ -49,9 +49,9 @@ function useLivePrice(pid: string | null, range: string) {
   return { d, err };
 }
 
-function LineChart({ series, reference, trend, candles, mode, onHover }: {
+export function LineChart({ series, reference, trend, candles, mode, onHover, dateTicks }: {
   series: [number, number | null][]; reference: number | null; trend: "up" | "down" | "flat"; candles: any[]; mode: "line" | "candles";
-  onHover: (p: { price: number; t: number } | null) => void;
+  onHover: (p: { price: number; t: number } | null) => void; dateTicks?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
@@ -67,8 +67,9 @@ function LineChart({ series, reference, trend, candles, mode, onHover }: {
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: true, rightOffset: 4,
-        tickMarkFormatter: (t: number, kind: number) => clock(t, kind === 4) },   // 4 = a tick inside a minute: show seconds
-      localization: { timeFormatter: (t: number) => clock(t, true) },
+        tickMarkFormatter: (t: number, kind: number) => (kind < 3 || dateTicks ? new Date(t * 1000).toLocaleDateString([], { month: "short", day: "numeric" })
+          : clock(t, kind === 4)) },   // 0-2 = day boundaries (show the date); 4 = inside a minute (show seconds)
+      localization: { timeFormatter: (t: number) => (dateTicks ? new Date(t * 1000).toLocaleDateString([], { month: "short", day: "numeric" }) : clock(t, true)) },
       crosshair: { mode: 1, vertLine: { color: css("--faint"), width: 1, style: LineStyle.Solid, labelVisible: false },
         horzLine: { visible: false, labelVisible: false } },
       handleScale: false, handleScroll: false,

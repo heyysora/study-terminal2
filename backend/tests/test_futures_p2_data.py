@@ -50,6 +50,9 @@ class _Store(dict):
         return super().get(k, d)
 
 
+T_OPEN = datetime(2026, 11, 10, 15, 0, tzinfo=timezone.utc)   # Tue 09:00 CT: inside the session whatever the real clock says
+
+
 class _FlakyYahoo:
     def __init__(self):
         self.fail = False
@@ -61,7 +64,7 @@ class _FlakyYahoo:
     async def get_bars(self, symbol, tf, start, end=None):
         if self.fail:
             raise RuntimeError("Yahoo is down")
-        now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        now = T_OPEN
         return [Bar(symbol=symbol, timeframe=tf.value, ts=now - timedelta(minutes=15 - i), open=6000, high=6001, low=5999, close=6000,
                     volume=5, provider="yahoo", source="t") for i in range(5)], []
 
@@ -70,11 +73,11 @@ async def test_failure_serves_cache_labeled_cached_never_live():
     y = _FlakyYahoo()
     d = FuturesData(y, _Store())
     c = fc.Contract("ES", 2026, 12)
-    bars, lab, _ = await d.bars(c, Timeframe.M1, CLK, days=1)
+    bars, lab, _ = await d.bars(c, Timeframe.M1, CLK, days=1, now=T_OPEN)
     assert bars and lab["validation"]["ok"]
     y.fail = True
     d._cache = {k: (v[0] - 999, *v[1:]) for k, v in d._cache.items()}   # expire the cache
-    bars2, lab2, notes = await d.bars(c, Timeframe.M1, CLK, days=1)
+    bars2, lab2, notes = await d.bars(c, Timeframe.M1, CLK, days=1, now=T_OPEN)
     assert bars2 == bars and lab2["status"] == "cached" and "Not live" in lab2["reason"]
     assert lab2["health"]["consecutive_failures"] == 1
 
@@ -83,15 +86,15 @@ async def test_failure_without_cache_is_unavailable():
     y = _FlakyYahoo()
     y.fail = True
     d = FuturesData(y, _Store())
-    bars, lab, _ = await d.bars(fc.Contract("ES", 2026, 12), Timeframe.M1, CLK)
+    bars, lab, _ = await d.bars(fc.Contract("ES", 2026, 12), Timeframe.M1, CLK, now=T_OPEN)
     assert bars == [] and lab["status"] == "unavailable"
 
 
 async def test_cache_key_includes_lookback():
     d = FuturesData(_FlakyYahoo(), _Store())
     c = fc.Contract("ES", 2026, 12)
-    await d.bars(c, Timeframe.M1, CLK, days=1)
-    await d.bars(c, Timeframe.M1, CLK, days=3)
+    await d.bars(c, Timeframe.M1, CLK, days=1, now=T_OPEN)
+    await d.bars(c, Timeframe.M1, CLK, days=3, now=T_OPEN)
     assert len(d._cache) == 2
 
 

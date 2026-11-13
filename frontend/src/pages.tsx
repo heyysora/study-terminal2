@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Action, CandleChart, ChartStamp, Meter, OrderTicket, Panel, QuoteStamp, SignalCard, type Overlay, type PriceLine } from "./components";
 import { Catalysts, EconCalendar } from "./pages3";
 import { TIMEFRAMES, api, etTime, money, num, pct, sign, tfShort, useLive, usePoll } from "./lib";
+import { useUiMode } from "./plain";
+import { SimpleStockChart } from "./pagesChart";
 import { FuturesPlan } from "./pages4";
 
 // ======================= Dashboard =======================
@@ -108,7 +110,11 @@ export function Dashboard() {
 }
 
 // ======================= Chart workspace =======================
-export function ChartPage({ symbol: routeSym }: { symbol?: string }) {
+export function ChartPage({ symbol }: { symbol?: string }) {
+  return useUiMode() === "simple" ? <SimpleStockChart symbol={symbol} /> : <ChartPageAdvanced symbol={symbol} />;
+}
+
+function ChartPageAdvanced({ symbol: routeSym }: { symbol?: string }) {
   const L = useLive();
   const [sym, setSym] = useState((routeSym || "SPY").toUpperCase());
   const [input, setInput] = useState(sym);

@@ -85,7 +85,8 @@ export function CandleChart({ bars, overlays = [], lines = [], height, daily }: 
       grid: { vertLines: { visible: false }, horzLines: { color: css("--rule") } },
       rightPriceScale: { borderColor: css("--rule") },
       timeScale: { borderColor: css("--rule"), timeVisible: !daily, secondsVisible: false,
-        tickMarkFormatter: (t: number) => (daily ? etDayFmt.format(new Date(t * 1000)) : etTick.format(new Date(t * 1000))) },
+        // tick kinds 0-2 are year/month/day boundaries: show the date there, not a repeated 09:30
+        tickMarkFormatter: (t: number, kind: number) => (daily || kind < 3 ? etDayFmt.format(new Date(t * 1000)) : etTick.format(new Date(t * 1000))) },
       localization: { timeFormatter: (t: number) => `${etDayFmt.format(new Date(t * 1000))} ${etTick.format(new Date(t * 1000))} ET` },
       crosshair: { mode: 1 },
     });

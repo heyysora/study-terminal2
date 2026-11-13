@@ -217,10 +217,16 @@
    "Keep watching. I'll tell you if a plan forms."
   ],
   [
-   "^No setup",
+   "^No setup|^No active setup",
    "market",
    "Nothing worth trading right now.",
    "That's normal. Most of the time the right move is to wait."
+  ],
+  [
+   "intraday range is unusually wide",
+   "market",
+   "Prices are swinging around a lot today.",
+   "Be extra careful: moves can reverse quickly."
   ],
   [
    "^Against the 15-minute",

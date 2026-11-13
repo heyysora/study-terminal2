@@ -115,7 +115,10 @@ def test_stopped_state_suggests_nothing():
 def test_stocks_view():
     h = build(trades="stocks", stock_account={"equity": 25000.0, "day_pnl": -100.0, "daily_loss_limit": 500.0, "daily_loss_limit_hit": False, "open_positions": 1},
               signals={"market": {"bias": "bearish", "spy_change_pct": -0.42}, "summary": []})
-    assert h["market"]["sentence"] == "The stock market is leaning down today." and h["risk"]["can_lose_today"] == 400.0
+    assert h["market"]["sentence"] == "The stock market is down 0.42% today." and h["risk"]["can_lose_today"] == 400.0
+    up_but_lean_down = build(trades="stocks", stock_account={}, signals={"market": {"bias": "bearish", "spy_change_pct": 0.31}, "summary": []})
+    assert up_but_lean_down["market"]["sentence"] == "The stock market is up 0.31% today."            # never contradicts the number
+    assert "leaning down" in up_but_lean_down["market"]["details"][1]
     assert h["decision"]["word"] == "WAIT" and h["health"]["sentence"] == "Stock prices are arriving."
     bad = build(trades="stocks", monitor={"healthy": False, "monitoring_enabled": True, "health_reason": "socket closed"}, stock_account={})
     assert bad["health"]["level"] == "bad" and bad["health"]["sentence"] == "Stock prices aren't arriving."

@@ -123,10 +123,16 @@ def market(*, trades: str, visual: dict | None, signals_market: dict | None) -> 
     if not bias:
         return {"known": False, "sentence": "I don't have enough prices yet to say.", "details": [], "source": None, "as_of": None}
     chg = m.get("spy_change_pct")
-    word = {"bullish": "leaning up", "bearish": "leaning down"}.get(bias, "not clearly going up or down")
-    return {"known": True, "sentence": f"The stock market is {word} today.",
-            "details": ([f"The S&P 500 fund (SPY) is {'up' if chg >= 0 else 'down'} {abs(chg):.2f}% today."] if chg is not None else [])
-                       + [simplify(r) for r in (m.get("reasons") or [])[:2]],
+    lean = {"bullish": "leaning up", "bearish": "leaning down"}.get(bias)
+    if chg is not None:                                   # lead with what actually happened today; the trend reading is a detail
+        sentence = (f"The stock market is {'up' if chg > 0 else 'down'} {abs(chg):.2f}% today." if abs(chg) >= 0.05
+                    else "The stock market is about flat today.")
+        details = ["Measured by the S&P 500 fund (SPY)."] + ([f"The recent swings on the chart are {lean}."] if lean else [])
+    else:
+        sentence = f"The stock market is {lean or 'not clearly going up or down'} today."
+        details = []
+    return {"known": True, "sentence": sentence,
+            "details": details + [simplify(r) for r in (m.get("reasons") or [])[:2]],
             "source": "From free market prices, which can be a little behind.", "as_of": None}
 
 

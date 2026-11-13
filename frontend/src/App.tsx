@@ -137,7 +137,7 @@ export default function App() {
       </div>
       <main className="main" key={theme}>{view}</main>
       <div className="toast-stack" aria-live="polite">
-        {L.toasts.map((t) => (
+        {L.toasts.filter((t) => ui !== "simple" || t.severity === "high").slice(0, ui === "simple" ? 1 : 3).map((t) => (
           <div key={t.id} className={`toast ${t.severity}`} role="alert">
             <div className="spread"><b>{ui === "simple" ? say(t.title) : t.title}</b><button className="ghost" onClick={() => dismissToast(t)} aria-label="Dismiss">✕</button></div>
             <div className="small muted" style={{ whiteSpace: "pre-wrap", maxHeight: 110, overflow: "hidden" }}>{ui === "simple" ? say(t.body) : t.body}</div>

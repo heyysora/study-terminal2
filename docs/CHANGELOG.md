@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.1 (2026-11-13)
+
+- **Charts (Simple mode) redesigned** like Home: big price, change today versus yesterday's close, a clean line chart with
+  1D / 5D / 1M / 3M / 1Y and a Candles view, hover for the price at any time, quick-switch chips for your watchlist, and plain
+  cards for "Should I practice a trade or wait?" (5-minute chart, the day-trading view), key prices, what's happening and news.
+  The full trader page with every indicator is unchanged in Advanced mode.
+- Chart time axes show dates at day boundaries instead of repeating "09:30".
+- Home (stocks) leads with the actual move ("The stock market is down 0.39% today"); it no longer says "leaning up" while the
+  S&P 500 is down.
+- Simple mode shows only urgent pop-ups, one at a time; the rest go to Messages.
+- More WAIT reasons in plain words.
+
 ## 0.13.0 (2026-11-13)
 
 Release of the 0.12.0 preview work, for day trading practice. Everything below under "0.12.0 preview 2" and "0.12.0 preview 1" is
