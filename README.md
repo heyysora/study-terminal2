@@ -67,8 +67,8 @@ What it does and doesn't touch:
 ## Get the installer without building on your PC (GitHub, free)
 
 1. Create a free GitHub account and a new **private** repository, then upload this folder to it.
-2. Open the repository's **Actions** tab, choose **Build Windows installer**, click **Run workflow**.
-3. After about 15 minutes, open the finished run and download **StudyTerminal-Setup** (a zip holding the `.exe`).
+2. Every push to `main` builds the installer (or: **Actions** tab > **Build Windows installer** > **Run workflow**).
+3. After about 15-20 minutes, open the repository's **Releases** page and download `StudyTerminal-Setup-<version>.exe`.
 4. Run the `.exe` on your PC. It installs like any app; nothing else is needed.
 
 The installer isn't code-signed, so Windows shows "Windows protected your PC" once: click **More info > Run anyway**.

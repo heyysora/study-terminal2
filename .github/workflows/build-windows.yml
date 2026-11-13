@@ -1,11 +1,12 @@
 # Builds the Windows installer (StudyTerminal-Setup-<version>.exe) on GitHub's free Windows machines,
 # so you don't have to build it on your own PC. Free for public repos and within the free monthly minutes for private ones.
-# Run it from the repo's Actions tab ("Build Windows installer" > Run workflow), or push a tag like v0.12.0.
+# It runs on every push to main (and from the Actions tab: "Build Windows installer" > Run workflow).
+# The finished installer appears on the repo's Releases page as a pre-release, ready to download.
 name: Build Windows installer
 on:
   workflow_dispatch:
   push:
-    tags: ["v*"]
+    branches: [main]
 permissions:
   contents: write
 jobs:
@@ -42,8 +43,24 @@ jobs:
           name: StudyTerminal-Setup
           path: dist-installer/*.exe
           if-no-files-found: error
-      - name: Attach to the release (tag builds only)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path backend/app/config.py -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
+          $b = (Select-String -Path backend/app/config.py -Pattern '^BUILD = "(.+)"').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "build=$b" >> $env:GITHUB_OUTPUT
+      - name: Publish on the Releases page
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}-build${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Study Terminal ${{ steps.ver.outputs.build }} (build ${{ github.run_number }})
+          prerelease: true
+          body: |
+            Windows installer built automatically from commit ${{ github.sha }}.
+            Download StudyTerminal-Setup-${{ steps.ver.outputs.version }}.exe below and run it.
+            It isn't code-signed, so Windows shows "Windows protected your PC" once: click More info, then Run anyway.
+            Practice only: Study Terminal can't place real orders. Your data folder is kept when you update.
           files: dist-installer/*.exe
