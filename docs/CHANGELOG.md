@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.0 (2026-11-13)
+
+Release of the 0.12.0 preview work, for day trading practice. Everything below under "0.12.0 preview 2" and "0.12.0 preview 1" is
+included: the live price read from your TopstepX chart about twice a second with a live line chart, light and dark themes, Home
+with five plain answers and a setup guide, the safety bar (practice badge, health light, Stop everything), plain-language WAIT
+explanations, Simple and Advanced modes, and an automatic data backup the first time a new version starts.
+
+Practice trading, risk calculations, permissions and the practice-only lock are unchanged. 450 tests pass on Python 3.11, 3.13
+and on Windows. Accuracy on your real TopstepX charts still needs checking (see docs/LIMITATIONS.md).
+
 ## 0.12.0 preview 2: live price and a cleaner look (2026-11-13)
 
 Display and reading changes only. Practice trading, risk calculations, permissions and the practice-only lock are unchanged.

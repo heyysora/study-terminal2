@@ -1,4 +1,4 @@
-# Features and limitations (0.12.0 preview 1)
+# Features and limitations (0.13.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 

@@ -1,4 +1,4 @@
-# Test results (0.12.0 preview 1, 2026-11-10)
+# Test results (0.13.0, 2026-11-13)
 
 All runs were on **Linux** in the build environment. Nothing here was run on Windows.
 
