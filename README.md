@@ -64,6 +64,15 @@ What it does and doesn't touch:
 - Everything printed, including pip/PyInstaller/winget output, goes to `install-log.txt`; the setup program's own log is
   `install-setup-log.txt`.
 
+## Get the installer without building on your PC (GitHub, free)
+
+1. Create a free GitHub account and a new **private** repository, then upload this folder to it.
+2. Open the repository's **Actions** tab, choose **Build Windows installer**, click **Run workflow**.
+3. After about 15 minutes, open the finished run and download **StudyTerminal-Setup** (a zip holding the `.exe`).
+4. Run the `.exe` on your PC. It installs like any app; nothing else is needed.
+
+The installer isn't code-signed, so Windows shows "Windows protected your PC" once: click **More info > Run anyway**.
+
 ## Option A: install like a normal Windows app (step by step)
 
 You build the installer once on your PC (it can't be built on Linux, and an unsigned download would trigger
