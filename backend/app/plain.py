@@ -134,6 +134,7 @@ REASONS: list[list[str]] = [
     [r"^DISCONNECTED\b", "chart", "I can't find your chart window.", "Open TopstepX in Microsoft Edge and don't minimize it."],
     [r"^UNREADABLE\b|^The chart couldn't be read", "chart", "I can't read your chart right now.", "Make sure nothing is covering the chart. If it keeps happening, check chart settings."],
     [r"^(PAUSED|STOPPED)\b", "chart", "Watching is turned off.", "Turn watching on to get a suggestion."],
+    [r"^Chart doesn't match its setup: (.+)$", "chart", r"\1", "Switch the TopstepX chart back, or set up a new chart for this market."],
     [r"^Instrument uncertain", "chart", "I'm not sure which market this chart shows.", "Make sure the market name (for example MNQ) is visible at the top of the chart."],
     [r"^Timeframe uncertain", "chart", "I'm not sure how much time each candle on this chart covers.", "Make sure the timeframe (for example 5m) is visible at the top of the chart."],
     [r"^Current price can't be read", "chart", "I can't read the current price on your chart.", "Make sure the price scale on the right side of the chart is visible."],

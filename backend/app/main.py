@@ -17,7 +17,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
+from .api import routes, routes2, routes_extension, routes_chart_check, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -185,6 +185,12 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         from .screen.visual_monitor import VisualMonitor
         visual = VisualMonitor(ProfileStore(settings.data_dir), futures, alerts, broadcaster, store)
         s.visual = visual
+        from .watchdog import Watchdog
+        watchdog = Watchdog(visual, alerts, settings.data_dir)
+        watchdog.started()
+        s.watchdog = watchdog
+        from .validation.chart_check import ChartCheck
+        s.chart_check = ChartCheck(settings.data_dir, visual, watchdog, VERSION)
 
         def apply(changes: dict | None = None):
             v = store.all()
@@ -224,9 +230,20 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await news.start()
             await futures.start()
             await visual.autostart()
+
+            async def watch():
+                while True:
+                    await asyncio.sleep(5)
+                    try:
+                        watchdog.check()
+                    except Exception:  # noqa: BLE001 - the watchdog must never take the app down
+                        log.exception("watchdog check failed")
+            s.watchdog_task = asyncio.create_task(watch())
         try:
             yield
         finally:
+            if getattr(s, "watchdog_task", None):
+                s.watchdog_task.cancel()
             if screen.state != "off":
                 await screen.stop()
             if visual._task:
@@ -239,6 +256,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await paper.stop()
             await monitor.stop()
             db.dispose()
+            watchdog.stopped()                       # clean exit: next start won't report an unexpected close
             log.info("Study Terminal stopped")
 
     app = FastAPI(title="Study Terminal API", version=VERSION, lifespan=lifespan)
@@ -259,6 +277,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_visual.router)
     app.include_router(routes_trust.router)
     app.include_router(routes_home.router)
+    app.include_router(routes_chart_check.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

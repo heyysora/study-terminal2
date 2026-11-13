@@ -27,7 +27,7 @@ def _hhmm(iso: str | None) -> str | None:
 # ---------------------------------------------------------------- 1. health
 
 def health(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | None, automation: dict | None, profiles: int,
-           backup: dict | None, engine_error: str | None = None) -> dict:
+           backup: dict | None, engine_error: str | None = None, watchdog: dict | None = None) -> dict:
     checks: list[dict] = []
     if engine_error:
         checks.append(_check("engine", "Study Terminal", "bad", "Part of Study Terminal failed to answer.",
@@ -35,6 +35,9 @@ def health(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | Non
     checks.append(_check("engine_db", "Saved data", "ok" if db_ok else "bad",
                          "Your saved data is readable." if db_ok else "Study Terminal can't read its saved data.",
                          "" if db_ok else "Quit Study Terminal from the tray icon and open it again. If it keeps happening, restore a backup."))
+    if watchdog and watchdog.get("unclean_shutdown"):
+        checks.append(_check("crash", "Last session", "attention", "Study Terminal didn't close normally last time.",
+                             "Nothing to do unless it keeps happening. If it does, send the log file from Settings."))
     if backup and backup.get("error"):
         checks.append(_check("backup", "Backup", "attention", "The automatic backup before this update didn't finish.",
                              "Copy your Study Terminal data folder somewhere safe (Settings shows where it is)."))
@@ -49,6 +52,17 @@ def health(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | Non
                                  "Turn watching on.", "#/visual", "Start watching"))
         elif not charts:
             checks.append(_check("chart", "Your chart", "attention", "Watching is on, but no chart is switched on.", "Open chart settings and switch a chart on.", "#/visual"))
+        elif watchdog and watchdog.get("charts"):
+            lvl_of = {"ok": "ok", "attention": "attention", "bad": "bad", "off": "off"}
+            wc = list(watchdog["charts"].values())
+            w = max(wc, key=lambda c: LEVEL_ORDER[lvl_of[c["level"]]])
+            name = (w.get("chart") or {}).get("name") or "your chart"
+            text = f"I can see {name} and it's updating." if w["code"] == "HEALTHY" else w["reason"]
+            ck = _check("chart", "Your chart", lvl_of[w["level"]], text, w["do"] if w["code"] != "HEALTHY" else "",
+                        "#/visual" if w["code"] != "HEALTHY" else None, "Check my chart" if w["code"] != "HEALTHY" else None)
+            ck["detail"] = "; ".join(w.get("details") or []) or None
+            ck["status_code"] = w["code"]
+            checks.append(ck)
         else:
             worst = None
             for c in charts:
@@ -291,9 +305,10 @@ def recent(decisions: list[dict], n: int = 3) -> list[dict]:
 
 def build(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | None, automation: dict | None, profiles: int,
           futures_account: dict | None, stock_account: dict | None, decisions: list[dict], signals: dict | None, backup: dict | None,
-          trades_chosen: bool, chart_seen: bool, setup_dismissed: bool, ui_mode: str, point_value_of=None, engine_error: str | None = None) -> dict:
+          trades_chosen: bool, chart_seen: bool, setup_dismissed: bool, ui_mode: str, point_value_of=None, engine_error: str | None = None,
+          watchdog: dict | None = None) -> dict:
     h = health(trades=trades, db_ok=db_ok, monitor=monitor, visual=visual, automation=automation, profiles=profiles, backup=backup,
-               engine_error=engine_error)
+               engine_error=engine_error, watchdog=watchdog)
     mk = market(trades=trades, visual=visual, signals_market=(signals or {}).get("market"))
     dc = decision(trades=trades, visual=visual, decisions=decisions, signals_summary=(signals or {}).get("summary"),
                   point_value_of=point_value_of)
@@ -311,5 +326,5 @@ def build(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | None
         "health": h, "market": mk, "decision": dc, "risk": rk, "setup": sg,
         "next": next_step(trades=trades, health_=h, setup=sg, risk_=rk, decision_=dc, automation=automation),
         "recent": recent(decisions) if trades == "futures" else [],
-        "backup": backup,
+        "backup": backup, "watchdog": watchdog,
     }

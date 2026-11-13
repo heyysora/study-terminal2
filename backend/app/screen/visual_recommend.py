@@ -37,6 +37,10 @@ def quality_gates(reading, status: str, status_reason: str, profile) -> str | No
         return f"{status.upper()}: {status_reason}"
     if reading is None or not reading.ok:
         return "The chart couldn't be read: " + "; ".join((reading.problems if reading else []) or ["no reading"])
+    from ..watchdog import mismatch
+    mm = mismatch(profile, reading)
+    if mm:
+        return f"Chart doesn't match its setup: {mm}"
     if reading.instrument.value not in ("NQ", "MNQ", "ES", "MES") or reading.instrument.confidence < 0.6:
         return "Instrument uncertain: " + (reading.instrument.source or "not readable")
     if reading.timeframe.value is None or reading.timeframe.confidence < 0.6:

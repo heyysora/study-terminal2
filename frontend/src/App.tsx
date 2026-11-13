@@ -10,17 +10,18 @@ import { LiveMarket } from "./pages6";
 import { VisualMonitor } from "./pages7";
 import { TrustDashboard } from "./pages8";
 import { Home } from "./pagesHome";
+import { ChartCheck } from "./pagesCheck";
 import { say, setUiMode, useHome, useUiMode } from "./plain";
 import { OfflineBanner, SimpleStrip, TopBar } from "./simple";
 import { useTheme } from "./theme";
 
 const NAV: [string, string, string?][] = [
   ["home", "Home"], ["dashboard", "Stock overview"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Practice trading (stocks)"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["alerts", "Alerts"], ["settings", "Settings"],
+  ["paper", "Practice trading (stocks)"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["check", "Chart check"], ["alerts", "Alerts"], ["settings", "Settings"],
 ];
 // Simple mode: the few places a beginner needs. Every other screen is one click away under "All tools".
 const NAV_SIMPLE: Record<string, [string, string][]> = {
-  futures: [["home", "Home"], ["visual", "My chart"], ["futures", "Practice"], ["trust", "Can I trust it?"], ["learn", "Learn"], ["alerts", "Messages"], ["settings", "Settings"]],
+  futures: [["home", "Home"], ["visual", "My chart"], ["futures", "Practice"], ["check", "Chart check"], ["trust", "Can I trust it?"], ["learn", "Learn"], ["alerts", "Messages"], ["settings", "Settings"]],
   equities: [["home", "Home"], ["chart", "Charts"], ["paper", "Practice"], ["journal", "My trades"], ["trust", "Can I trust it?"], ["learn", "Learn"], ["alerts", "Messages"], ["settings", "Settings"]],
 };
 
@@ -100,6 +101,7 @@ export default function App() {
       case "live": return <LiveMarket />;
       case "visual": return <VisualMonitor tab={route[1]} />;
       case "trust": return <TrustDashboard />;
+      case "check": return <ChartCheck />;
       case "chart": return <ChartPage symbol={route[1]} />;
       case "copilot": return <Copilot />;
       case "scanner": return <Scanner />;

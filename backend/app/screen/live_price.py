@@ -38,6 +38,7 @@ class TagRead:
     confidence: float
     why: str = ""
     candidates: int = 0
+    residual: float | None = None        # read value minus the price the fitted scale predicts at the box (drift indicator)
 
 
 def _blobs(mask: np.ndarray) -> list[tuple[int, int]]:
@@ -134,8 +135,8 @@ def read_tag(img: np.ndarray, axis: dict | None, tick: float, last: float | None
         good.sort(key=lambda g: abs(g[0] - last))
         if abs(good[0][0] - last) * 2 > abs(good[1][0] - last):     # not clearly closer: don't guess
             return TagRead(None, 0.0, "two price boxes are about equally close to the last price", len(found))
-    v, conf, _ = good[0]
-    return TagRead(v, round(conf, 3), "", len(found))
+    v, conf, cy = good[0]
+    return TagRead(v, round(conf, 3), "", len(found), round(v - (slope * cy + icpt), 6))
 
 
 def session_start(now: datetime) -> datetime:
@@ -157,6 +158,8 @@ class PriceTape:
     accepted: int = 0
     rejected: int = 0
     last_reject: str = ""
+    recent: deque = field(default_factory=lambda: deque(maxlen=60))      # last fast-read outcomes: (ok, why)
+    residuals: deque = field(default_factory=lambda: deque(maxlen=30))   # last accepted price-box residuals vs the scale
     _buf: list = field(default_factory=list)
     _flushed: float = 0.0
 
@@ -245,6 +248,16 @@ class PriceTape:
     def reject(self, why: str) -> None:
         self.rejected += 1
         self.last_reject = why
+        self.recent.append((False, why))
+
+    def note_ok(self, residual: float | None) -> None:
+        self.recent.append((True, ""))
+        if residual is not None:
+            self.residuals.append(residual)
+
+    def recent_reject_rate(self) -> tuple[float, int]:
+        n = len(self.recent)
+        return ((sum(1 for ok, _ in self.recent if not ok) / n) if n else 0.0), n
 
     def series(self, since: float, max_points: int = 1500) -> list[list]:
         """Points since `since`, thinned evenly by time when there are many. Gaps (None) are always kept."""

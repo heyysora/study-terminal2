@@ -290,6 +290,7 @@ class VisualMonitor:
     async def _loop(self) -> None:
         while True:
             await asyncio.sleep(0.25)
+            self.loop_at = time.monotonic()
             if self.state != "running":
                 continue
             for rt in list(self.runtimes.values()):
@@ -471,7 +472,9 @@ class VisualMonitor:
             rt.tape.reject(tr.why)
             return False
         if not self._record_price(rt, now, tr.value, "price box", tr.confidence):
+            rt.tape.recent.append((False, rt.tape.last_reject))
             return False                                  # an unconfirmed jump: let a full read decide
+        rt.tape.note_ok(tr.residual)
         rt.last_good_at = now
         return True
 

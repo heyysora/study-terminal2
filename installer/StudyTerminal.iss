@@ -4,7 +4,7 @@
 
 #define AppName "Study Terminal"
 #ifndef AppVersion
-  #define AppVersion "0.13.1"
+  #define AppVersion "0.13.2"
 #endif
 
 [Setup]
@@ -65,10 +65,11 @@ begin
   begin
     DataDir := ExpandConstant('{localappdata}\StudyTerminal');
     if DirExists(DataDir) then
-      if MsgBox('Also delete your Study Terminal data?' #13#10#13#10 +
-                'This is your journal, paper account, settings, saved backtests and logs in:' #13#10 + DataDir + #13#10#13#10 +
+      { SuppressibleMsgBox: a silent uninstall (/SUPPRESSMSGBOXES) answers No, so data is only deleted when you click Yes yourself }
+      if SuppressibleMsgBox('Also delete your Study Terminal data?' #13#10#13#10 +
+                'This is your journal, practice accounts, settings, saved backtests and logs in:' #13#10 + DataDir + #13#10#13#10 +
                 'Choose No to keep it (a later reinstall will pick it up again).',
-                mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+                mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES then
         DelTree(DataDir, True, True, True);
   end;
 end;

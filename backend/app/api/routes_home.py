@@ -22,6 +22,12 @@ def _point_value(code: str | None) -> float | None:
         return None
 
 
+@router.get("/watchdog")
+def watchdog_view(request: Request):
+    """Reliability status per watched chart, the newest changes, and whether the last session ended normally."""
+    return request.app.state.watchdog.check(restart=False)
+
+
 @router.get("/home")
 def home_view(request: Request):
     s = request.app.state
@@ -50,6 +56,7 @@ def home_view(request: Request):
     chart_seen = any((d or {}).get("live", 0) > 0 for d in days.values()) or any(
         c.get("status") == "screen_capture" for c in (visual.get("charts") or {}).values())
     sig = s.signals
+    wd = safe(lambda: s.watchdog.check(restart=False), None)
     return home.build(
         trades=trades, db_ok=db_ok, monitor=safe(s.monitor.status, {}), visual=visual,
         automation=safe(s.futures.automation.status, {}), profiles=len(safe(s.visual.store.all, []) or []),
@@ -58,7 +65,7 @@ def home_view(request: Request):
         signals={"market": sig.market, "summary": [sig.brief(e) for e in sig.latest.values()]},
         backup=getattr(s, "backup", None), trades_chosen=bool(store.get("ui.trades_chosen", False)) or trades == "futures",
         chart_seen=chart_seen, setup_dismissed=bool(store.get("ui.setup_dismissed", False)), ui_mode=store.get("ui.mode", "simple"),
-        point_value_of=_point_value, engine_error=err)
+        point_value_of=_point_value, engine_error=err, watchdog=wd)
 
 
 class StopIn(BaseModel):

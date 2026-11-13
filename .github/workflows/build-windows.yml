@@ -72,3 +72,33 @@ jobs:
             It isn't code-signed, so Windows shows "Windows protected your PC" once: click More info, then Run anyway.
             Practice only: Study Terminal can't place real orders. Your data folder is kept when you update.
           files: dist-installer/*.exe
+
+  # Windows reliability: installs and runs the installer that was just built on a clean Windows machine.
+  # Fresh install, upgrade from the previous release with data, backup and restore, clean shutdown, logs, uninstall keeps data,
+  # installer rollback after a failed setup, and a damaged data file. Results: the "windows-reliability" artifact.
+  reliability:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIOUS: v0.13.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: StudyTerminal-Setup
+          path: new-installer
+      - name: Run the reliability checks
+        shell: pwsh
+        run: ./scripts/windows-reliability.ps1 -NewInstaller (Get-ChildItem new-installer/*.exe)[0].FullName -Previous $env:PREVIOUS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-reliability
+          path: reliability-out/

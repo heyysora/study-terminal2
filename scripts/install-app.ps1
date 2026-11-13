@@ -4,6 +4,10 @@
 # 5.   Opens the app.
 # Your data (%LOCALAPPDATA%\StudyTerminal: journal, paper account, settings, validation evidence, .env) is never
 # read, moved or written by this script or the installer. Every line of output goes to install-log.txt.
+param(
+    # Testing only: skip the build and run this setup program instead (used by the Windows reliability test to prove rollback).
+    [string]$SetupExe = ""
+)
 $ErrorActionPreference = "Stop"
 if (-not $env:LOCALAPPDATA -or -not (Test-Path $env:LOCALAPPDATA)) { Write-Host "LOCALAPPDATA isn't set; stopping before doing anything." -ForegroundColor Red; exit 1 }
 $Root = Split-Path -Parent $PSScriptRoot
@@ -28,18 +32,21 @@ try {
     Say "This takes about 5-10 minutes the first time. Leave this window open."
 
     # ---- steps 1-3: build in a child process so all of its output (pip, PyInstaller, npm, winget) is captured
+    if ($SetupExe) { Say "Test run: skipping the build and using $SetupExe" "Yellow" }
     $ErrorActionPreference = "Continue"
+    if (-not $SetupExe) {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "install-build.ps1") 2>&1 | ForEach-Object {
         $line = "$_"
         Write-Host $line
         $log.WriteLine($line)
     }
     $buildExit = $LASTEXITCODE
+    } else { $buildExit = 0 }
     $ErrorActionPreference = "Stop"
     if ($buildExit -ne 0) { throw "The build failed (exit code $buildExit). Nothing was installed." }
 
     $version = (Select-String -Path (Join-Path $Root "backend\app\config.py") -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
-    $setupExe = Join-Path $Root "dist-installer\StudyTerminal-Setup-$version.exe"
+    $setupExe = if ($SetupExe) { $SetupExe } else { Join-Path $Root "dist-installer\StudyTerminal-Setup-$version.exe" }
     if (-not (Test-Path $setupExe)) { throw "The build finished but $setupExe is missing. Nothing was installed." }
 
     # ---- step 4: install, with a backup of the current program files

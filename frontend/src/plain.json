@@ -109,6 +109,12 @@
    "Turn watching on to get a suggestion."
   ],
   [
+   "^Chart doesn't match its setup: (.+)$",
+   "chart",
+   "\\1",
+   "Switch the TopstepX chart back, or set up a new chart for this market."
+  ],
+  [
    "^Instrument uncertain",
    "chart",
    "I'm not sure which market this chart shows.",

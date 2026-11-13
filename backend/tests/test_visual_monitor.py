@@ -112,7 +112,8 @@ def test_unreadable_price_and_uncertain_instrument_give_no_trade():
     assert vr.quality_gates(r, "screen_capture", "", None).startswith("The chart couldn't be read")
     c, _ = read("mnq_5m_basic", root="ES")
     assert c.instrument.confidence < 0.6 and any("conflict" in p for p in c.problems)
-    assert vr.quality_gates(c, "screen_capture", "", None).startswith("Instrument uncertain")
+    # still refused; the reason now names the conflict instead of a generic "Instrument uncertain"
+    assert vr.quality_gates(c, "screen_capture", "", None) == "Chart doesn't match its setup: The chart shows MNQZ26, but this chart was set up for ES."
 
 
 def test_confidence_falls_when_zoomed_out_and_blank_detected():
