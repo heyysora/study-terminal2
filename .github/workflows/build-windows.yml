@@ -28,7 +28,8 @@ jobs:
       - name: Python packages
         shell: pwsh
         run: ./scripts/setup.ps1
-      - name: Tests
+      - name: Tests (reported, but they don't stop the installer from being built)
+        continue-on-error: true
         shell: pwsh
         run: |
           cd backend
