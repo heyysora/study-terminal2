@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.12.0 preview 2: live price and a cleaner look (2026-11-13)
+
+Display and reading changes only. Practice trading, risk calculations, permissions and the practice-only lock are unchanged.
+
+### Added
+- **Live price from your TopstepX chart.** About twice a second Study Terminal reads only the price box on the chart's price scale
+  (about 25 ms per read). A price is used only if it sits on the contract's price steps, matches where it sits on the price scale
+  (fitted by the full chart read), and isn't a sudden jump of more than 40 ticks that the next read fails to confirm. Anything
+  else is rejected and a full chart read is done instead. The full read (candles, indicators, analysis) still runs every few seconds.
+- **Live price header and chart** on Home and My chart: big price, change since the session opened at 6:00 PM New York time (or
+  since watching started), a line chart of accepted prices with 5 min / 1 hour / 4 hours / Today ranges, hover to see the price at
+  any moment, and a Candles view (candles are estimated from the picture). Gaps in the line are times the chart couldn't be read;
+  nothing is filled in. "How accurate is this?" shows how many prices were accepted and rejected.
+- Prices are saved per day in `<data>\live_prices\` (two weeks kept) so today's chart survives a restart. Test and demo sources
+  are never saved.
+- **Light and dark themes**, following the Windows setting by default (button in the top bar). New typography, rounded cards,
+  pill buttons, and one accent color that turns green or red with the day's move.
+- API: `GET /api/visual/live` and `GET /api/visual/live/{profile}` (`range=live|1h|4h|day`); pushed `visual_price` messages.
+  Chart profiles gain `live_seconds` (default 0.5; older saved profiles get the default).
+
+### Not changed
+- Practice trading (stocks and futures) works exactly as before.
+- The live price is labeled as read from your screen, never as an exchange feed.
+
 ## 0.12.0 preview 1: interface foundation (2026-11-10)
 
 First part of 0.12.0. It changes what is shown and adds a backup. It does not change trading logic, risk calculations, permissions,

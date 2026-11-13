@@ -36,6 +36,16 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
   weren't verified against a real account. Fees for YM, MYM and CL weren't in the readable fee table.
 - Study Terminal applies these rules to its own simulator only. It can't see or enforce anything on your real account.
 
+## Live price (0.12.0 preview 2)
+- The live price is what the price box on your TopstepX chart shows, read about twice a second. It can be up to about a second
+  behind the chart, and anything that happens between reads isn't seen. It is not tick data and not an exchange feed.
+- If TopstepX shows several colored boxes on the price scale (for example indicator labels) and two are equally close to the last
+  price, the fast read gives up and waits for a full read rather than guess.
+- "Change" is measured from the first price read after 6:00 PM New York time, or from when watching started if that was later.
+  It is not the exchange's settlement-based daily change.
+- Accuracy so far is measured on synthetic charts only (0 wrong in 300 moving frames with each OCR version). It has not been
+  measured on your real TopstepX charts yet.
+
 ## Interface (0.12.0 preview 1)
 - Simple mode covers Home, the top bar, the recommendation card, action and status words, alerts and error messages. Deeper screens
   (Backtest, Journal analytics, Live Market, most of Settings) still use trading terms; they are planned for audit stages 4-7.

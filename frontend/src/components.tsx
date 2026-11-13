@@ -82,7 +82,7 @@ export function CandleChart({ bars, overlays = [], lines = [], height, daily }: 
     const ch = createChart(box.current, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: css("--panel") }, textColor: css("--muted"), fontFamily: css("--data"), fontSize: 12 },
-      grid: { vertLines: { color: "#1c232e" }, horzLines: { color: "#1c232e" } },
+      grid: { vertLines: { visible: false }, horzLines: { color: css("--rule") } },
       rightPriceScale: { borderColor: css("--rule") },
       timeScale: { borderColor: css("--rule"), timeVisible: !daily, secondsVisible: false,
         tickMarkFormatter: (t: number) => (daily ? etDayFmt.format(new Date(t * 1000)) : etTick.format(new Date(t * 1000))) },
@@ -130,7 +130,7 @@ export function LineChart({ points, height = 220, color }: { points: [string, nu
     const ch = createChart(box.current, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: css("--panel") }, textColor: css("--muted"), fontFamily: css("--data") },
-      grid: { vertLines: { visible: false }, horzLines: { color: "#1c232e" } },
+      grid: { vertLines: { visible: false }, horzLines: { color: css("--rule") } },
       rightPriceScale: { borderColor: css("--rule") }, timeScale: { borderColor: css("--rule") },
     });
     const l = ch.addSeries(LineSeries, { color: color || css("--brass"), lineWidth: 2 });

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Fragment } from "react";
 import { Panel } from "./components";
 import { api, ensureLive, onLiveMessage, usePoll } from "./lib";
 import { confidenceWord, say, sourceClass, useUiMode } from "./plain";
 import { ActionWord, Term, WhyBlock } from "./simple";
+import { LivePrice } from "./livechart";
 
 const ROOTS = ["auto", "NQ", "MNQ", "ES", "MES"];
 const TFS = ["auto", "1Min", "2Min", "3Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day"];
@@ -51,8 +52,8 @@ export function VisualMonitor({ tab: startTab }: { tab?: string } = {}) {
       {err && <div className="note bad">{err}</div>}
       {tab === "setup" ? <Setup initial={editing} onSaved={() => { st.reload(); }} /> : (
         !charts.length ? <div className="empty">No chart set up yet. Open TopstepX in Microsoft Edge, then use "Set up a chart".</div> :
-          charts.map((c: any) => <ChartCard key={c.profile.id} c={c} running={s?.state === "running"}
-            onRecalibrate={() => { setEditing(c.profile); setTab("setup"); }} />)
+          charts.map((c: any) => <Fragment key={c.profile.id}><LivePrice pid={c.profile.id} />
+            <ChartCard c={c} running={s?.state === "running"} onRecalibrate={() => { setEditing(c.profile); setTab("setup"); }} /></Fragment>)
       )}
     </div>
   );
@@ -107,7 +108,7 @@ function ChartCard({ c, running, onRecalibrate }: { c: any; running: boolean; on
         <Panel title="What the chart shows" sub={r ? `confidence ${r.confidence}` : ""}>
           {!r ? <div className="muted small">No reading yet.</div> : <>
             <table className="small"><tbody>
-              {(["instrument", "timeframe", "price", "bid", "ask", "volume"] as const).map((k) => <tr key={k}><td className="muted">{k === "price" ? "observed price" : k}</td>
+              {(["instrument", "timeframe", "price", "bid", "ask", "volume"] as const).map((k) => <tr key={k}><td className="muted">{k === "price" ? "price (last full read)" : k}</td>
                 <td>{r[k].value ?? "—"}</td><td className="faint">{CLASS_TEXT[r[k].class]} · {r[k].confidence}</td></tr>)}
               <tr><td className="muted">axis</td><td>{r.axis ? `${r.axis.labels} labels, ${r.axis.price_per_pixel} pts/px` : r.calibration_valid === false ? "calibration invalid" : "—"}</td><td className="faint">{r.axis ? `${CLASS_TEXT[r.axis.class]} (${r.axis.mode}${r.axis.verified === false ? ", unverified" : ""})` : ""}</td></tr>
               <tr><td className="muted">candles</td><td>{r.candles.length}</td><td className="faint">{CLASS_TEXT.VISUALLY_ESTIMATED} · {r.candle_confidence}</td></tr>

@@ -184,7 +184,7 @@ const LiveChart = forwardRef<LiveChartHandle, { data: any; on: Set<string>; tfSe
     const c = createChart(box.current, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: css("--panel") }, textColor: css("--muted"), fontFamily: css("--data"), fontSize: 12 },
-      grid: { vertLines: { color: "#1c232e" }, horzLines: { color: "#1c232e" } },
+      grid: { vertLines: { visible: false }, horzLines: { color: css("--rule") } },
       rightPriceScale: { borderColor: css("--rule") },
       timeScale: { borderColor: css("--rule"), timeVisible: !daily, secondsVisible: false,
         tickMarkFormatter: (t: number) => (daily ? utcDay.format(new Date(t * 1000)) : ctTick.format(new Date(t * 1000))) },

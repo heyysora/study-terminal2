@@ -1,6 +1,7 @@
 // The safety bar (practice badge, health light, Stop everything), the plain risk line, and the shared "why" block.
 import { useState } from "react";
 import { api, money, sign } from "./lib";
+import { setTheme, useTheme } from "./theme";
 import { Why, actionWord, explain, isSimple, reloadHome, say, setUiMode, term, useHome, useUiMode } from "./plain";
 
 export const LEVEL_CLASS: Record<string, string> = { ok: "ok", off: "off", attention: "attn", bad: "bad" };
@@ -92,6 +93,14 @@ export function StopEverything() {
   );
 }
 
+function ThemeButton() {
+  const { pref, theme } = useTheme();
+  const next = pref === "auto" ? "light" : pref === "light" ? "dark" : "auto";
+  const label = pref === "auto" ? `Auto (${theme})` : pref === "light" ? "Light" : "Dark";
+  return <button className="ghost theme-btn" onClick={() => setTheme(next)} title={`Look: ${label}. Click for ${next}. Auto follows your Windows setting.`}>
+    {theme === "dark" ? "☾" : "☀"} {label}</button>;
+}
+
 /** Row 1 of every screen: brand, practice badge, health light, Simple/Advanced, Stop everything. */
 export function TopBar({ connected }: { connected: boolean }) {
   const h = useHome();
@@ -109,6 +118,7 @@ export function TopBar({ connected }: { connected: boolean }) {
         <i className="lamp" aria-hidden /><b>{hl.word}</b><span className="health-text">{hl.sentence}</span>
       </a>
       <span className="grow" />
+      <ThemeButton />
       <span className="seg" role="group" aria-label="How much detail to show">
         {(["simple", "advanced"] as const).map((m) =>
           <button key={m} className={mode === m ? "on" : ""} aria-pressed={mode === m} onClick={() => setUiMode(m)}
@@ -147,7 +157,7 @@ export function SimpleStrip({ trades, onTrades }: { trades: string; onTrades: (m
       {cell(<Term k="dll">Most you can still lose today</Term>, r ? (r.can_lose_today != null ? money(r.can_lose_today, 0) : "No limit set") : "Loading…")}
       {cell(<Term k="open_risk">At risk right now</Term>, r ? (r.at_risk_now != null ? money(r.at_risk_now, 0) : `${r.open_trades ?? 0} open`) : "Loading…")}
       {cell("New practice trades", r ? (stopped ? "Stopped" : "Allowed") : "Loading…", stopped ? "down" : "")}
-      {r && !r.limits_confirmed && <div className="cell"><span className="k">Loss limits</span><span className="v"><a href="#/futures">Not confirmed yet</a></span></div>}
+      {r && !r.limits_confirmed && <div className="cell"><span className="k">Loss limits</span><span className="v"><a className="warn-link" href="#/futures">Not confirmed yet</a></span></div>}
     </div>
   );
 }

@@ -8,6 +8,12 @@ TopstepX endpoints, no login tokens, no browser storage, and it never clicks, ty
 see "What was tested"). They have not yet seen a real TopstepX chart, and Windows Graphics Capture and window capture have not been run on Windows by me. Your first
 session is the real test: follow "Check it on your charts" below before relying on it.
 
+## Live price (0.12)
+About twice a second Study Terminal reads only the price box on your chart's price scale and shows it at the top of Home and My
+chart, with a line chart of today's prices. A price is accepted only when it is on the contract's price steps, matches its position
+on the price scale, and isn't an unconfirmed jump. The line breaks wherever the chart couldn't be read. Click "How accurate is
+this?" under the chart for the accepted/rejected counts.
+
 ## What it reads, and how much to trust each value
 
 | Source classification | Meaning | Examples | Typical precision |

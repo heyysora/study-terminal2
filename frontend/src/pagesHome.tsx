@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api, money } from "./lib";
 import { reloadHome, useHome, useUiMode } from "./plain";
 import { LEVEL_CLASS, Term, WhyBlock } from "./simple";
+import { LivePrice } from "./livechart";
 
 const clock = (iso?: string | null) => { if (!iso) return null; const d = new Date(iso); return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
 
@@ -84,24 +85,13 @@ export function Home() {
     <div className="page home">
       {d.stopped && <StartAgain emergency={d.emergency} />}
       {setup.show && !d.stopped && <SetupGuide setup={setup} />}
+      {fut && <LivePrice />}
       <div className="sheet">
-        <Row n={1} q="Is Study Terminal working?">
-          <div className={`big-line h-${LEVEL_CLASS[health.level]}`}><i className="lamp" aria-hidden /><b>{health.word}.</b> {health.sentence}</div>
-          {health.do && <div className="why-do"><span className="k">What to do</span> {health.do} {health.link && health.button && <a href={health.link}>{health.button}</a>}</div>}
-          <details><summary className="small">What I checked</summary>
-            <ul className="checks">{health.checks.map((c: any) => <li key={c.id} className={`h-${LEVEL_CLASS[c.level]}`}><i className="lamp" aria-hidden />
-              <span><b>{c.name}:</b> {c.text}{mode === "advanced" && c.detail ? <span className="faint"> ({c.detail})</span> : null}</span></li>)}</ul>
-          </details>
+        <Row n={5} q="What should I do next?" tone={`next k-${next.kind}`}>
+          <div className="big-line"><b>{next.title}.</b> {next.text}</div>
+          {next.link && next.button && next.link !== "#/home" && <a className="btn primary" href={next.link}>{next.button}</a>}
         </Row>
-
-        <Row n={2} q="What is the market doing?">
-          <div className="big-line">{market.sentence}</div>
-          {market.details?.length > 0 && <ul className="plain-list">{market.details.map((t: string) => <li key={t}>{t}</li>)}</ul>}
-          {market.source && <div className="small faint">{market.source}{clock(market.as_of) ? ` Read at ${clock(market.as_of)}.` : ""}
-            {market.confidence ? <> <Term k="data_confidence">How sure I am about the reading</Term>: {market.confidence}.</> : null}</div>}
-          {!market.known && fut && <div className="why-do"><span className="k">What to do</span> {health.level === "bad" && health.do ? health.do : "Connect your chart and turn watching on."} <a href="#/visual">Open my chart</a></div>}
-        </Row>
-
+        <div className="home-grid">
         <Row n={3} q="Should I practice a trade or wait?" tone={`t-${decision.tone}`}>
           <div className="verdict"><span className={`aword big t-${decision.tone}`}>{decision.word}</span>
             {decision.contract && <span className="muted">{decision.contract}{clock(decision.as_of) ? ` · ${clock(decision.as_of)}` : ""}</span>}</div>
@@ -139,10 +129,26 @@ export function Home() {
           <div className="small faint">{risk.note}{risk.can_lose_today_from ? ` The amount above comes from ${risk.can_lose_today_from}.` : ""}</div>
         </Row>
 
-        <Row n={5} q="What should I do next?" tone={`next k-${next.kind}`}>
-          <div className="big-line"><b>{next.title}.</b> {next.text}</div>
-          {next.link && next.button && next.link !== "#/home" && <a className="btn primary" href={next.link}>{next.button}</a>}
+        </div>
+        <div className="home-grid">
+        <Row n={1} q="Is Study Terminal working?">
+          <div className={`big-line h-${LEVEL_CLASS[health.level]}`}><i className="lamp" aria-hidden /><b>{health.word}.</b> {health.sentence}</div>
+          {health.do && <div className="why-do"><span className="k">What to do</span> {health.do} {health.link && health.button && <a href={health.link}>{health.button}</a>}</div>}
+          <details><summary className="small">What I checked</summary>
+            <ul className="checks">{health.checks.map((c: any) => <li key={c.id} className={`h-${LEVEL_CLASS[c.level]}`}><i className="lamp" aria-hidden />
+              <span><b>{c.name}:</b> {c.text}{mode === "advanced" && c.detail ? <span className="faint"> ({c.detail})</span> : null}</span></li>)}</ul>
+          </details>
         </Row>
+
+        <Row n={2} q="What is the market doing?">
+          <div className="big-line">{market.sentence}</div>
+          {market.details?.length > 0 && <ul className="plain-list">{market.details.map((t: string) => <li key={t}>{t}</li>)}</ul>}
+          {market.source && <div className="small faint">{market.source}{clock(market.as_of) ? ` Read at ${clock(market.as_of)}.` : ""}
+            {market.confidence ? <> <Term k="data_confidence">How sure I am about the reading</Term>: {market.confidence}.</> : null}</div>}
+          {!market.known && fut && <div className="why-do"><span className="k">What to do</span> {health.level === "bad" && health.do ? health.do : "Connect your chart and turn watching on."} <a href="#/visual">Open my chart</a></div>}
+        </Row>
+
+        </div>
       </div>
 
       {d.recent?.length > 0 && <section className="recent" aria-label="What happened recently">

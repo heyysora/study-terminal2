@@ -163,3 +163,87 @@ async def control(action: str, request: Request):
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     raise HTTPException(404, "Unknown action")
+
+
+# ---------------- live price (fast price-box reads + a tape of accepted prices) ----------------
+
+RANGES = {"live": 5 * 60, "1h": 3600, "4h": 4 * 3600, "day": None}
+
+
+@router.get("/live")
+def live_default(request: Request, range: str = "day"):  # noqa: A002 - query name shown in the URL
+    v = _v(request)
+    v._sync_profiles()
+    if not v.runtimes:
+        return {"profile": None, "reason": "No chart is connected yet."}
+    pid = next((p for p, rt in v.runtimes.items() if rt.status == "screen_capture"), next(iter(v.runtimes)))
+    return live_view(pid, request, range)
+
+
+@router.get("/live/{pid}")
+def live_view(pid: str, request: Request, range: str = "day"):  # noqa: A002
+    import time as _t
+    from datetime import datetime, timezone
+
+    from ..plain import plain_reason, plain_status
+    from ..screen.live_price import session_start
+    v = _v(request)
+    v._sync_profiles()
+    rt = v.runtimes.get(pid)
+    if rt is None:
+        raise HTTPException(404, "No such chart profile.")
+    now = datetime.now(timezone.utc)
+    tape = rt.tape
+    sess = session_start(now).timestamp()
+    span = RANGES.get(range, None)
+    since = sess if span is None else _t.time() - span
+    series = tape.series(since) if tape else []
+    ref_t, ref_p = tape.session_reference(now) if tape else (None, None)
+    last = tape.last() if tape else None
+    live = rt.status == "screen_capture"
+    r = rt.reading
+    contract = None
+    if rt.recommendation:
+        contract = rt.recommendation.get("contract")
+    if not contract and r is not None and r.instrument.value:
+        contract = r.instrument.value
+    price = last[1] if last else None
+    age = (_t.time() - last[0]) if last else None
+    ps = plain_status(rt.status)
+    candles = []
+    for b in (rt.bars or [])[-120:]:
+        t = b.get("time") or b.get("ts")
+        if hasattr(t, "timestamp"):
+            t = t.timestamp()
+        if isinstance(t, str):
+            try:
+                t = datetime.fromisoformat(t).timestamp()
+            except ValueError:
+                continue
+        if t is None:
+            continue
+        candles.append({"time": int(t), "open": b["open"], "high": b["high"], "low": b["low"], "close": b["close"]})
+    return {
+        "profile": {"id": pid, "name": rt.profile.name}, "contract": contract or rt.profile.root,
+        "timeframe": (r.timeframe.value if r is not None else None) or rt.profile.timeframe,
+        "status": rt.status, "status_word": ps["word"], "status_level": ps["level"], "live": live and price is not None and (age or 99) < max(
+            30.0, float(rt.profile.stale_seconds)),
+        "reason": None if live else plain_reason(f"{rt.status.upper()}: {rt.reason}"),
+        "price": price, "at": datetime.fromtimestamp(last[0], timezone.utc).isoformat() if last else None,
+        "age_seconds": None if age is None else round(age, 1), "method": last[2] if last else None,
+        "bid": r.bid.value if (r is not None and live) else None, "ask": r.ask.value if (r is not None and live) else None,
+        "change": None if (price is None or ref_p is None) else round(price - ref_p, 6),
+        "change_pct": None if (price is None or not ref_p) else round((price - ref_p) / ref_p * 100, 3),
+        "reference": None if ref_p is None else {"price": ref_p, "at": datetime.fromtimestamp(ref_t, timezone.utc).isoformat(),
+                                                 "session_start": datetime.fromtimestamp(sess, timezone.utc).isoformat(),
+                                                 "from_session_open": ref_t - sess < 180},
+        "range": range if range in RANGES else "day", "series": series,
+        "candles": candles, "candles_note": "Candles are worked out from the picture of your chart (estimated); the line is the "
+                                            "price read from the chart's price box.",
+        "checks": {"accepted": tape.accepted if tape else 0, "rejected": tape.rejected if tape else 0,
+                   "last_reject": tape.last_reject if tape else "",
+                   "rule": "A price is used only if it is on the contract's price steps, matches where it sits on the price scale, and "
+                           "isn't a sudden jump that the next read doesn't confirm."},
+        "source": "Read from your TopstepX chart on screen. It shows what the chart shows; it is not an official exchange feed.",
+        "live_seconds": rt.profile.live_seconds,
+    }

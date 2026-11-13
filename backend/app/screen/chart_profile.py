@@ -40,7 +40,8 @@ class ChartProfile:
     ema_colors: dict = field(default_factory=dict)  # {"9": [r,g,b], "20": ..., "50": ..., "200": ...}
     color_tolerance: int = 40
     # timing
-    capture_seconds: float = 2.0
+    capture_seconds: float = 2.0                    # full chart read (candles, indicators, analysis)
+    live_seconds: float = 0.5                       # fast read of the price box only (the live price)
     stale_seconds: float = 20.0                     # no good reading for this long -> STALE
     frozen_seconds: float = 90.0                    # no visible change for this long during the session -> frozen
     active: bool = True
@@ -78,6 +79,8 @@ class ChartProfile:
                 raise ValueError("Colors are [r, g, b] with values 0-255.")
         if not 0.5 <= float(self.capture_seconds) <= 60:
             raise ValueError("Capture interval must be 0.5-60 seconds.")
+        if not 0.25 <= float(self.live_seconds) <= 10:
+            raise ValueError("Live price interval must be 0.25-10 seconds.")
 
     def matches(self, title: str | None, process: str | None) -> bool:
         if not title:

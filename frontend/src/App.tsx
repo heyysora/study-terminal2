@@ -12,6 +12,7 @@ import { TrustDashboard } from "./pages8";
 import { Home } from "./pagesHome";
 import { say, setUiMode, useHome, useUiMode } from "./plain";
 import { OfflineBanner, SimpleStrip, TopBar } from "./simple";
+import { useTheme } from "./theme";
 
 const NAV: [string, string, string?][] = [
   ["home", "Home"], ["dashboard", "Stock overview"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
@@ -81,6 +82,7 @@ export default function App() {
   const L = useLive();
   const H = useHome();
   const ui = useUiMode();
+  const { theme } = useTheme();
   const unread = L.alerts.length;
   const settings = usePoll("/settings");
   const [mode, setMode] = useState<string | null>(null);
@@ -133,7 +135,7 @@ export default function App() {
         {ui === "simple" ? <SimpleStrip trades={curMode} onTrades={switchMode} />
           : curMode === "futures" || page === "futures" ? <FuturesStrip mode="futures" onMode={switchMode} /> : <StatusStrip mode={curMode} onMode={switchMode} />}
       </div>
-      <main className="main">{view}</main>
+      <main className="main" key={theme}>{view}</main>
       <div className="toast-stack" aria-live="polite">
         {L.toasts.map((t) => (
           <div key={t.id} className={`toast ${t.severity}`} role="alert">

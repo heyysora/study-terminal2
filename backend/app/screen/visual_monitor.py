@@ -113,6 +113,10 @@ class Runtime:
     next_due: float = 0.0
     health: dict = field(default_factory=dict)       # capture method used, methods tried, frame age
     last_img: np.ndarray | None = None               # newest region image, in memory only (live preview)
+    tape: object | None = None                       # PriceTape: accepted live prices (see live_price.py)
+    live: dict = field(default_factory=dict)         # newest accepted price {price, at, method, confidence}
+    next_live: float = 0.0
+    last_full: float = 0.0
 
     def summary(self) -> dict:
         r = self.reading
@@ -199,7 +203,18 @@ class VisualMonitor:
             if pid in self.runtimes:
                 self.runtimes[pid].profile = p
             else:
-                self.runtimes[pid] = Runtime(profile=p, hwnd=p.window_hwnd)
+                self.runtimes[pid] = Runtime(profile=p, hwnd=p.window_hwnd, tape=self._tape(pid))
+
+    def _tape(self, pid: str):
+        from .live_price import PriceTape
+        sp = getattr(self.store, "path", None)
+        # only real screen captures are saved; injected test/demo sources stay in memory
+        folder = sp.parent / "live_prices" if sp is not None and self.capture_fn is None else None
+        try:
+            return PriceTape(pid, folder)
+        except OSError:
+            log.exception("couldn't open the live price folder")
+            return PriceTape(pid, None)
 
     async def start(self) -> dict:
         self._sync_profiles()
@@ -237,6 +252,10 @@ class VisualMonitor:
             rt.status, rt.reason, rt.recommendation, rt.last_img = "stopped", "Monitoring stopped. Nothing is captured.", None, None
         self.capture_manager.release()               # end Windows Graphics Capture sessions (removes the capture border)
         self.capture_stats.flush()
+        for rt in self.runtimes.values():
+            if rt.tape is not None:
+                rt.tape.gap(time.time())
+                rt.tape.flush()
         self._save_state()
         self._push()
         return self.status()
@@ -274,17 +293,28 @@ class VisualMonitor:
             if self.state != "running":
                 continue
             for rt in list(self.runtimes.values()):
-                if time.monotonic() >= rt.next_due:
-                    rt.next_due = time.monotonic() + float(rt.profile.capture_seconds)
-                    try:
-                        await self.tick(rt)
-                    except Exception as e:  # noqa: BLE001
-                        log.exception("visual monitor tick failed")
-                        self._set(rt, "unreadable", f"Internal error while reading the chart ({type(e).__name__}).")
+                mono = time.monotonic()
+                full = mono >= rt.next_due
+                fast = not full and mono >= rt.next_live and rt.status == "screen_capture"
+                if not (full or fast):
+                    continue
+                rt.next_live = mono + float(rt.profile.live_seconds)
+                if full:
+                    rt.next_due = mono + float(rt.profile.capture_seconds)
+                try:
+                    await self.tick(rt, fast=fast)
+                except Exception as e:  # noqa: BLE001
+                    log.exception("visual monitor tick failed")
+                    self._set(rt, "unreadable", f"Internal error while reading the chart ({type(e).__name__}).")
 
     def _set(self, rt: Runtime, status: str, reason: str) -> None:
         changed = status != rt.status
         rt.status, rt.reason = status, reason
+        if status != "screen_capture" and rt.tape is not None:
+            rt.tape.gap(time.time())                      # the live line breaks instead of bridging a period we couldn't see
+            if changed and self.broadcaster:
+                self.broadcaster.publish({"type": "visual_price", "data": {"profile": rt.profile.id, "t": time.time(), "price": None,
+                                                                          "method": "gap", "status": status}})
         if status != "screen_capture" and changed:
             kind = {"disconnected": "chart_missing", "stale": "chart_stale", "unreadable": "low_confidence"}.get(status)
             if kind:
@@ -310,7 +340,7 @@ class VisualMonitor:
                 return True
         return False
 
-    async def tick(self, rt: Runtime) -> None:
+    async def tick(self, rt: Runtime, fast: bool = False) -> None:
         now = self._now()
         p = rt.profile
         clock = FuturesClock(fc.get(p.root if p.root != "auto" else "MNQ"))
@@ -369,6 +399,8 @@ class VisualMonitor:
             self._set(rt, "stale", f"Chart frozen: nothing on it has changed for {int((now - rt.last_change_at).total_seconds())} s "
                                    "while the market is open (disconnected platform, paused chart, or replay mode).")
             return self._after(rt, now, rt.reading)
+        if fast and await self._fast_price(rt, img, now, changed):
+            return
         if not changed and rt.reading is not None and time.monotonic() - rt.last_ocr < 30 and rt.status == "screen_capture":
             rt.last_good_at = now                         # same picture as the last good reading: still valid
             return self._after(rt, now, rt.reading, fresh=False)
@@ -394,8 +426,54 @@ class VisualMonitor:
             self._set(rt, "unreadable", f"Recognition confidence fell to {reading.confidence:.2f}: " + "; ".join(reading.problems[:2]))
             return self._after(rt, now, reading)
         rt.last_good_at = now
+        rt.last_full = time.monotonic()
         self._set(rt, "screen_capture", "Reading the chart on your screen (visual observation, capture time shown).")
+        if reading.price.value is not None and reading.price.confidence >= 0.6:
+            self._record_price(rt, now, float(reading.price.value), "full read", reading.price.confidence)
         self._after(rt, now, reading)
+
+    # ---------------- live price ----------------
+
+    def _tick_size(self, rt: Runtime) -> float:
+        root = rt.reading.instrument.value if rt.reading is not None and rt.reading.instrument.value else rt.profile.root
+        try:
+            return float(fc.get(root if root and root != "auto" else "MNQ").tick_size)
+        except Exception:  # noqa: BLE001
+            return 0.25
+
+    def _record_price(self, rt: Runtime, now: datetime, price: float, method: str, confidence: float) -> bool:
+        if rt.tape is None:
+            return False
+        ok = rt.tape.offer(now.timestamp(), price, self._tick_size(rt), method)
+        if ok:
+            rt.live = {"price": price, "at": now.isoformat(), "method": method, "confidence": round(float(confidence), 3)}
+            if self.broadcaster:
+                self.broadcaster.publish({"type": "visual_price", "data": {"profile": rt.profile.id, "t": now.timestamp(), "price": price,
+                                                                          "method": method, "status": rt.status}})
+        return ok
+
+    async def _fast_price(self, rt: Runtime, img, now: datetime, changed: bool) -> bool:
+        """Read only the price box. True when a price was accepted (the full read can wait); False = do a full read."""
+        from .live_price import read_tag
+        r = rt.reading
+        if rt.status != "screen_capture" or r is None or not r.ok or not r.axis or rt.tape is None:
+            return False
+        if time.monotonic() - rt.last_full > max(10.0, 3 * float(rt.profile.capture_seconds)):
+            return False                                  # re-anchor the price scale with a full read regularly
+        if not changed:
+            rt.last_good_at = now                         # same picture: the last price still stands
+            return True
+        last = rt.tape.last()
+        if self.ocr_fn is not None:                       # tests inject OCR: use the full path
+            return False
+        tr = await asyncio.to_thread(read_tag, img, r.axis, self._tick_size(rt), last[1] if last else None)
+        if tr.value is None:
+            rt.tape.reject(tr.why)
+            return False
+        if not self._record_price(rt, now, tr.value, "price box", tr.confidence):
+            return False                                  # an unconfirmed jump: let a full read decide
+        rt.last_good_at = now
+        return True
 
     # ---------------- analysis + alerts ----------------
 

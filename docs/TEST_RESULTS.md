@@ -6,10 +6,19 @@ All runs were on **Linux** in the build environment. Nothing here was run on Win
 
 | Run | Result |
 |---|---|
-| Python 3.11 (`pytest tests`) | **437 passed**, 0 failed, 0 skipped (≈ 120 s) |
-| Python 3.13 (`pytest tests`) | **437 passed**, 0 failed, 0 skipped (≈ 100 s) |
+| Python 3.11 (`pytest tests`) | **450 passed**, 0 failed, 0 skipped (≈ 120 s) |
+| Python 3.13 (`pytest tests`) | **450 passed**, 0 failed, 0 skipped (≈ 100 s) |
 | Frontend type-check and build (`npm run build` = `tsc -b && vite build`) | passed |
 | Lint (`ruff --select E4,E7,E9,F,B`) on files changed in 0.7 | clean except pre-existing style warnings in older files (B008/E741/B904) |
+
+## 0.12.0 preview 2: live price
+
+| Check | Result |
+|---|---|
+| `test_live_price.py` (13): price-box read matches the full read; follows a moving chart; every check can reject (confidence, off the price steps, dropped digit, wrong digit, garbage, no box); jumps wait for confirmation; gaps break the line; thinning keeps order and gaps; saved and reloaded; old files removed; session starts at 6 PM New York; the monitor's fast path through to the endpoint; profile validation | passed |
+| Accuracy on 300 moving SYNTHETIC frames (three price levels, scale changes included) | rapidocr 1.4.4: 297 accepted, 0 wrong, 3 rejected; rapidocr 1.2.3: 288 accepted, 0 wrong, 12 rejected (rejected frames fall back to a full read) |
+| Fast read time | median 25 ms (1.4.4) |
+| Screens in headless Chrome with a moving SYNTHETIC chart, light and dark | checked by eye |
 
 ## 0.12.0 preview 1: interface foundation
 
