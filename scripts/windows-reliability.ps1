@@ -159,17 +159,51 @@ class P { static int Main(string[] a) {
     Copy-Item (Join-Path $Root "install-log.txt") (Join-Path $Out "rollback-install-log.txt") -ErrorAction SilentlyContinue
 }
 
-# ---------------------------------------------------------------- 7. damaged data file (observed, not assumed)
+# ---------------------------------------------------------------- 7. damaged data file: Recovery mode, then a restore
 if (Test-Path $up) {
     $bad = Join-Path $env:TEMP "st-rel-damaged"
     Remove-Item $bad -Recurse -Force -ErrorAction SilentlyContinue
     Copy-Item $up $bad -Recurse
-    [IO.File]::WriteAllBytes((Join-Path $bad "study_terminal.db"), [byte[]](1..4096 | ForEach-Object { 7 }))
+    $dbPath = Join-Path $bad "study_terminal.db"
+    Remove-Item (Join-Path $bad "study_terminal.db-wal"), (Join-Path $bad "study_terminal.db-shm") -ErrorAction SilentlyContinue
+    [IO.File]::WriteAllBytes($dbPath, [byte[]](1..4096 | ForEach-Object { 7 }))
+    $badHash = (Get-FileHash $dbPath).Hash
     $r = SelfTest $bad "damaged"
-    $stillThere = Test-Path (Join-Path $bad "study_terminal.db")
-    $why = ($r.text -split "`n" | Where-Object { $_ -match "Error|error|database|malformed" } | Select-Object -First 2) -join " "
-    Record "Damaged database file" "observed" "Self-test exit $($r.exit) after $($r.seconds) s; damaged file left in place (not deleted): $stillThere. $why"
+    $untouched = (Test-Path $dbPath) -and ((Get-FileHash $dbPath).Hash -eq $badHash)
+    $ok = $r.exit -eq 2 -and $r.text -match "recovery mode \(database" -and $untouched
+    Record "Damaged data file opens Recovery mode" $(if ($ok) { "pass" } else { "fail" }) "Self-test exit $($r.exit) (2 = Recovery mode) after $($r.seconds) s; damaged file left exactly as it was: $untouched"
+
+    # The Recovery screen's "Use this backup" writes this plan and restarts; here the installed app is started with it.
+    $bk = Get-ChildItem (Join-Path $bad "backups") -Directory | Sort-Object Name -Descending | Select-Object -First 1
+    if ($bk) {
+        @{ action = "restore"; backup = $bk.Name; asked_at = (Get-Date -Format s) } | ConvertTo-Json | Set-Content (Join-Path $bad "pending_recovery.json") -Encoding UTF8
+        $r = SelfTest $bad "restore"
+        $last = Get-Content (Join-Path $bad "last_recovery.json") -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        $kept = @(Get-ChildItem (Join-Path $bad "damaged") -Recurse -Filter "study_terminal.db" -ErrorAction SilentlyContinue | Where-Object { (Get-FileHash $_.FullName).Hash -eq $badHash }).Count -gt 0
+        $verify = Join-Path $Out "verify-after-restore.json"
+        $same = $false
+        $chk = Join-Path $Root "backend\research\upgrade_check.py"
+        if (Test-Path (Join-Path $Out "seed.json")) {
+            [void](Py (Join-Path $Root "backend") @($chk, "verify", $bad, $verify))
+            [void](Py (Join-Path $Root "backend") @($chk, "compare", (Join-Path $Out "seed.json"), $verify, "", (Join-Path $Out "compare-after-restore.json")))
+            if (Test-Path (Join-Path $Out "compare-after-restore.json")) { $same = (Get-Content (Join-Path $Out "compare-after-restore.json") -Raw | ConvertFrom-Json).all_views_same }
+        }
+        $ok = $r.exit -eq 0 -and $last.ok -and $kept -and $same
+        Record "Restore from Recovery mode" $(if ($ok) { "pass" } else { "fail" }) "Self-test exit $($r.exit); restore result: $($last.detail); damaged file kept in damaged\: $kept; your data views as before the damage: $same"
+    } else {
+        Record "Restore from Recovery mode" "fail" "No backup was found to restore from."
+    }
 }
+
+# ---------------------------------------------------------------- 8. our port is taken by another program
+$busy = Join-Path $env:TEMP "st-rel-port"
+Remove-Item $busy -Recurse -Force -ErrorAction SilentlyContinue
+$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 8811)
+$listener.Start()
+try { $r = SelfTest $busy "port-busy" } finally { $listener.Stop() }
+$moved = Select-String -Path (Join-Path $busy "logs\desktop.log") -Pattern "port 8811 is used by another program; using (\d+)" -ErrorAction SilentlyContinue | Select-Object -First 1
+$ok = $r.exit -eq 0 -and $moved
+Record "Starts when its usual port is taken" $(if ($ok) { "pass" } else { "fail" }) "Self-test exit $($r.exit); $(if ($moved) { $moved.Line.Trim() } else { 'did not move to another port' })"
 
 # ---------------------------------------------------------------- summary
 $json = $Results | ConvertTo-Json -Depth 4

@@ -54,6 +54,45 @@ def message_box(title: str, text: str, error: bool = True) -> None:
         print(f"{title}: {text}", file=sys.stderr)
 
 
+def _port_free(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+def choose_port() -> int | None:
+    """If another program already uses our port, move to the next free one instead of asking you to edit a settings file.
+    Must run before the backend is imported. Returns the new port, or None if the usual one is free (or nothing is)."""
+    global S, URL, API
+    if _port_free(S.port):
+        return None
+    for port in range(S.port + 1, S.port + 40):
+        if _port_free(port):
+            log.warning("port %s is used by another program; using %s instead", S.port, port)
+            os.environ["PORT"] = str(port)
+            get_settings.cache_clear()
+            S = get_settings()
+            URL, API = f"http://127.0.0.1:{S.port}", f"http://127.0.0.1:{S.port}/api"
+            return port
+    return None
+
+
+def save_help_file() -> str | None:
+    """Zip the logs etc. into Downloads when the app can't start, so there's something to send without hunting for folders."""
+    try:
+        from app.config import BUILD
+        from app.datacare import make_help_file
+        p = make_help_file(S.data_dir, S.secret_values(), {"version": VERSION, "build": BUILD, "startup_failed": True})
+        return str(p)
+    except Exception:  # noqa: BLE001
+        log.exception("couldn't save a help file")
+        return None
+
+
 class SingleInstance:
     """Named mutex: a second launch finds the first and asks it to show its window instead of starting again."""
 
@@ -240,9 +279,24 @@ class App:
         if self.window:
             self.window.destroy()
 
+    def restart_backend(self):
+        """Restart the backend in place (used to carry out a restore, rescue or fresh start before the data is opened)."""
+        log.info("restarting the backend for a data recovery action")
+        self.backend.stop(30)
+        self.backend = Backend()
+        ok = self.backend.start()
+        if not ok:
+            helpf = save_help_file()
+            message_box("Study Terminal", "Study Terminal couldn't restart. Close it and open it again; your request is kept and "
+                        "will be done then." + (f"\n\nA help file was saved: {helpf}" if helpf else ""))
+        if self.window:
+            self.window.load_url(URL)
+
     def status_loop(self):
         n = 0
         while not self.quitting:
+            if n % 2 == 0 and (self.api("GET", "/data/status") or {}).get("restart_requested"):
+                self.restart_backend()
             if n % 5 == 0:
                 self.refresh()
             if (self.api("GET", "/desktop/focus") or {}).get("show"):   # a second launch asked us to show up
@@ -271,9 +325,12 @@ class App:
         log.info("Study Terminal %s starting (frozen=%s, data=%s)", VERSION, getattr(sys, "frozen", False), S.data_dir)
         if not self.backend.start():
             why = self.backend.error or "it didn't answer within 90 seconds"
-            if "address already in use" in why.lower() or "10048" in why:
-                why = f"port {S.port} is already used by another program. Set PORT=... in {S.data_dir / '.env'}."
-            message_box("Study Terminal couldn't start", f"The backend failed to start: {why}\n\nDetails are in {LOG_DIR}.")
+            helpf = save_help_file()
+            message_box("Study Terminal couldn't start",
+                        "Study Terminal couldn't start. Your data hasn't been changed.\n\n"
+                        "Try opening it again. If it still won't start, restart your computer and try once more.\n\n"
+                        + (f"A help file was saved so you can send it:\n{helpf}\n\n" if helpf else "")
+                        + f"(Technical reason: {why})")
             self.backend.stop(5)
             sys.exit(1)
         try:
@@ -302,13 +359,21 @@ class App:
 
 
 def self_test() -> int:
-    """Start the backend, check /api/health, shut down cleanly. Used by the installer build. Exit code 0 = OK."""
+    """Start the backend, check /api/health, shut down cleanly. Used by the installer build.
+    Exit code 0 = OK, 1 = failed, 2 = started in Recovery mode (damaged data file or data folder can't be written)."""
+    choose_port()
     b = Backend()
     ok = b.start(timeout=120)
     health, futures_ok, auto, auto_ok, wgc = None, False, {}, False, "not checked"
     if ok:
         try:
             health = httpx.get(f"{API}/health", timeout=5).json()
+            if health.get("recovery"):
+                rec = health["recovery"]
+                stopped = b.stop(30)
+                print(f"self-test: recovery mode ({rec.get('kind')}: {rec.get('problem')}); clean shutdown {'yes' if stopped else 'NO'}; "
+                      f"version {VERSION}")
+                return 2
             fut = httpx.get(f"{API}/futures/info", timeout=10).json()   # proves bundled futures presets load
             futures_ok = bool(fut.get("presets", {}).get("presets")) and bool(fut.get("products"))
             auto = httpx.get(f"{API}/futures/automation", timeout=10).json()   # monitoring loaded; live execution locked
@@ -339,11 +404,14 @@ def main():
         except httpx.HTTPError:
             message_box("Study Terminal", "Study Terminal is already starting. Give it a few seconds.", error=False)
         return
+    choose_port()
     try:
         App(minimized="--minimized" in sys.argv).run()
     except Exception:  # noqa: BLE001
-        message_box("Study Terminal error", "Study Terminal hit an unexpected error and closed.\n\n"
-                    + traceback.format_exc(limit=3) + f"\n\nFull details: {LOG_DIR}")
+        helpf = save_help_file()
+        message_box("Study Terminal error", "Study Terminal hit an unexpected error and closed. Your data hasn't been changed; "
+                    "open it again to carry on.\n\n" + (f"A help file was saved so you can send it:\n{helpf}\n\n" if helpf else "")
+                    + "(Technical details: " + traceback.format_exc(limit=2)[-600:] + ")")
         raise
     finally:
         inst.release()

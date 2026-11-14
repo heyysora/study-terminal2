@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CandleChart, LineChart, Panel } from "./components";
 import { TIMEFRAMES, api, etDate, etTime, money, num, pct, sign, useLive, usePoll } from "./lib";
 import { Diagnostics, Evidence } from "./pages3";
+import { YourData } from "./pagesData";
 
 // ======================= Backtest + ML =======================
 export function Backtest() {
@@ -273,6 +274,7 @@ export function Settings() {
     <div className="page">
       {saved && <div className="note">{saved}</div>}
       <div className="cols c-2">
+        <Panel title="Your data" sub="backups, restore, and a help file to send if something goes wrong"><YourData /></Panel>
         <Panel title="Risk limits" sub="applied immediately to practice trading">
           <div className="form">{n("risk.max_per_trade_pct", "Max risk per trade (%)")}{n("risk.max_daily_loss_pct", "Max daily loss (%)")}{n("risk.max_open_positions", "Max open positions", "1")}
             {n("risk.min_reward_risk", "Preferred reward:risk")}{n("risk.max_consecutive_losses", "Losses in a row before pausing", "1")}{n("risk.max_exposure_pct", "Max exposure (% of equity)")}</div>

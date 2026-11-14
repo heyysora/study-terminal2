@@ -8,8 +8,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -17,7 +19,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_chart_check, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
+from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -53,13 +55,37 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     async def lifespan(app: FastAPI):
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         configure_logging(settings.log_level, settings.data_dir / "logs", settings.secret_values())
+        from . import datacare
         from .backup import backup_before_upgrade
         from .config import BUILD
+        app.state.recovery, app.state.restart_requested = None, False
+        managed = not settings.database_url          # recovery and backups look after the default data file only
+        if managed:
+            done = datacare.apply_pending(settings.data_dir)     # a restore/rescue/fresh start you asked for
+            if done:
+                log.info("recovery action %s: ok=%s %s", done["action"], done["ok"], done["detail"])
+            disk = datacare.check_disk(settings.data_dir)
+            problem = datacare.check_database(settings.data_dir / datacare.DB_NAME)
+            if not disk["writable"] or problem:
+                app.state.recovery = {"kind": "disk" if not disk["writable"] else "database",
+                                      "problem": disk["error"] if not disk["writable"] else problem, "disk": disk,
+                                      "since": datetime.now().isoformat(timespec="seconds")}
+                log.error("starting in recovery mode: %s", app.state.recovery)
+                yield                                 # only the recovery and help-file endpoints work; nothing is opened
+                log.info("Study Terminal stopped (recovery mode)")
+                return
         backup = backup_before_upgrade(settings.data_dir, BUILD)   # copies existing data before this build opens it
         if backup["made"]:
             log.info("data backed up before first start of %s: %s", BUILD, backup["path"])
+        had_data = managed and (settings.data_dir / datacare.DB_NAME).exists()
         db = Database(settings.resolved_database_url)
         db.create_all()
+        if had_data:                                  # a brand-new empty data folder needs no backup
+            daily = datacare.daily_backup_if_due(settings.data_dir)
+            if daily and daily.get("made"):
+                log.info("daily backup made: %s", daily["name"])
+            elif daily and daily.get("error"):
+                log.warning("daily backup skipped: %s", daily["error"])
         db.seed_default_watchlist(settings.default_watchlist)
         broadcaster = Broadcaster()
         prov = provider or create_provider(settings)
@@ -232,12 +258,19 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await visual.autostart()
 
             async def watch():
+                n = 0
                 while True:
                     await asyncio.sleep(5)
+                    n += 1
                     try:
                         watchdog.check()
                     except Exception:  # noqa: BLE001 - the watchdog must never take the app down
                         log.exception("watchdog check failed")
+                    if managed and n % 720 == 0:          # hourly: a daily backup if one is due (app left running for days)
+                        try:
+                            await asyncio.to_thread(datacare.daily_backup_if_due, settings.data_dir)
+                        except Exception:  # noqa: BLE001
+                            log.exception("daily backup check failed")
             s.watchdog_task = asyncio.create_task(watch())
         try:
             yield
@@ -260,6 +293,21 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             log.info("Study Terminal stopped")
 
     app = FastAPI(title="Study Terminal API", version=VERSION, lifespan=lifespan)
+    app.state.boot_settings = settings
+
+    @app.middleware("http")
+    async def recovery_guard(request, call_next):
+        """In Recovery mode only the data/help endpoints, the desktop shell and the page itself work."""
+        rec = getattr(request.app.state, "recovery", None)
+        path = request.url.path
+        if rec and path.startswith("/api/"):
+            if path == "/api/health":
+                return JSONResponse({"app": "Study Terminal", "recovery": rec, "database_ok": False, "brokerage_required": False,
+                                     "execution": "local paper simulator only", "version": VERSION})
+            if not path.startswith(("/api/data/", "/api/desktop/")):
+                return JSONResponse({"detail": "Study Terminal is in Recovery mode.", "recovery": True}, status_code=503)
+        return await call_next(request)
+
     app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins,
                        allow_methods=["GET", "POST", "DELETE", "PUT", "PATCH"],
                        allow_headers=["Content-Type", "X-Study-Terminal", "X-Study-Token"])
@@ -278,6 +326,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_trust.router)
     app.include_router(routes_home.router)
     app.include_router(routes_chart_check.router)
+    app.include_router(routes_data.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

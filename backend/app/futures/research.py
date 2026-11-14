@@ -34,6 +34,18 @@ GRID = [{"target_r": 1.5, "max_chase_atr": 0.5}, {"target_r": 2.0, "max_chase_at
 DIMENSIONS = ["setup", "direction", "volatility", "trend_aligned", "time_of_day", "volume", "vs_vwap", "exit_role"]
 
 
+def in_sample_only(costs: dict) -> dict:
+    """The cost table uses every date with the final parameters (including the dates they were chosen on). Evidence tier labels
+    like "promising" only mean something out-of-sample, so they are removed and the table is marked in-sample."""
+    out = {}
+    for k, m in (costs or {}).items():
+        m = {f: v for f, v in m.items() if f not in ("tier", "tier_text")} if isinstance(m, dict) else m
+        if isinstance(m, dict):
+            m["sample"] = "all dates with the final parameters (in-sample, not evidence of an edge)"
+        out[k] = m
+    return out
+
+
 def metrics(trades: list[dict]) -> dict:
     """Everything the directive asks for, after costs."""
     n = len(trades)
@@ -138,6 +150,7 @@ def walk_forward(F: pd.DataFrame, spec: ProductSpec, fee: float, slippage_ticks:
     sig = scan(F, spec, p)
     costs = {f"{s} tick slippage per side": metrics(_subset(simulate(F, spec, sig, fee, s, 3, flat_by_min_from_rth), set(days)))
              for s in (0, 1, 2)}
+    costs = in_sample_only(costs)
     by_setup, holdout_by, validated, registry = {}, {}, [], {}
     for name in SETUPS:
         for d in ("long", "short"):

@@ -34,7 +34,8 @@ LIVE_FILL_BASES = {"realtime market data", "near_realtime market data", "polling
 # Thresholds (shown on the dashboard so the bar is visible, and tested)
 CRIT = {
     "min_real_samples": 20,                 # labelled real screenshots per field
-    "accuracy_lower_bound": 0.90,           # 95% Wilson lower bound for text fields and the axis
+    "accuracy_lower_bound": 0.90,           # 95% Wilson lower bound for text fields and the axis (counted by session, see _rate_status)
+    "min_real_sessions": 3,                 # samples must come from at least this many different days to pass
     "candle_lower_bound": 0.80,             # 95% Wilson lower bound for candle and indicator estimates
     "min_capture_attempts": 1000,           # real monitoring captures
     "min_capture_days": 3,
@@ -66,17 +67,47 @@ def _cat(key: str, name: str, status: str, n: int, metrics: dict, last: str | No
             "limitations": limitations, "evidence": evidence, "remaining": remaining}
 
 
-def _rate_status(k: int, n: int, lower_bar: float) -> tuple[str, dict]:
+def effective_samples(per_session: dict[str, tuple[int, int]]) -> tuple[float, float]:
+    """Screenshots taken minutes apart on the same chart aren't independent: when one is misread, the next often is too. This
+    shrinks the sample count by how much results cluster within sessions (days): returns (effective n, design effect).
+    Cluster-robust variance of the overall accuracy versus the simple binomial variance; never below 1."""
+    k = sum(a for a, _ in per_session.values())
+    n = sum(b for _, b in per_session.values())
+    c = len(per_session)
+    if n == 0:
+        return 0.0, 1.0
+    p = k / n
+    if c < 2 or p in (0.0, 1.0):
+        return float(n), 1.0          # clustering can't be measured; the minimum number of sessions still applies
+    v_cluster = c / (c - 1) * sum((a - p * b) ** 2 for a, b in per_session.values()) / n ** 2
+    v_simple = p * (1 - p) / n
+    deff = max(1.0, v_cluster / v_simple)
+    return n / deff, deff
+
+
+def _rate_status(k: int, n: int, lower_bar: float, per_session: dict[str, tuple[int, int]] | None = None) -> tuple[str, dict]:
     if n == 0:
         return UNTESTED, {}
-    lo, hi = wilson(k, n)
-    m = {"correct": k, "samples": n, "accuracy": round(k / n, 3), "ci95": [round(lo, 3), round(hi, 3)]}
-    if n < CRIT["min_real_samples"]:
+    per_session = per_session or {"all": (k, n)}
+    n_eff, deff = effective_samples(per_session)
+    lo, hi = wilson_float(k / n * n_eff, n_eff)
+    m = {"correct": k, "samples": n, "accuracy": round(k / n, 3), "ci95": [round(lo, 3), round(hi, 3)],
+         "sessions": len(per_session), "effective_samples": round(n_eff, 1), "design_effect": round(deff, 2),
+         "interval_note": "counted by session: screenshots from the same session aren't independent"}
+    if n < CRIT["min_real_samples"] or len(per_session) < CRIT["min_real_sessions"]:
         return IN_PROGRESS, m
     if lo >= lower_bar:
         return PASSED, m
     # enough samples but the lower bound misses: FAILED only if even the upper bound can't reach the bar (clearly below)
     return (FAILED if hi < lower_bar else IN_PROGRESS), m
+
+
+def wilson_float(k: float, n: float, z: float = 1.96) -> tuple[float, float]:
+    p = k / n
+    d = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    h = z * math.sqrt(max(0.0, p * (1 - p) / n + z * z / (4 * n * n))) / d
+    return max(0.0, c - h), min(1.0, c + h)
 
 
 # ---------------- visual (1-4) ----------------
@@ -87,26 +118,32 @@ def _visual_rows(cal_rows: list[dict]) -> list[dict]:
             and not (r.get("result") or {}).get("blocked")]
 
 
-def _field(rows: list[dict], f: str) -> tuple[int, int, str | None, list[dict]]:
+def _field(rows: list[dict], f: str) -> tuple[int, int, str | None, list[dict], dict]:
     k = n = 0
     last = None
     fails = []
+    sessions: dict[str, list[int]] = {}
     for r in rows:
         res = (r.get("result") or {}).get(f)
         if not res:
             continue
         n += 1
-        k += bool(res.get("ok"))
+        ok = bool(res.get("ok"))
+        k += ok
+        day = str(r.get("at", ""))[:10] or "unknown"
+        sessions.setdefault(day, [0, 0])
+        sessions[day][0] += ok
+        sessions[day][1] += 1
         last = max(last or "", r.get("at", ""))
-        if not res.get("ok") and len(fails) < 5:
+        if not ok and len(fails) < 5:
             fails.append({"sample": r.get("id"), "read": res.get("read"), "truth": res.get("truth"), "at": r.get("at")})
-    return k, n, last or None, fails
+    return k, n, last or None, fails, {d: (a, b) for d, (a, b) in sessions.items()}
 
 
 def visual_capture(cal_rows: list[dict], capture_days: dict) -> dict:
     rows = _visual_rows(cal_rows)
-    k, n, last, fails = _field(rows, "price_axis")
-    s_axis, m_axis = _rate_status(k, n, CRIT["accuracy_lower_bound"])
+    k, n, last, fails, ss = _field(rows, "price_axis")
+    s_axis, m_axis = _rate_status(k, n, CRIT["accuracy_lower_bound"], ss)
     found = sum(d.get("window_found", 0) for d in capture_days.values())
     live = sum(d.get("live", 0) for d in capture_days.values())
     attempts = sum(d.get("attempts", 0) for d in capture_days.values())
@@ -142,8 +179,8 @@ def visual_capture(cal_rows: list[dict], capture_days: dict) -> dict:
 
 
 def ocr_price(cal_rows: list[dict]) -> dict:
-    k, n, last, fails = _field(_visual_rows(cal_rows), "price")
-    st, m = _rate_status(k, n, CRIT["accuracy_lower_bound"])
+    k, n, last, fails, ss = _field(_visual_rows(cal_rows), "price")
+    st, m = _rate_status(k, n, CRIT["accuracy_lower_bound"], ss)
     rem = [] if st == PASSED else [f"Current price vs what you typed, on real screenshots: {n}/{CRIT['min_real_samples']} samples"
                                    + (f", 95% lower bound {m['ci95'][0]:.0%} (needs {CRIT['accuracy_lower_bound']:.0%})" if n else "")]
     return _cat("ocr_price", "OCR and price recognition", st, n, m, last,
@@ -154,10 +191,10 @@ def ocr_price(cal_rows: list[dict]) -> dict:
 
 def instrument_timeframe(cal_rows: list[dict]) -> dict:
     rows = _visual_rows(cal_rows)
-    ki, ni, li, fi = _field(rows, "ticker")
-    kt, nt, lt, ft = _field(rows, "timeframe")
-    si, mi = _rate_status(ki, ni, CRIT["accuracy_lower_bound"])
-    stf, mt = _rate_status(kt, nt, CRIT["accuracy_lower_bound"])
+    ki, ni, li, fi, ssi = _field(rows, "ticker")
+    kt, nt, lt, ft, sst = _field(rows, "timeframe")
+    si, mi = _rate_status(ki, ni, CRIT["accuracy_lower_bound"], ssi)
+    stf, mt = _rate_status(kt, nt, CRIT["accuracy_lower_bound"], sst)
     rem = []
     for label, s, n, m in (("Instrument", si, ni, mi), ("Timeframe", stf, nt, mt)):
         if s != PASSED:
@@ -172,10 +209,10 @@ def instrument_timeframe(cal_rows: list[dict]) -> dict:
 
 def candles_indicators(cal_rows: list[dict]) -> dict:
     rows = _visual_rows(cal_rows)
-    kc, nc, lc, fc_ = _field(rows, "last_candle")
-    ki, ni, li, fi = _field(rows, "indicators")
-    sc, mc = _rate_status(kc, nc, CRIT["candle_lower_bound"])
-    si, mi = _rate_status(ki, ni, CRIT["candle_lower_bound"])
+    kc, nc, lc, fc_, ssc = _field(rows, "last_candle")
+    ki, ni, li, fi, ssn = _field(rows, "indicators")
+    sc, mc = _rate_status(kc, nc, CRIT["candle_lower_bound"], ssc)
+    si, mi = _rate_status(ki, ni, CRIT["candle_lower_bound"], ssn)
     rem = []
     if sc != PASSED:
         rem.append(f"Last completed candle O/H/L/C on real screenshots: {nc}/{CRIT['min_real_samples']} samples"

@@ -68,9 +68,8 @@ def backup_before_upgrade(data_dir: Path, build: str, now: datetime | None = Non
 
 
 def _prune(folder: Path) -> None:
-    dirs = sorted((p for p in folder.iterdir() if p.is_dir() and " before " in p.name), key=lambda p: p.name)
-    for p in dirs[:-KEEP]:
-        shutil.rmtree(p, ignore_errors=True)
+    from .datacare import prune   # one place decides how many of each kind of backup are kept
+    prune(folder.parent)
 
 
 def list_backups(data_dir: Path) -> list[dict]:

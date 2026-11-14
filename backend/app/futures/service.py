@@ -896,11 +896,13 @@ class FuturesService:
     # ---------------- info ----------------
 
     def info(self) -> dict:
+        from .research import in_sample_only as fr_in_sample_only
         return {"products": fc.all_specs_dict(), "presets": load_presets(), "sources": SOURCES, "data_source": self.data.source,
                 "projectx_configured": self.projectx is not None, "user_products_error": self.user_products_error,
                 "holiday_coverage": [d.isoformat() for d in (fc.holiday_coverage() or ())],
                 "prop": self.engine.rules.to_dict(), "personal": self.engine.personal.to_dict(), "paper": self.engine.cfg.to_dict(),
                 "fees_default": self.fees_default, "sim_only_note": SIM_ONLY,
-                "evidence": {k: {f: v.get(f) for f in ("overall", "run", "by_setup", "validated", "registry", "oos_metrics", "holdout_metrics",
-                                                          "holdout_by_setup", "diagnostics", "cost_sensitivity", "data", "folds", "final_params", "method")}
+                "evidence": {k: {f: (fr_in_sample_only(v.get(f)) if f == "cost_sensitivity" else v.get(f))
+                                 for f in ("overall", "run", "by_setup", "validated", "registry", "oos_metrics", "holdout_metrics",
+                                           "holdout_by_setup", "diagnostics", "cost_sensitivity", "data", "folds", "final_params", "method")}
                              for k, v in self.evidence.items()}}

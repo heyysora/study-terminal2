@@ -302,7 +302,7 @@ function EvidencePanel({ root, info, onRun }: { root: string; info: any; onRun: 
         {!ev.registry && ev.by_setup && <div className="faint">Quick backtest only (no walk-forward). Run research to evaluate strategies for automation.</div>}
         {ev.diagnostics && <details><summary>Diagnostics (out-of-sample)</summary>{["volatility", "time_of_day", "trend_aligned", "volume", "vs_vwap"].map((dim) =>
           <div key={dim}><b>{dim.replace(/_/g, " ")}:</b> {(ev.diagnostics[dim] || []).map((x: any) => `${x.bucket} ${num(x.avg_r, 2)}R (${x.trades})`).join(" · ")}</div>)}</details>}
-        {ev.cost_sensitivity && <div className="faint">Cost sensitivity (all dates): {Object.entries(ev.cost_sensitivity).map(([k, m]: any) => `${k}: ${num(m.avg_r, 3)}R`).join(" · ")}</div>}
+        {ev.cost_sensitivity && <div className="faint">Costs (all dates, in-sample, not evidence of an edge): {Object.entries(ev.cost_sensitivity).map(([k, m]: any) => `${k}: ${num(m.avg_r, 3)}R`).join(" · ")}</div>}
         <div className="faint">{ev.run?.source}, run {ev.run?.at ? etDate(ev.run.at) : ""}. {ev.run?.note} {ev.run?.fee_note}</div>
       </div>}
     </Panel>

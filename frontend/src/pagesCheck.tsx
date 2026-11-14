@@ -1,6 +1,7 @@
 // Chart check: guided test of the Visual Monitor against your real TopstepX chart. Records results; never invents any.
 import { useEffect, useState } from "react";
 import { api, usePoll } from "./lib";
+import { HelpFileButton } from "./pagesData";
 
 const STATUS_CLASS: Record<string, string> = { "PASSED": "up", "PROBLEMS FOUND": "down", "IN PROGRESS": "warn-link", "NOT TESTED": "muted" };
 const WORD: Record<string, string> = { HEALTHY: "Working", DEGRADED: "Working, with problems", STALE: "Chart isn't updating",
@@ -128,7 +129,11 @@ export function ChartCheck() {
           </section>
         ))}
       </div>
-      <p className="small muted foot">Results are saved in your Study Terminal data folder under chart_checks. Send me results.jsonl from there and I can read them.</p>
+      <section className="guide">
+        <h3 style={{ margin: 0 }}>Send your results</h3>
+        <p className="small" style={{ margin: 0 }}>Saves one file in your Downloads folder with every result, the pictures and the app's logs. Send that file.</p>
+        <HelpFileButton label="Save my results to send" note={false} />
+      </section>
     </div>
   );
 }

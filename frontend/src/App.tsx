@@ -11,6 +11,7 @@ import { VisualMonitor } from "./pages7";
 import { TrustDashboard } from "./pages8";
 import { Home } from "./pagesHome";
 import { ChartCheck } from "./pagesCheck";
+import { RecoveryScreen, when } from "./pagesData";
 import { say, setUiMode, useHome, useUiMode } from "./plain";
 import { OfflineBanner, SimpleStrip, TopBar } from "./simple";
 import { useTheme } from "./theme";
@@ -86,6 +87,7 @@ export default function App() {
   const { theme } = useTheme();
   const unread = L.alerts.length;
   const settings = usePoll("/settings");
+  const dataStatus = usePoll("/data/status", 15000);
   const [mode, setMode] = useState<string | null>(null);
   const curMode = mode ?? (H.data ? (H.data.trades === "futures" ? "futures" : "equities") : settings.data?.values?.["app.market_mode"] ?? "equities");
   const switchMode = async (m: string) => {
@@ -116,6 +118,9 @@ export default function App() {
     }
   })();
   const nav: [string, string, string?][] = ui === "simple" ? NAV_SIMPLE[curMode] || NAV_SIMPLE.equities : NAV;
+  if (dataStatus.data?.recovery) return <div className={`recovery-wrap ui-${ui}`}><RecoveryScreen status={dataStatus.data} /></div>;
+  const lastRec = dataStatus.data?.last_recovery;
+  const disk = dataStatus.data?.disk;
   return (
     <div className={`shell ui-${ui}`}>
       <TopBar connected={L.connected} />
@@ -134,6 +139,10 @@ export default function App() {
       </nav>
       <div className="under">
         <OfflineBanner connected={L.connected} />
+        {lastRec && <div className={`note ${lastRec.ok ? "warn" : "bad"}`} style={{ margin: "6px 0" }}>{lastRec.detail}
+          {lastRec.ok && lastRec.moved_to ? " Your old data file was kept, not deleted." : ""} <span className="small muted">({when(lastRec.done_at)})</span>{" "}
+          <button className="ghost" onClick={async () => { try { await api("/data/dismiss-last", { method: "POST" }); } catch { /* shown again next time */ } dataStatus.reload(); }}>OK</button></div>}
+        {disk?.low_space && <div className="note bad" style={{ margin: "6px 0" }}>Your disk is almost full ({disk.free_mb} MB free). Study Terminal may stop saving. Free up some space.</div>}
         {ui === "simple" ? <SimpleStrip trades={curMode} onTrades={switchMode} />
           : curMode === "futures" || page === "futures" ? <FuturesStrip mode="futures" onMode={switchMode} /> : <StatusStrip mode={curMode} onMode={switchMode} />}
       </div>
