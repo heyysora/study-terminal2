@@ -116,8 +116,9 @@ if ($prevExe) {
     $r = SelfTest $up "upgraded"
     $newVer = ($r.text -match "version $([regex]::Escape($version))")
     Record "Upgrade installs over the previous version" $(if ($code -eq 0 -and $r.exit -eq 0 -and $newVer) { "pass" } else { "fail" }) "Setup exit $code; upgraded app self-test exit $($r.exit); reports version $version`: $newVer"
-    $bk = Get-ChildItem (Join-Path $up "backups") -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-    Record "Automatic backup before the upgrade" $(if ($bk -and (Test-Path (Join-Path $bk.FullName "study_terminal.db"))) { "pass" } else { "fail" }) "$($bk.Name)"
+    # the backup made by THIS version just before it first opened the data (other backups, e.g. daily ones, can exist too)
+    $bk = Get-ChildItem (Join-Path $up "backups") -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "* before $version" } | Select-Object -First 1
+    Record "Automatic backup before the upgrade" $(if ($bk -and (Test-Path (Join-Path $bk.FullName "study_terminal.db"))) { "pass" } else { "fail" }) "$(if ($bk) { $bk.Name } else { 'no backup named before ' + $version })"
     $verOut = Py (Join-Path $Root "backend") @((Join-Path $Root "backend\research\upgrade_check.py"), "verify", $up, (Join-Path $Out "verify.json"))
     $cmp = Py (Join-Path $Root "backend") @((Join-Path $Root "backend\research\upgrade_check.py"), "compare", (Join-Path $Out "seed.json"), (Join-Path $Out "verify.json"), $(if ($bk) { $bk.FullName } else { "" }), (Join-Path $Out "compare-upgrade.json"))
     $cmpJson = Get-Content (Join-Path $Out "compare-upgrade.json") -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
@@ -174,7 +175,7 @@ if (Test-Path $up) {
     Record "Damaged data file opens Recovery mode" $(if ($ok) { "pass" } else { "fail" }) "Self-test exit $($r.exit) (2 = Recovery mode) after $($r.seconds) s; damaged file left exactly as it was: $untouched"
 
     # The Recovery screen's "Use this backup" writes this plan and restarts; here the installed app is started with it.
-    $bk = Get-ChildItem (Join-Path $bad "backups") -Directory | Sort-Object Name -Descending | Select-Object -First 1
+    $bk = Get-ChildItem (Join-Path $bad "backups") -Directory | Where-Object { $_.Name -like "* before $version" } | Select-Object -First 1
     if ($bk) {
         @{ action = "restore"; backup = $bk.Name; asked_at = (Get-Date -Format s) } | ConvertTo-Json | Set-Content (Join-Path $bad "pending_recovery.json") -Encoding UTF8
         $r = SelfTest $bad "restore"
