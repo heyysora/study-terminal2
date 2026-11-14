@@ -19,7 +19,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
+from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_system, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -71,6 +71,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                                       "problem": disk["error"] if not disk["writable"] else problem, "disk": disk,
                                       "since": datetime.now().isoformat(timespec="seconds")}
                 log.error("starting in recovery mode: %s", app.state.recovery)
+                datacare.record_start(settings.data_dir, "recovery", VERSION)
                 yield                                 # only the recovery and help-file endpoints work; nothing is opened
                 log.info("Study Terminal stopped (recovery mode)")
                 return
@@ -272,6 +273,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                         except Exception:  # noqa: BLE001
                             log.exception("daily backup check failed")
             s.watchdog_task = asyncio.create_task(watch())
+        if managed:
+            datacare.record_start(settings.data_dir, "normal", VERSION)     # everything started: this is the last good start
         try:
             yield
         finally:
@@ -304,7 +307,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             if path == "/api/health":
                 return JSONResponse({"app": "Study Terminal", "recovery": rec, "database_ok": False, "brokerage_required": False,
                                      "execution": "local paper simulator only", "version": VERSION})
-            if not path.startswith(("/api/data/", "/api/desktop/")):
+            if not path.startswith(("/api/data/", "/api/desktop/", "/api/system/")):
                 return JSONResponse({"detail": "Study Terminal is in Recovery mode.", "recovery": True}, status_code=503)
         return await call_next(request)
 
@@ -327,6 +330,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_home.router)
     app.include_router(routes_chart_check.router)
     app.include_router(routes_data.router)
+    app.include_router(routes_system.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

@@ -205,6 +205,22 @@ $moved = Select-String -Path (Join-Path $busy "logs\desktop.log") -Pattern "port
 $ok = $r.exit -eq 0 -and $moved
 Record "Starts when its usual port is taken" $(if ($ok) { "pass" } else { "fail" }) "Self-test exit $($r.exit); $(if ($moved) { $moved.Line.Trim() } else { 'did not move to another port' })"
 
+# ---------------------------------------------------------------- 9. recovery drill: the installed app, driven through its own API
+# backup + read-back, restore with the automatic restart, corrupted file, partly damaged file (rescue), a failed restore,
+# the app's own recovery check, and journal/settings/practice tables compared before and after. No window, no clicks.
+if (Test-Path $up) {
+    $drillOut = Join-Path $Out "recovery-drill.json"
+    $work = Join-Path $env:TEMP "st-rel-drill"
+    $lines = & $py (Join-Path $Root "backend\research\recovery_drill.py") $Exe --data $up --work $work --port 8831 --out $drillOut 2>&1 | ForEach-Object { "$_" }
+    $lines | Set-Content (Join-Path $Out "recovery-drill.txt")
+    $n = 0
+    foreach ($l in $lines) {
+        if ($l -match '^RESULT\|([^|]+)\|(pass|fail)\|(.*)$') { Record ("Drill: " + $Matches[1]) $Matches[2] $Matches[3]; $n++ }
+    }
+    if ($n -lt 20) { Record "Drill: completed" "fail" "Only $n of 20 drill checks reported. See recovery-drill.txt." }
+    Copy-Item (Join-Path $env:TEMP "app-st-rel-drill.log") (Join-Path $Out "recovery-drill-app.log") -ErrorAction SilentlyContinue
+}
+
 # ---------------------------------------------------------------- summary
 $json = $Results | ConvertTo-Json -Depth 4
 $json | Set-Content (Join-Path $Out "results.json")

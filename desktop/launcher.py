@@ -57,6 +57,8 @@ def message_box(title: str, text: str, error: bool = True) -> None:
 def _port_free(port: int) -> bool:
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if not IS_WIN:   # same as the server itself: a port only lingering after a restart (TIME_WAIT) counts as free
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind(("127.0.0.1", port))
             return True
@@ -394,9 +396,31 @@ def self_test() -> int:
     return 0 if ok and stopped else 1
 
 
+def headless(stop_file: str) -> int:
+    """Runs the app without a window or tray, with the same automatic restart for restore/rescue, until `stop_file` appears.
+    Used by the automated Windows recovery tests to drive the installed app through its own API. Not needed for normal use."""
+    choose_port()
+    app = App(minimized=True)
+    if not app.backend.start(120):
+        print(f"headless: backend failed to start: {app.backend.error}", flush=True)
+        return 1
+    print(f"headless: listening on {S.port}", flush=True)
+    log.info("headless mode on port %s", S.port)
+    threading.Thread(target=app.status_loop, daemon=True).start()
+    stop = Path(stop_file)
+    while not stop.exists():
+        time.sleep(0.5)
+    app.quitting = True
+    ok = app.backend.stop(30)
+    print(f"headless: stopped (clean {'yes' if ok else 'NO'})", flush=True)
+    return 0 if ok else 1
+
+
 def main():
     if "--self-test" in sys.argv:
         sys.exit(self_test())
+    if "--headless" in sys.argv and "--stop-file" in sys.argv:
+        sys.exit(headless(sys.argv[sys.argv.index("--stop-file") + 1]))
     inst = SingleInstance()
     if inst.already_running:
         try:

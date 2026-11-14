@@ -4,8 +4,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 async function render() {
-  const { port } = await config();
-  $("open").onclick = (e) => { e.preventDefault(); chrome.tabs.create({ url: `http://127.0.0.1:${port}/#/copilot` }); };
+  $("open").onclick = async (e) => { e.preventDefault(); const { port } = await config(); chrome.tabs.create({ url: `http://127.0.0.1:${port}/#/copilot` }); };
   try {
     const s = await call("/status");
     $("conn").textContent = "connected";

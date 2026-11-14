@@ -1,4 +1,4 @@
-# Test results (0.13.4, 2026-11-13)
+# Test results (0.13.5, 2026-11-13)
 
 ## Automated tests
 

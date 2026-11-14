@@ -12,6 +12,7 @@ from __future__ import annotations
 import hmac
 import re
 import secrets
+import time
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -29,13 +30,29 @@ def _store(request: Request):
     return request.app.state.settings_store
 
 
+def _seen(request: Request, ok: bool, error: str | None = None) -> None:
+    """Remembers the extension's last contact for System health: when, whether pairing worked, and which port/version."""
+    request.app.state.extension_seen = {"ts": time.time(), "at": datetime.now(timezone.utc).isoformat(), "ok": ok, "error": error,
+                                        "port": request.url.port, "version": request.headers.get("x-study-extension")}
+
+
 def _check(request: Request, token: str | None) -> None:
     st = _store(request)
     if not st.get("extension.enabled", False):
+        _seen(request, False, "The Chrome extension bridge is turned off in Settings.")
         raise HTTPException(403, "The Chrome extension bridge is turned off. Turn it on in Study Terminal > Settings.")
     want = st.get("extension.token", "") or ""
     if not want or not token or not hmac.compare_digest(want.encode(), token.encode()):
+        _seen(request, False, "The pairing code didn't match.")
         raise HTTPException(401, "Wrong or missing pairing token. Copy it from Study Terminal > Settings > Chrome extension.")
+    _seen(request, True)
+
+
+@router.get("/hello")
+def hello():
+    """How the extension finds this app when it isn't on the usual port. Says only that this is Study Terminal; no secrets."""
+    from ..config import VERSION
+    return {"app": "Study Terminal", "extension_api": 1, "version": VERSION}
 
 
 @router.get("/pairing")
@@ -46,6 +63,13 @@ def pairing(request: Request):
         st.update({"extension.token": secrets.token_urlsafe(24)})
     return {"enabled": bool(st.get("extension.enabled", False)), "token": st.get("extension.token"),
             "port": request.app.state.settings.port}
+
+
+@router.get("/connection")
+def connection(request: Request):
+    """For the app's own Settings page and System health: is the extension reaching this app?"""
+    from .routes_system import extension_status
+    return extension_status(request.app.state)
 
 
 @router.post("/pairing/rotate")

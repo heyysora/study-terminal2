@@ -27,17 +27,17 @@ def _settings(request: Request):
 @router.get("/status")
 def status(request: Request):
     st, d = request.app.state, _settings(request).data_dir
-    backups = datacare.list_backups(d)
-    good = [b for b in backups if b["ok"]]
+    summ = datacare.backup_summary(d)
     return {"recovery": getattr(st, "recovery", None), "restart_requested": getattr(st, "restart_requested", False),
             "pending": datacare.pending(d), "last_recovery": datacare.last_recovery(d),
-            "disk": datacare.check_disk(d, write_test=False), "backups": len(backups),
-            "last_backup": good[0] if good else None, "data_folder": str(d), "version": VERSION}
+            "disk": datacare.check_disk(d, write_test=False), "backups": summ["count"], "backup_summary": summ,
+            "last_backup": summ["last_good"], "data_folder": str(d), "version": VERSION}
 
 
 @router.get("/backups")
 def backups(request: Request):
-    return {"backups": datacare.list_backups(_settings(request).data_dir)}
+    d = _settings(request).data_dir
+    return {"backups": datacare.list_backups(d), "summary": datacare.backup_summary(d)}
 
 
 @router.post("/backup")

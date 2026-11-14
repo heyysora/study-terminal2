@@ -336,6 +336,7 @@ export function Settings() {
 function ExtensionPanel() {
   const p = usePoll("/extension/pairing");
   const latest = usePoll("/extension/latest", 15000);
+  const conn = usePoll("/extension/connection", 5000);
   const [show, setShow] = useState(false);
   const [copied, setCopied] = useState(false);
   const d = p.data;
@@ -353,6 +354,19 @@ function ExtensionPanel() {
           <button className="ghost small" onClick={() => setShow(!show)}>{show ? "Hide" : "Show"}</button>
           <button className="ghost small" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
           <button className="ghost small" onClick={rotate} title="Disconnects the extension until you paste the new token">New token</button>
+        </div>}
+        {d.enabled && conn.data && <div className="stack">
+          <div>Connection: <b className={conn.data.level === "ok" ? "up" : conn.data.level === "bad" ? "down" : "warn-link"}>{conn.data.word}</b>
+            {conn.data.last_seen ? <span className="muted"> · last contact {new Date(conn.data.last_seen).toLocaleString()}</span> : null}</div>
+          {conn.data.do && <div>{conn.data.do}</div>}
+          {conn.data.level !== "ok" && <details open={conn.data.level === "bad"}><summary>If it won't connect</summary>
+            <ol style={{ margin: "6px 0", paddingLeft: 18 }}>
+              <li>Keep Study Terminal open (it can be in the tray).</li>
+              <li>Click <b>Copy</b> next to the pairing token above.</li>
+              <li>In Chrome, right-click the Study Terminal extension icon and choose <b>Options</b>.</li>
+              <li>Paste the token, then click <b>Save and test</b>. If it says it can't find Study Terminal, click <b>Find Study Terminal</b>.</li>
+              <li>Ports are found automatically (this app is on port {conn.data.app_port}), so there's nothing to type there.</li>
+            </ol></details>}
         </div>}
         {latest.data && <div className="muted">Last from extension: {latest.data.symbol || "no symbol"} {latest.data.timeframe || ""}, {latest.data.action || ""} ({latest.data.received_at ? new Date(latest.data.received_at).toLocaleTimeString() : ""})</div>}
       </div>}

@@ -484,3 +484,9 @@ td { border-bottom: 1px solid var(--rule); }
 
 /* Recovery mode: no menu, one readable column */
 .recovery-wrap { max-width: 780px; margin: 0 auto; padding: 28px 16px 60px; min-height: 100vh; background: var(--bg); color: var(--text); }
+
+/* recovery options: three plain questions per option */
+dl.explain { display: grid; grid-template-columns: 11em 1fr; gap: 4px 12px; margin: 6px 0 10px; font-size: 14px; }
+dl.explain dt { color: var(--muted); }
+dl.explain dd { margin: 0; }
+@media (max-width: 640px) { dl.explain { grid-template-columns: 1fr; } dl.explain dt { margin-top: 6px; } }

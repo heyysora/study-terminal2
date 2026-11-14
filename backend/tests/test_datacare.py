@@ -120,12 +120,77 @@ def test_bad_backup_cant_be_restored(tmp_path):
     make_db(tmp_path / dc.DB_NAME)
     name = dc.backup_now(tmp_path, "manual")["name"]
     damage(tmp_path / "backups" / name / dc.DB_NAME)
-    (tmp_path / "backups" / name / "backup_info.json").unlink()
     try:
         dc.schedule(tmp_path, "restore", name)
         raise AssertionError("damaged backup accepted")
     except ValueError as e:
-        assert "didn't pass" in str(e)
+        assert "can't be restored" in str(e) and "Damaged" in str(e)
+
+
+def test_incomplete_missing_and_damaged_backups_are_detected(tmp_path):
+    make_db(tmp_path / dc.DB_NAME)
+    (tmp_path / "visual_profiles.json").write_text('{"a": 1}')
+    good = dc.backup_now(tmp_path, "manual", datetime(2026, 11, 1, 9, 0))
+    assert good["made"] and good["verified"]
+    b = tmp_path / "backups"
+    inc = b / "2026-11-02 090000 manual"                       # the app closed while a backup was being made
+    inc.mkdir()
+    (inc / ".in-progress").write_text("x")
+    dc._copy_db(tmp_path / dc.DB_NAME, inc / dc.DB_NAME)
+    miss = dc.backup_now(tmp_path, "manual", datetime(2026, 11, 3, 9, 0))
+    (b / miss["name"] / "visual_profiles.json").unlink()
+    bad = dc.backup_now(tmp_path, "manual", datetime(2026, 11, 4, 9, 0))
+    (b / bad["name"] / "visual_profiles.json").write_text('{"a": 2}')      # same size, different bytes
+    st = {x["name"]: x["status"] for x in dc.verify_all(tmp_path)}
+    assert st[good["name"]] == dc.USABLE and st[inc.name] == dc.INCOMPLETE
+    assert st[miss["name"]] == dc.MISSING and st[bad["name"]] == dc.DAMAGED
+    s = dc.backup_summary(tmp_path)
+    assert s["last_good"]["name"] == good["name"] and not s["newest_ok"] and s["warning"] is None
+
+
+def test_no_usable_backup_warns(tmp_path):
+    make_db(tmp_path / dc.DB_NAME)
+    assert "no usable backup" in dc.backup_summary(tmp_path)["warning"]
+
+
+def test_pruning_never_removes_the_last_usable_backup(tmp_path):
+    make_db(tmp_path / dc.DB_NAME)
+    t = datetime(2026, 11, 1, 9, 0)
+    only = dc.backup_now(tmp_path, "daily", t, include_files=False)["name"]
+    for i in range(1, 10):                                     # nine newer daily backups that all turn out damaged
+        n = dc.backup_now(tmp_path, "daily", t + timedelta(days=i), include_files=False)["name"]
+        damage(tmp_path / "backups" / n / dc.DB_NAME)
+        dc._remember_check(tmp_path, n, dc.verify_backup(tmp_path / "backups" / n))
+    dc.prune(tmp_path)
+    names = [x["name"] for x in dc.list_backups(tmp_path)]
+    assert only in names and dc.backup_summary(tmp_path)["last_good"]["name"] == only
+    assert len(names) == 3                                     # the usable one + the newest 2 damaged ones to look at
+
+
+def test_failed_restore_rolls_back_to_exactly_what_you_had(tmp_path):
+    db = tmp_path / dc.DB_NAME
+    make_db(db, trades=2)
+    name = dc.backup_now(tmp_path, "manual", datetime(2026, 11, 12, 18, 0))["name"]
+    con = sqlite3.connect(db)
+    con.execute("insert into journal_trades (note) values ('newer')")
+    con.commit()
+    con.close()
+    before = db.read_bytes()
+    dc.schedule(tmp_path, "restore", name)
+    r = dc.apply_pending(tmp_path, datetime(2026, 11, 13, 9, 0), _fail_after_move=True)
+    assert not r["ok"] and r["rolled_back"] and "put back exactly" in r["detail"]
+    assert db.read_bytes() == before and not (tmp_path / "incoming-data.tmp").exists()
+
+
+def test_backup_damaged_after_it_was_picked_changes_nothing(tmp_path):
+    db = tmp_path / dc.DB_NAME
+    make_db(db, trades=2)
+    name = dc.backup_now(tmp_path, "manual")["name"]
+    dc.schedule(tmp_path, "restore", name)
+    damage(tmp_path / "backups" / name / dc.DB_NAME)           # damaged between choosing it and the restart
+    before = db.read_bytes()
+    r = dc.apply_pending(tmp_path)
+    assert not r["ok"] and "didn't pass its check" in r["detail"] and db.read_bytes() == before
 
 
 def test_rescue_saves_the_readable_parts(tmp_path):

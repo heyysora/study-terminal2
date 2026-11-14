@@ -6,8 +6,10 @@
     computer (127.0.0.1). It never reads page contents, takes screenshots, touches your TradingView account, or sends anything
     to the internet.</p>
   <label>Pairing token<input id="token" type="password" autocomplete="off" placeholder="from Study Terminal > Settings > Chrome extension"></label>
-  <label>Port<input id="port" type="number" min="1024" max="65535"></label>
+  <p class="muted">Study Terminal is found automatically, even if it had to use a different port. <span id="where"></span></p>
+  <details><summary class="muted">Port (only if finding it automatically doesn't work)</summary>
+    <label>Port<input id="port" type="number" min="1024" max="65535"></label></details>
   <label class="check"><input id="enabled" type="checkbox"> Send TradingView tabs to Study Terminal</label>
-  <div class="row"><button id="save">Save and test</button><span id="msg" class="muted"></span></div>
+  <div class="row"><button id="save">Save and test</button><button id="find">Find Study Terminal</button><span id="msg" class="muted"></span></div>
   <script type="module" src="options.js"></script>
 </body></html>
