@@ -30,8 +30,8 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
 - **The safety rules hold in every test**: no code path can send a real order, live trading can't be switched on, risky or
   unreliable data always gives NO TRADE, and restarting doesn't undo a stop or a risk lock.
 - **Install, upgrade, backup, restore and rollback work on a Windows machine**, just not yet on yours.
-- **This audit found and fixed a real safety bug:** in 0.13.2 (the version currently on the Releases page until 0.13.3 is
-  published) a chart showing the wrong market could be reported as "Working". Don't use 0.13.2 for the Chart check.
+- **This audit found and fixed a real safety bug:** in 0.13.2 a chart showing the wrong market could be reported as
+  "Working". 0.13.3 fixes it (485 of 485 tests pass on Windows). Don't use 0.13.2 for the Chart check.
 
 ## Safety
 
@@ -66,8 +66,8 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
 
 | Capability | Status | Your PC | Known limitations | Evidence |
 |---|---|---|---|---|
-| Fresh install | TESTED ON WINDOWS | No (0.7.0 only) | Not code-signed: SmartScreen warning once | reliability run 43525788935 |
-| Upgrade with your data kept | TESTED ON WINDOWS | No | Tested 0.13.1 → 0.13.2; the check was too strict on two files (fixed); all data identical | same |
+| Fresh install | TESTED ON WINDOWS | No (0.7.0 only) | Not code-signed: SmartScreen warning once | reliability runs 43525788935 (0.13.2) and 43532538992 (0.13.3, all passed) |
+| Upgrade with your data kept | TESTED ON WINDOWS | No | Tested 0.13.1 → 0.13.2 and 0.13.2 → 0.13.3; all data identical | same |
 | Automatic backup before an upgrade | TESTED ON WINDOWS | No | Keeps the newest 10 | same |
 | Restore from a backup | TESTED ON WINDOWS | No | Done by copying the folder; there's no restore button | same |
 | Start-up and clean shutdown, logs | TESTED ON WINDOWS | No | | same |
@@ -77,7 +77,7 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
 | Damaged database recovery | NOT BUILT | No | App refuses to start with a technical error; file is kept; restore by hand | same (observed) |
 | Dependency checks in the installer (winget) | BUILT, NOT TESTED | No | The GitHub machine already has everything installed | — |
 | Journal persistence over real days of use | TESTED WITH SIMULATED DATA | No | Only across one simulated upgrade | upgrade check |
-| Releases only published after Windows tests and reliability checks pass | BUILT, NOT TESTED | — | Added in 0.13.3 after 0.13.2 was published with a failing test | workflow file; proven on the next run |
+| Releases only published after Windows tests and reliability checks pass | TESTED ON WINDOWS | — | Added in 0.13.3 after 0.13.2 was published with a failing test. Only the passing path has run so far | run 43532538992 |
 
 ## Data, practice and analysis
 

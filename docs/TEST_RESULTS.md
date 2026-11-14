@@ -6,13 +6,17 @@
 |---|---|
 | Python 3.11, Linux (rapidocr 1.4.4) | **485 passed**, 0 failed |
 | Python 3.13, Linux (rapidocr 1.2.3, same OCR version as the Windows app) | **485 passed**, 0 failed |
-| Python 3.12, GitHub Windows Server machine, 0.13.2 build | 482 passed, **1 failed** (wrong market reported as Working; the bug fixed in 0.13.3). The 0.13.3 run will be added here |
+| Python 3.12, GitHub Windows Server machine, 0.13.3 build (run 43532538992) | **485 passed**, 0 failed |
+| Same, 0.13.2 build | 482 passed, **1 failed** (wrong market reported as Working; fixed in 0.13.3) |
 | Lint (`ruff --select E9,F,B`) on files changed in 0.13.x | clean |
 
 Passing these tests shows the code does what the tests check, on made-up charts and fake servers. It doesn't show the app reads
 your real TopstepX chart correctly; see `docs/STUDY_TERMINAL_READINESS_REPORT.md`.
 
 ## Windows reliability (GitHub-hosted Windows Server, not your PC)
+
+0.13.3, run 43532538992: **16 passed**, 0 failed, 1 observed (damaged database: the app won't start; the file is kept).
+Upgrade tested from 0.13.2 with data: everything kept.
 
 0.13.2, run 43525788935: 15 passed, 1 failed (the upgrade check was too strict on two files meant to change; all your data came
 through identical; check fixed), 1 observed (a damaged database stops the app from starting; the file is kept). Details:
