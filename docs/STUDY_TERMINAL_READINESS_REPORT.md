@@ -1,7 +1,7 @@
-# Study Terminal readiness report (0.13.4, 2026-11-13)
+# Study Terminal readiness report (0.13.5, 2026-11-13)
 
-What you can rely on today, and what you can't yet. Companion to `docs/POST_FEATURE_AUDIT.md`, which has the details and
-the evidence.
+What you can rely on today, and what you can't yet. Companion to `docs/POST_FEATURE_AUDIT.md` and `docs/WINDOWS_RECOVERY_AUDIT.md`, which have the
+details and the evidence.
 
 ## How to read the status
 
@@ -71,16 +71,21 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
 | Fresh install | TESTED ON WINDOWS | No (0.7.0 only) | Not code-signed: SmartScreen warning once | reliability runs 43525788935 (0.13.2), 43532538992 (0.13.3) and 43539726145 (0.13.4, 19 of 19 passed) |
 | Upgrade with your data kept | TESTED ON WINDOWS | No | Tested 0.13.1 → 0.13.2, 0.13.2 → 0.13.3 and 0.13.3 → 0.13.4; all data identical | same |
 | Automatic backup before an upgrade | TESTED ON WINDOWS | No | Keeps the newest 10 | same |
-| Restore from a backup (Settings > Your data, or the Recovery screen) | TESTED ON WINDOWS | No | The restore itself ran on Windows; the button and the automatic restart were tested on Linux only | runs 43525788935, 43539726145; test_datacare.py |
+| Restore from a backup, with automatic restart | TESTED ON WINDOWS | No | Driven through the installed app's API on Windows (restarted itself in 6.2 s); the buttons in the real desktop window weren't clicked | run 43555645264 (recovery drill) |
+| Failed restore puts everything back | TESTED ON WINDOWS | No | The halfway failure is caused with a test switch | run 43555645264 |
+| Partial data recovery (rescue) | TESTED ON WINDOWS | No | Saves whole readable tables only | run 43555645264 |
+| Backup verification (incomplete, missing files, damaged; last usable never pruned) | TESTED ON WINDOWS | No | Tested by the test suite on Windows and the drill | run 43555645264 |
+| System health page | TESTED ON WINDOWS | No | Answered on Windows; the page itself checked in headless Chrome on Linux | run 43555645264 |
+| Recovery check on your own PC (Health page) | TESTED ON WINDOWS | No | Built so you can run it on your PC; not run there yet | run 43555645264 |
 | Start-up and clean shutdown, logs | TESTED ON WINDOWS | No | | same |
 | No secrets in logs | TESTED ON WINDOWS | No | | same |
 | Uninstall keeps your data | TESTED ON WINDOWS | No | | same |
 | Installer rollback after a failed setup | TESTED ON WINDOWS | No | | same |
-| Damaged data file → Recovery mode | TESTED ON WINDOWS | No | Rescue works only when part of the file is readable | run 43539726145; test_datacare.py |
-| Daily backups and Back up now | TESTED WITH SIMULATED DATA | No | Paused when the disk has under 300 MB free | test_datacare.py |
+| Damaged data file → Recovery mode → fix | TESTED ON WINDOWS | No | A fully unreadable file can only come back from a backup | runs 43539726145, 43555645264 |
+| Daily backups and Back up now | TESTED ON WINDOWS | No | Back up now was run on Windows; the daily timer only in tests. Paused under 300 MB free | run 43555645264; test_datacare.py |
 | Help file (one zip in Downloads) | TESTED WITH SIMULATED DATA | No | Not opened on your PC yet | test_datacare.py |
 | Full or locked data folder | TESTED WITH SIMULATED DATA | No | Simulated; never tried on a real full disk | test_datacare.py |
-| Moves to a free port if 8765 is taken | TESTED ON WINDOWS | No | The Chrome extension expects 8765 and won't connect on another port | run 43539726145 |
+| Moves to a free port if 8765 is taken | TESTED ON WINDOWS | No | — | runs 43539726145, 43555645264 |
 | Dependency checks in the installer (winget) | BUILT, NOT TESTED | No | The GitHub machine already has everything installed | — |
 | Journal persistence over real days of use | TESTED WITH SIMULATED DATA | No | Only across one simulated upgrade | upgrade check |
 | Releases only published after Windows tests and reliability checks pass | TESTED ON WINDOWS | — | Added in 0.13.3 after 0.13.2 was published with a failing test. Only the passing path has run so far | run 43532538992 |
@@ -101,7 +106,7 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
 | TopstepX API and stream (paid, off) | TESTED WITH SIMULATED DATA | No | No | Mock server only; costs about $29/month if you turn it on |
 | AI explanations: Ollama (free) | TESTED WITH SIMULATED DATA | No | n/a | Fake server only |
 | AI explanations: Anthropic (paid, off) | TESTED WITH SIMULATED DATA | No | n/a | Paid per use if you add a key; not needed |
-| Chrome extension | TESTED WITH SIMULATED DATA | No | n/a | Not tried in a real Chrome |
+| Chrome extension (finds the app's port by itself since 0.13.5) | TESTED ON WINDOWS | No | n/a | Its code was run in Node on Windows against the real app; never tried inside real Chrome |
 | Mobile companion | TESTED WITH SIMULATED DATA | No | n/a | Not tried on a real phone |
 
 ## Strategies (Phase 4)
@@ -144,7 +149,10 @@ trading profile, desktop extras (layouts, annotations, export center), and
 - A rescue of a badly damaged file: if the file is unreadable, only a backup can bring data back (daily backups now make
   that backup recent).
 
-## Next step that matters most
+## Next steps that matter most
 
-Install 0.13.4 on your PC and run the Chart check on a live MNQ (or ES) chart during market hours. That is the only way any
+On your PC: **Health > Run the recovery check**. It's the only way the recovery features can count as tested on your computer.
+
+
+Then run the Chart check on a live MNQ (or ES) chart during market hours. That is the only way any
 part of this report can move to VERIFIED WITH REAL MARKET OBSERVATIONS.

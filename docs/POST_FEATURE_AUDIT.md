@@ -203,7 +203,7 @@ above zero after realistic costs, and the result repeated on a second period.
 
 ## Phase 5: Windows reliability
 
-Run on a **GitHub-hosted Windows Server 2022 machine**, not on your PC. Table: 0.13.2 (run 43525788935). Re-run for 0.13.3
+Run on a **GitHub-hosted Windows Server 2025 machine**, not on your PC. Table: 0.13.2 (run 43525788935). Re-run for 0.13.3
 (run 43532538992): all 16 checks passed, damaged database observed the same way, upgrade 0.13.2 → 0.13.3 kept all data.
 0.13.4 (run 43539726145): **all 19 checks passed**, including the three new ones, with nothing left "observed"; upgrade 0.13.3 → 0.13.4 kept all data. It installs the real
 installer the build produces, silently, as a normal user. Script: `scripts/windows-reliability.ps1`; full output is kept as the
