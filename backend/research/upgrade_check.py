@@ -150,7 +150,10 @@ def compare(seed_path: Path, verify_path: Path, backup_dir: str | None = None) -
     files_same = {f: a["files"].get(f) == h for f, h in s["files"].items()}
     # Files that are meant to change on an upgrade: the build marker (it records the new version) and Yahoo's own download
     # cache. They are listed in the result, not hidden; every other file must be byte-for-byte the same.
-    expected = {f for f in files_same if f == "installed_build.txt" or f.replace("\\", "/").startswith("yf-cache/")}
+    # Also app bookkeeping that is rewritten on every start or backup by design (0.13.5+): the startup history and the record of
+    # backup checks. The backups themselves are compared separately (backup_equals_pre_upgrade).
+    expected = {f for f in files_same if f in ("installed_build.txt", "startup_history.json")
+                or f.replace("\\", "/") in ("backups/checks.json",) or f.replace("\\", "/").startswith("yf-cache/")}
     views_same = {k: s["view"][k] == v["view"][k] for k in s["view"]}
     changed = {t: len(set(rows) - set(a["db"].get(t, []))) for t, rows in s["db"].items() if set(rows) - set(a["db"].get(t, []))}
     volatile = {"futures_state", "futures_decisions", "app_events"}
