@@ -18,4 +18,8 @@ app says so and analyzes your default timeframe.
    `extension` folder (installed app: `%LOCALAPPDATA%\Programs\Study Terminal\_internal\extension`).
 3. Click the extension's icon > **Settings**, paste the token, **Save and test**.
 
+The port is found automatically. Study Terminal normally uses 8765 but moves to the next free port (up to 8804) if another
+program has it; the extension checks those ports, finds the one that answers as Study Terminal and remembers it. If it ever
+can't connect, click **Find Study Terminal** in the extension's settings, or see Study Terminal > Health > Chrome extension.
+
 To remove it: `chrome://extensions` > Remove. To cut it off from the app: turn it off in Settings, or rotate the token.

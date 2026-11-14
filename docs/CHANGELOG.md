@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.13.5 (2026-11-13)
+
+Finishes recovery and reliability so ordinary problems can be fixed from inside the app. No trading changes.
+
+- **Backups you can trust.** Every backup records each file's size and fingerprint and is marked finished only at the end; it
+  is read back straight away and re-checked daily (or with **Check my backups**). Backups that didn't finish, are missing
+  files or are damaged are shown in red and can't be restored. The newest usable backup is never deleted automatically, even
+  if newer ones are bad. Settings and Health show the last good backup and whether the newest one passed, and the app warns
+  when there's no usable backup.
+- **Safer restore.** The new data file is built and checked before your current one is touched; if anything fails after
+  that, your original is put back exactly. A backup that turns out damaged at restart changes nothing and is flagged.
+- **Recovery screens explain themselves**: what went wrong, whether your data is safe, and for each option what it does,
+  whether you could lose anything, and what happens next.
+- **Health page**: app, data file, backups, chart monitor, Chrome extension, last good start, recent errors, whether a
+  restart would help (with a Restart button), a recovery check you can run on your own computer, and a complete help file.
+- **Chrome extension finds the app by itself** when it isn't on port 8765 (checks 8765-8804 and remembers the answer). A
+  **Find Study Terminal** button, plus connection status and repair steps in Settings and Health.
+- Fixed: after a quick restart the app could move to another port for no reason (Linux kept the old port briefly reserved).
+- Fixed: the extension could wait forever when another program held its port without answering.
+
 ## 0.13.4 (2026-11-13)
 
 Makes the problems found in the audit fixable from inside the app. No trading changes.

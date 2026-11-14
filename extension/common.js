@@ -15,7 +15,8 @@ function version() {
 
 async function isStudyTerminal(port, fetchImpl) {
   try {
-    const r = await fetchImpl(`http://127.0.0.1:${port}/api/extension/hello`, { signal: AbortSignal.timeout(900) });
+    // Windows can take over a second to answer, or to report that nothing is on a port: allow 2.5 s.
+    const r = await fetchImpl(`http://127.0.0.1:${port}/api/extension/hello`, { signal: AbortSignal.timeout(2500) });
     if (!r.ok) return false;
     const j = await r.json();
     return j && j.app === "Study Terminal";
@@ -24,15 +25,18 @@ async function isStudyTerminal(port, fetchImpl) {
   }
 }
 
-// Returns the port Study Terminal answers on, or null. Tries `preferred` first, then the rest ten at a time.
+// Returns the port Study Terminal answers on, or null. Tries `preferred` first, then the rest twenty at a time; if nothing
+// answers, goes round once more (the app may have been busy starting up).
 export async function findApp(preferred = FIRST_PORT, fetchImpl = fetch) {
-  if (await isStudyTerminal(preferred, fetchImpl)) return preferred;
-  const rest = PORTS.filter((p) => p !== preferred);
-  for (let i = 0; i < rest.length; i += 10) {
-    const batch = rest.slice(i, i + 10);
-    const hits = await Promise.all(batch.map(async (p) => ((await isStudyTerminal(p, fetchImpl)) ? p : null)));
-    const found = hits.find((p) => p !== null);
-    if (found) return found;
+  for (let pass = 0; pass < 2; pass++) {
+    if (await isStudyTerminal(preferred, fetchImpl)) return preferred;
+    const rest = PORTS.filter((p) => p !== preferred);
+    for (let i = 0; i < rest.length; i += 20) {
+      const batch = rest.slice(i, i + 20);
+      const hits = await Promise.all(batch.map(async (p) => ((await isStudyTerminal(p, fetchImpl)) ? p : null)));
+      const found = hits.find((p) => p !== null);
+      if (found) return found;
+    }
   }
   return null;
 }

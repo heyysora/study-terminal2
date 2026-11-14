@@ -141,6 +141,17 @@ If the data file is ever damaged, Study Terminal opens a **Recovery** screen ins
 rescue what can still be read, or start with empty data. Whatever you pick, the damaged file is kept in a folder called
 `damaged`. If another program is using Study Terminal's usual port, it quietly uses the next free one.
 
+## Health (0.13.5)
+
+**Health** in the menu shows whether Study Terminal itself is OK: the app, your data file, backups (last good one and whether
+the newest passed its check), the chart monitor, the Chrome extension, the last good start, recent errors and whether a restart
+would help (with a **Restart** button). **Run the recovery check** tests backup, restore, rescue and a failed restore putting
+everything back, on a scratch copy on your own computer; your real data is only read. **Save a complete help file** puts
+everything needed to look into a problem in your Downloads folder.
+
+Every backup is read back when it's made and checked again daily. A backup that didn't finish, is missing files or doesn't
+match what was saved is shown in red and can't be restored. The newest usable backup is never deleted automatically.
+
 ## Trust & Validation
 Menu > Trust & Validation shows nine validation statuses and the overall readiness level, with exactly what's still missing for the
 next level. It only counts real recorded evidence. To add visual evidence, use Live copilot > Calibrate: upload a real TopstepX
