@@ -4,9 +4,10 @@
 
 | Run | Result |
 |---|---|
-| Python 3.11, Linux (rapidocr 1.4.4) | **512 passed**, 0 failed |
-| Python 3.13, Linux (rapidocr 1.2.3, same OCR version as the Windows app) | **512 passed**, 0 failed |
-| Python 3.12, GitHub Windows Server 2025 machine, 0.13.5 build (run 43555645264) | **512 passed**, 0 failed |
+| Python 3.11, Linux (rapidocr 1.4.4) | **517 passed**, 0 failed |
+| Python 3.13, Linux (rapidocr 1.2.3, same OCR version as the Windows app) | **517 passed**, 0 failed |
+| Python 3.12, GitHub Windows Server 2025 machine, 0.13.6 build (run 43631197421) | **517 passed**, 0 failed |
+| Same, 0.13.5 build (run 43555645264) | 512 passed, 0 failed |
 | Same, an earlier 0.13.5 build (run 43554150282) | 511 passed, 1 failed (extension port discovery timed out; fixed) |
 | Same, 0.13.4 build (run 43539726145) | 502 passed, 0 failed |
 | Same, 0.13.3 build (run 43532538992) | 485 passed, 0 failed |
@@ -17,6 +18,8 @@ Passing these tests shows the code does what the tests check, on made-up charts 
 your real TopstepX chart correctly; see `docs/STUDY_TERMINAL_READINESS_REPORT.md`.
 
 ## Windows reliability (GitHub-hosted Windows Server 2025, not your PC)
+
+0.13.6, run 43631197421: **39 passed**, 0 failed (upgrade 0.13.5 -> 0.13.6 kept all data).
 
 0.13.5, run 43555645264: **39 passed**, 0 failed, including 20 recovery-drill checks against the installed app (backup,
 restore with automatic restart, corrupted file, partial rescue, failed restore and rollback, data identical throughout). Details:
@@ -31,6 +34,13 @@ Upgrade tested from 0.13.2 with data: everything kept.
 0.13.2, run 43525788935: 15 passed, 1 failed (the upgrade check was too strict on two files meant to change; all your data came
 through identical; check fixed), 1 observed (a damaged database stops the app from starting; the file is kept). Details:
 `docs/POST_FEATURE_AUDIT.md`, Phase 5.
+
+## Weekend prices (0.13.6), checked on Saturday 2026-11-14 on Linux with real Yahoo data
+
+- Bitcoin streamed live: 21 price updates in 100 seconds, labelled near real-time (unofficial free feed).
+- SPY and NQ futures labelled closed with the right opening times (Mon 9:30 AM ET, Sun 6:00 PM ET); Home gave Friday's real
+  results (SPY -0.36%, NQ -1.23%) from daily bars; the Charts page showed SPY's official close and the after-hours price.
+- Not checked on your PC, and not with your TopstepX chart open on a weekend.
 
 ## Real use
 
