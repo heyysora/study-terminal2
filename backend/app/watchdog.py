@@ -37,8 +37,9 @@ FRAME_AGE_DEGRADED = 3.0            # seconds behind the window
 DRIFT_TICKS = 2.0                   # median distance between the price box and where the scale puts it
 
 
-def _result(code: str, reason: str, do: str = "", details: list[str] | None = None) -> dict:
-    word, level, suspend = CODES[code]
+def _result(code: str, reason: str, do: str = "", details: list[str] | None = None, suspend: bool | None = None) -> dict:
+    word, level, default_suspend = CODES[code]
+    suspend = default_suspend if suspend is None else suspend
     return {"code": code, "word": word, "level": level, "suspends_ideas": suspend, "reason": reason, "do": do,
             "details": details or []}
 
@@ -111,6 +112,14 @@ def assess(rt, *, running: bool, tick: float = 0.25, now_mono: float | None = No
         problems.append(("Using a slower backup capture method.", f"Capture method: {method} (Windows Graphics Capture wasn't used)."))
     if r is not None and r.confidence < 0.6:
         problems.append(("I'm only partly sure I'm reading the chart correctly.", f"Reading confidence {r.confidence:.2f}."))
+    unconfirmed = [o for o in ((r.instrument, "market"), (r.timeframe, "timeframe")) if r is not None
+                   and o[0].source == "profile setting, not confirmed by the chart"] if r is not None else []
+    if unconfirmed:   # can't see which market/timeframe the chart is: no trade ideas (the quality gates refuse them)
+        what = " and ".join(name for _, name in unconfirmed)
+        return _result("DEGRADED", f"I can't see the {what} name on the chart, so I can't confirm it's {p.name}.",
+                       "No trade ideas until I can. Make sure the chart's title (like MNQZ6 · 5m) is visible.",
+                       [d for _, d in problems] + [f"{name.capitalize()} not confirmed by chart text." for _, name in unconfirmed],
+                       suspend=True)
     if problems:
         return _result("DEGRADED", problems[0][0], "Prices are still used. If this keeps happening, check chart settings.",
                        [d for _, d in problems])

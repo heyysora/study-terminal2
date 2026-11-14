@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.13.3 (2026-11-13)
+
+Fixes from the post-feature audit (`docs/POST_FEATURE_AUDIT.md`, `docs/STUDY_TERMINAL_READINESS_REPORT.md`). No new features.
+
+- **Fixed: a chart showing the wrong market could be reported as "Working".** The OCR version in the Windows app reads the "·" in
+  a TopstepX chart title as ":", so the market name wasn't found and the chart's own setup was assumed instead. The title is now
+  read correctly with either OCR version, and a clock time like "10:15" is never taken for a timeframe.
+- **Stricter: if the chart's market or timeframe can't be read, no trade ideas.** Before, the setup's own values were trusted at
+  high enough confidence to allow ideas. Now the watchdog shows "I can't see the market name on the chart" and ideas stop.
+- **Releases are only published when every test passes on Windows and the Windows reliability checks pass.** 0.13.2 was
+  published even though one Windows test failed (the bug above).
+- The Windows upgrade check lists the build marker and Yahoo's cache as expected changes instead of failing on them; every other
+  file must still be unchanged.
+
+## 0.13.2 (2026-11-13)
+
+- **Reliability watchdog**: one plain status per chart (Working, Working with problems, Frozen, Can't read, Not connected, Check
+  chart settings, Off), restarts a stopped reading loop, warns once per change, notices if the app didn't close normally, and
+  stops trade ideas when the chart can't be trusted or doesn't match its setup.
+- **Chart check** (Phase 2 test tool): compare what Study Terminal reads with what your real TopstepX chart shows, and test
+  resizing, zooming, switching tabs, minimizing, a frozen chart and restarting. Results and pictures are saved in your data
+  folder. See `docs/REAL_CHART_TESTING.md`.
+- Safety audit tests (`tests/test_safety_audit.py`) and an automatic Windows reliability run on every build (install, upgrade
+  with data, backup, restore, uninstall, installer rollback, damaged database).
+- Uninstalling without questions (silent) now keeps your data.
+- **Known problem, fixed in 0.13.3**: a wrong-market chart could show as "Working" with the OCR version Windows uses.
+
 ## 0.13.1 (2026-11-13)
 
 - **Charts (Simple mode) redesigned** like Home: big price, change today versus yesterday's close, a clean line chart with

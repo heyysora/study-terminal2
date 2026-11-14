@@ -3,6 +3,8 @@
 # It runs on every push to main (and from the Actions tab: "Build Windows installer" > Run workflow).
 # The finished installer appears on the repo's Releases page: a normal release when BUILD equals VERSION in
 # backend/app/config.py (for example 0.13.0), otherwise a numbered pre-release.
+# It is only published if every test passes on Windows AND the Windows reliability checks pass. Otherwise the installer is
+# still kept as a run artifact (for checking what went wrong) but nothing appears on the Releases page.
 name: Build Windows installer
 on:
   workflow_dispatch:
@@ -14,6 +16,12 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 45
+    outputs:
+      tests: ${{ steps.tests.outcome }}
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      name: ${{ steps.ver.outputs.name }}
+      pre: ${{ steps.ver.outputs.pre }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,7 +38,8 @@ jobs:
       - name: Python packages
         shell: pwsh
         run: ./scripts/setup.ps1
-      - name: Tests (reported, but they don't stop the installer from being built)
+      - name: Tests (a failure still builds the installer for checking, but blocks publishing it)
+        id: tests
         continue-on-error: true
         shell: pwsh
         run: |
@@ -58,20 +67,6 @@ jobs:
             "tag=v$v-build${{ github.run_number }}" >> $env:GITHUB_OUTPUT
             "name=Study Terminal $b (build ${{ github.run_number }})" >> $env:GITHUB_OUTPUT; "pre=true" >> $env:GITHUB_OUTPUT
           }
-      - name: Publish on the Releases page
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          name: ${{ steps.ver.outputs.name }}
-          prerelease: ${{ steps.ver.outputs.pre }}
-          make_latest: ${{ steps.ver.outputs.pre == 'false' }}
-          body: |
-            Windows installer built automatically from commit ${{ github.sha }}.
-            Download StudyTerminal-Setup-${{ steps.ver.outputs.version }}.exe below and run it.
-            It isn't code-signed, so Windows shows "Windows protected your PC" once: click More info, then Run anyway.
-            Practice only: Study Terminal can't place real orders. Your data folder is kept when you update.
-          files: dist-installer/*.exe
 
   # Windows reliability: installs and runs the installer that was just built on a clean Windows machine.
   # Fresh install, upgrade from the previous release with data, backup and restore, clean shutdown, logs, uninstall keeps data,
@@ -82,7 +77,7 @@ jobs:
     timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
-      PREVIOUS: v0.13.1
+      PREVIOUS: v0.13.2
     steps:
       - uses: actions/checkout@v4
         with:
@@ -102,3 +97,28 @@ jobs:
         with:
           name: windows-reliability
           path: reliability-out/
+
+  # Publishes the installer only when the Windows tests passed and the reliability checks passed.
+  publish:
+    needs: [build, reliability]
+    if: needs.build.outputs.tests == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: StudyTerminal-Setup
+          path: dist-installer
+      - name: Publish on the Releases page
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.build.outputs.name }}
+          prerelease: ${{ needs.build.outputs.pre }}
+          make_latest: ${{ needs.build.outputs.pre == 'false' }}
+          body: |
+            Windows installer built automatically from commit ${{ github.sha }}.
+            Download StudyTerminal-Setup-${{ needs.build.outputs.version }}.exe below and run it.
+            It isn't code-signed, so Windows shows "Windows protected your PC" once: click More info, then Run anyway.
+            Practice only: Study Terminal can't place real orders. Your data folder is kept when you update.
+          files: dist-installer/*.exe

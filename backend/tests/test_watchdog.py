@@ -87,6 +87,31 @@ async def test_wrong_market_or_timeframe_requires_recalibration_and_blocks_ideas
     assert assess(rt2, running=True)["code"] == "REQUIRES_RECALIBRATION" and "timeframe" in assess(rt2, running=True)["reason"]
 
 
+async def test_chart_title_not_visible_means_no_ideas():
+    """If the chart's title (market and timeframe) can't be read, the profile's own setting is not trusted: no trade ideas."""
+    frames = {"img": render(walk(70, start=25000.0, seed=5), symbol="", tf_text="", header_extra="")[0]}
+    m, rt, _ = monitor(frames)
+    await m.tick(rt)
+    st = assess(rt, running=True)
+    assert st["code"] == "DEGRADED" and st["suspends_ideas"] and "can't confirm" in st["reason"]
+    from app.screen import visual_recommend as vr
+    assert vr.quality_gates(rt.reading, "screen_capture", "", rt.profile).startswith("Instrument uncertain")
+
+
+def test_header_words_handle_colon_separators_but_not_clock_times():
+    from app.screen.chart_profile import ChartProfile as CP
+    from app.screen.chart_reader import _header_words, read_instrument, read_timeframe
+    from app.screen.vision import Token
+    assert _header_words("ESZ6:5m:CME") == ["ESZ6", "5m", "CME"]       # how older OCR reads 'ESZ6 · 5m · CME'
+    assert _header_words("10:15 ET") == ["ET"]                        # a clock time is not a 15-minute timeframe
+    prof = CP.from_dict({"name": "x", "root": "MNQ", "timeframe": "5Min"})
+    toks = [Token("ESZ6:5m:CME", 0.82, 14, 12, 200, 40)]
+    inst, probs = read_instrument(toks, 820, prof)
+    assert inst.confidence == 0.2 and any("ESZ26" in x for x in probs)  # wrong market still caught
+    tf, _ = read_timeframe([Token("10:15", 0.9, 900, 12, 960, 40)], 820, prof)
+    assert tf.confidence == 0.5 and tf.source == "profile setting, not confirmed by the chart"
+
+
 def test_degraded_signals():
     class RT:
         profile = ChartProfile.from_dict({"name": "x", "root": "MNQ", "timeframe": "5Min"})

@@ -146,12 +146,16 @@ async def main():
 def compare(seed_path: Path, verify_path: Path, backup_dir: str | None = None) -> dict:
     """What survived the upgrade. Rows that change on every start (monitoring heartbeat, re-evaluated decisions) are reported, not failed."""
     s, v = json.loads(seed_path.read_text()), json.loads(verify_path.read_text())
-    b, a = v["before"], v["after"]
+    a = v["after"]
     files_same = {f: a["files"].get(f) == h for f, h in s["files"].items()}
+    # Files that are meant to change on an upgrade: the build marker (it records the new version) and Yahoo's own download
+    # cache. They are listed in the result, not hidden; every other file must be byte-for-byte the same.
+    expected = {f for f in files_same if f == "installed_build.txt" or f.replace("\\", "/").startswith("yf-cache/")}
     views_same = {k: s["view"][k] == v["view"][k] for k in s["view"]}
     changed = {t: len(set(rows) - set(a["db"].get(t, []))) for t, rows in s["db"].items() if set(rows) - set(a["db"].get(t, []))}
     volatile = {"futures_state", "futures_decisions", "app_events"}
-    out = {"files_unchanged": all(files_same.values()), "files": files_same, "views_same": views_same,
+    out = {"files_unchanged": all(ok for f, ok in files_same.items() if f not in expected), "files": files_same,
+           "expected_file_changes": sorted(f for f in expected if not files_same[f]), "views_same": views_same,
            "all_views_same": all(views_same.values()), "rows_changed": changed,
            "unexpected_row_changes": {t: n for t, n in changed.items() if t not in volatile}}
     if backup_dir:

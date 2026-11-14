@@ -135,11 +135,23 @@ def _header_tokens(tokens: list[Token], h: int) -> list[Token]:
     return [t for t in tokens if t.cy < max(60, 0.12 * h)]
 
 
+def _header_words(text: str) -> list[str]:
+    """Words of a header token. Some OCR versions read TopstepX's '·' separators as ':' ('ESZ6:5m:CME'), so ':' also splits,
+    but only pieces with a letter are kept from it: a clock time like '10:15' must not turn into a '15 minute' timeframe."""
+    out = []
+    for word in re.split(r"[\s·•|,.]+", text.strip()):
+        if ":" in word:
+            out += [w for w in word.split(":") if re.search(r"[A-Za-z]", w)]
+        elif word:
+            out.append(word)
+    return out
+
+
 def read_instrument(tokens: list[Token], h: int, profile: ChartProfile) -> tuple[Observation, list[str]]:
     probs = []
     read = None
     for t in sorted(_header_tokens(tokens, h), key=lambda t: (t.cy, t.cx)):
-        for word in re.split(r"[\s·•|,.]+", t.text.strip()):
+        for word in _header_words(t.text):
             p = fc.parse_symbol(word.strip("/"), allow_bare_root=True)
             if p and p.root in ROOTS:
                 read = (p.contract.code if p.contract else p.root, p.root, t.conf)
@@ -150,8 +162,10 @@ def read_instrument(tokens: list[Token], h: int, profile: ChartProfile) -> tuple
         if read and read[1] != profile.root:
             probs.append(f"Instrument conflict: the chart shows {read[0]} but this profile is set to {profile.root}.")
             return Observation(profile.root, TEXT, 0.2, "profile setting contradicted by the chart"), probs
-        return Observation(profile.root, TEXT if read else CALCULATED, 0.95 if read else 0.8,
-                           "chart text (matches profile)" if read else "profile setting (not visible on the chart)"), probs
+        if not read:   # can't confirm the chart is really this market: below the 0.6 an idea needs
+            probs.append(f"Market name not readable on the chart; can't confirm it is {profile.root}.")
+            return Observation(profile.root, CALCULATED, 0.5, "profile setting, not confirmed by the chart"), probs
+        return Observation(profile.root, TEXT, 0.95, "chart text (matches profile)"), probs
     if not read:
         probs.append("Instrument not readable on the chart; set it in the chart profile.")
         return unavailable("no NQ/MNQ/ES/MES symbol found in the chart header"), probs
@@ -162,9 +176,7 @@ def read_timeframe(tokens: list[Token], h: int, profile: ChartProfile) -> tuple[
     probs = []
     seen = None
     for t in sorted(_header_tokens(tokens, h), key=lambda t: (t.cy, t.cx)):
-        for word in re.split(r"[\s·•|,.]+", t.text.strip()):
-            if not word:
-                continue
+        for word in _header_words(t.text):
             tf, note = tf_from_text(word)
             if tf is not None and note is None:
                 seen = tf.value
@@ -175,8 +187,10 @@ def read_timeframe(tokens: list[Token], h: int, profile: ChartProfile) -> tuple[
         if seen and seen != profile.timeframe:
             probs.append(f"Timeframe conflict: the chart shows {seen} but this profile is set to {profile.timeframe}.")
             return Observation(profile.timeframe, TEXT, 0.2, "profile setting contradicted by the chart"), probs
-        return Observation(profile.timeframe, TEXT if seen else CALCULATED, 0.95 if seen else 0.8,
-                           "chart text (matches profile)" if seen else "profile setting"), probs
+        if not seen:
+            probs.append(f"Timeframe not readable on the chart; can't confirm it is {profile.timeframe}.")
+            return Observation(profile.timeframe, CALCULATED, 0.5, "profile setting, not confirmed by the chart"), probs
+        return Observation(profile.timeframe, TEXT, 0.95, "chart text (matches profile)"), probs
     if not seen:
         probs.append("Timeframe not readable on the chart; set it in the chart profile.")
         return unavailable("no timeframe found in the chart header"), probs

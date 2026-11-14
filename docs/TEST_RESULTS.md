@@ -1,15 +1,27 @@
-# Test results (0.13.2, 2026-11-13)
-
-All runs were on **Linux** in the build environment. Nothing here was run on Windows.
+# Test results (0.13.3, 2026-11-13)
 
 ## Automated tests
 
 | Run | Result |
 |---|---|
-| Python 3.11 (`pytest tests`) | **450 passed**, 0 failed, 0 skipped (≈ 120 s) |
-| Python 3.13 (`pytest tests`) | **450 passed**, 0 failed, 0 skipped (≈ 100 s) |
-| Frontend type-check and build (`npm run build` = `tsc -b && vite build`) | passed |
-| Lint (`ruff --select E4,E7,E9,F,B`) on files changed in 0.7 | clean except pre-existing style warnings in older files (B008/E741/B904) |
+| Python 3.11, Linux (rapidocr 1.4.4) | **485 passed**, 0 failed |
+| Python 3.13, Linux (rapidocr 1.2.3, same OCR version as the Windows app) | **485 passed**, 0 failed |
+| Python 3.12, GitHub Windows Server machine, 0.13.2 build | 482 passed, **1 failed** (wrong market reported as Working; the bug fixed in 0.13.3). The 0.13.3 run will be added here |
+| Lint (`ruff --select E9,F,B`) on files changed in 0.13.x | clean |
+
+Passing these tests shows the code does what the tests check, on made-up charts and fake servers. It doesn't show the app reads
+your real TopstepX chart correctly; see `docs/STUDY_TERMINAL_READINESS_REPORT.md`.
+
+## Windows reliability (GitHub-hosted Windows Server, not your PC)
+
+0.13.2, run 43525788935: 15 passed, 1 failed (the upgrade check was too strict on two files meant to change; all your data came
+through identical; check fixed), 1 observed (a damaged database stops the app from starting; the file is kept). Details:
+`docs/POST_FEATURE_AUDIT.md`, Phase 5.
+
+## Real use
+
+- Your PC: last checked with 0.7.0 (20 of 20). Nothing since.
+- Your real TopstepX chart: never. Use the Chart check (`docs/REAL_CHART_TESTING.md`).
 
 ## 0.12.0 preview 2: live price
 
