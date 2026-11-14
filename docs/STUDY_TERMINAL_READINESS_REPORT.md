@@ -1,4 +1,4 @@
-# Study Terminal readiness report (0.13.3, 2026-11-13)
+# Study Terminal readiness report (0.13.4, 2026-11-13)
 
 What you can rely on today, and what you can't yet. Companion to `docs/POST_FEATURE_AUDIT.md`, which has the details and
 the evidence.
@@ -29,7 +29,9 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
   inconclusive. The app correctly keeps every setup at WAIT.
 - **The safety rules hold in every test**: no code path can send a real order, live trading can't be switched on, risky or
   unreliable data always gives NO TRADE, and restarting doesn't undo a stop or a risk lock.
-- **Install, upgrade, backup, restore and rollback work on a Windows machine**, just not yet on yours.
+- **Install, upgrade, backup, restore and rollback work on a Windows machine**, just not yet on yours. Since 0.13.4 none of
+  it needs a terminal: a damaged data file opens a Recovery screen, backups and restore are buttons in Settings, and results
+  and logs go into one file in Downloads.
 - **This audit found and fixed a real safety bug:** in 0.13.2 a chart showing the wrong market could be reported as
   "Working". 0.13.3 fixes it (485 of 485 tests pass on Windows). Don't use 0.13.2 for the Chart check.
 
@@ -66,15 +68,19 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
 
 | Capability | Status | Your PC | Known limitations | Evidence |
 |---|---|---|---|---|
-| Fresh install | TESTED ON WINDOWS | No (0.7.0 only) | Not code-signed: SmartScreen warning once | reliability runs 43525788935 (0.13.2) and 43532538992 (0.13.3, all passed) |
-| Upgrade with your data kept | TESTED ON WINDOWS | No | Tested 0.13.1 → 0.13.2 and 0.13.2 → 0.13.3; all data identical | same |
+| Fresh install | TESTED ON WINDOWS | No (0.7.0 only) | Not code-signed: SmartScreen warning once | reliability runs 43525788935 (0.13.2), 43532538992 (0.13.3) and 43539726145 (0.13.4, 19 of 19 passed) |
+| Upgrade with your data kept | TESTED ON WINDOWS | No | Tested 0.13.1 → 0.13.2, 0.13.2 → 0.13.3 and 0.13.3 → 0.13.4; all data identical | same |
 | Automatic backup before an upgrade | TESTED ON WINDOWS | No | Keeps the newest 10 | same |
-| Restore from a backup | TESTED ON WINDOWS | No | Done by copying the folder; there's no restore button | same |
+| Restore from a backup (Settings > Your data, or the Recovery screen) | TESTED ON WINDOWS | No | The restore itself ran on Windows; the button and the automatic restart were tested on Linux only | runs 43525788935, 43539726145; test_datacare.py |
 | Start-up and clean shutdown, logs | TESTED ON WINDOWS | No | | same |
 | No secrets in logs | TESTED ON WINDOWS | No | | same |
 | Uninstall keeps your data | TESTED ON WINDOWS | No | | same |
 | Installer rollback after a failed setup | TESTED ON WINDOWS | No | | same |
-| Damaged database recovery | NOT BUILT | No | App refuses to start with a technical error; file is kept; restore by hand | same (observed) |
+| Damaged data file → Recovery mode | TESTED ON WINDOWS | No | Rescue works only when part of the file is readable | run 43539726145; test_datacare.py |
+| Daily backups and Back up now | TESTED WITH SIMULATED DATA | No | Paused when the disk has under 300 MB free | test_datacare.py |
+| Help file (one zip in Downloads) | TESTED WITH SIMULATED DATA | No | Not opened on your PC yet | test_datacare.py |
+| Full or locked data folder | TESTED WITH SIMULATED DATA | No | Simulated; never tried on a real full disk | test_datacare.py |
+| Moves to a free port if 8765 is taken | TESTED ON WINDOWS | No | The Chrome extension expects 8765 and won't connect on another port | run 43539726145 |
 | Dependency checks in the installer (winget) | BUILT, NOT TESTED | No | The GitHub machine already has everything installed | — |
 | Journal persistence over real days of use | TESTED WITH SIMULATED DATA | No | Only across one simulated upgrade | upgrade check |
 | Releases only published after Windows tests and reliability checks pass | TESTED ON WINDOWS | — | Added in 0.13.3 after 0.13.2 was published with a failing test. Only the passing path has run so far | run 43532538992 |
@@ -90,7 +96,7 @@ since). **Real TopstepX** = checked against your real TopstepX chart (never, for
 | Futures practice account | TESTED WITH SIMULATED DATA | No | No | Refuses orders on free data unless "Practice on delayed prices" is on (audit F1) |
 | Automation Center (futures) | TESTED WITH SIMULATED DATA | No | No | Never acts with free data (audit F2) |
 | Home and Simple/Advanced modes | TESTED WITH SIMULATED DATA | No | No | Checked in headless Chrome only |
-| Trust & Validation | TESTED WITH SIMULATED DATA | No | No | Intervals too narrow for correlated screenshots (audit C2) |
+| Trust & Validation | TESTED WITH SIMULATED DATA | No | No | Accuracy counted by session since 0.13.4; needs 3 different days to pass |
 | Economic calendar and news | TESTED WITH SIMULATED DATA | No | n/a | Coverage beyond BLS releases unchecked |
 | TopstepX API and stream (paid, off) | TESTED WITH SIMULATED DATA | No | No | Mock server only; costs about $29/month if you turn it on |
 | AI explanations: Ollama (free) | TESTED WITH SIMULATED DATA | No | n/a | Fake server only |
@@ -121,7 +127,7 @@ independent, Yahoo data. What validation would need is in the audit, Phase 4.
 
 Multi-timeframe analysis (1m–4h), a separate NO TRADE engine, trade quality scores, the fuller journal, the performance
 dashboard, the strategy lab, replay of recorded screen sessions, calendar improvements, AI mentor improvements, a single
-trading profile, desktop extras (layouts, annotations, export center), damaged-database recovery, a restore button, and
+trading profile, desktop extras (layouts, annotations, export center), and
 `docs/COST_AUDIT.md`.
 
 ## What you can safely rely on today
@@ -129,14 +135,16 @@ trading profile, desktop extras (layouts, annotations, export center), damaged-d
 - It will not place a real trade.
 - When it can't trust what it sees, it says WAIT rather than guessing (tested on simulated failures).
 - Your data survives an upgrade and is backed up first (on a Windows machine, not yet yours).
+- If the data file breaks, the app tells you in plain words and offers the fix; nothing is ever deleted.
 
 ## What you can't rely on yet
 
 - Any number it reads from your TopstepX chart, until the Chart check on your PC says so.
 - Any strategy making money.
-- Recovery from a damaged data file without your help.
+- A rescue of a badly damaged file: if the file is unreadable, only a backup can bring data back (daily backups now make
+  that backup recent).
 
 ## Next step that matters most
 
-Install 0.13.3 on your PC and run the Chart check on a live MNQ (or ES) chart during market hours. That is the only way any
+Install 0.13.4 on your PC and run the Chart check on a live MNQ (or ES) chart during market hours. That is the only way any
 part of this report can move to VERIFIED WITH REAL MARKET OBSERVATIONS.

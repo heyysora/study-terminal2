@@ -130,6 +130,17 @@ Needs attention / Not working) and **Stop everything**. Stop everything stops ch
 was practicing by itself; to start again you write one sentence about why you stopped. **Simple / Advanced** changes only what is
 shown. Advanced has every screen and the trading terms; your limits and safety rules are the same in both.
 
+## Your data: backups, restore and help (0.13.4)
+
+Settings > **Your data**. A backup is made every day you use Study Terminal and before every update; **Back up now** makes one
+whenever you like. Each backup says when it was made and what's in it (journal trades, practice orders). **Restore** goes back
+to one: Study Terminal backs up your current data first, restarts, and shows what it did. **Save a help file** puts a zip of the
+logs, Chart check results and app status in your Downloads folder to send when something's wrong (no passwords or keys).
+
+If the data file is ever damaged, Study Terminal opens a **Recovery** screen instead of the usual app: use the newest backup,
+rescue what can still be read, or start with empty data. Whatever you pick, the damaged file is kept in a folder called
+`damaged`. If another program is using Study Terminal's usual port, it quietly uses the next free one.
+
 ## Trust & Validation
 Menu > Trust & Validation shows nine validation statuses and the overall readiness level, with exactly what's still missing for the
 next level. It only counts real recorded evidence. To add visual evidence, use Live copilot > Calibrate: upload a real TopstepX

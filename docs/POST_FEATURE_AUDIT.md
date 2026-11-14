@@ -1,4 +1,4 @@
-# Study Terminal post-feature audit (0.13.2 audited, fixes in 0.13.3; 2026-11-13)
+# Study Terminal post-feature audit (0.13.2 audited, fixes in 0.13.3 and 0.13.4; 2026-11-13)
 
 Purpose: establish exactly what works, what doesn't, and what you can rely on. Nothing is marked complete unless there is
 evidence for it. "Tested" below always says **what kind** of test: unit/integration tests on Linux, the same tests on a GitHub
@@ -8,6 +8,19 @@ How this audit was done: reading the code and docs, running the full test suite 
 and 3.13 on Linux, and on a GitHub-hosted Windows Server machine), the new safety tests (`tests/test_safety_audit.py`), and the
 new Windows reliability job (`scripts/windows-reliability.ps1`). Nobody has used this version on your PC or against your real
 TopstepX chart.
+
+## Fixed in 0.13.4: no terminal or folder-digging needed
+
+| # | Problem | Fix | Evidence |
+|---|---|---|---|
+| E6 | A damaged data file stopped the app with a technical error; restoring meant copying files by hand | **Recovery mode**: a plain screen to use the newest backup, rescue whatever tables can still be read, or start fresh. The desktop app restarts itself to do it. The damaged file is moved to `damaged\`, never deleted | test_datacare.py; Windows run 43539726145: Recovery mode, restore, data identical afterwards |
+| E7 | A full or locked data folder wasn't handled | The same Recovery screen explains it in plain words; Home warns when the disk is nearly full and daily backups pause | test_datacare.py (simulated); not tested on a real full disk |
+| — | Backups only happened before an update, and restoring meant copying folders | Daily backups (kept 7), **Back up now**, and **Restore** in Settings > Your data. Each backup shows when it was made and what's in it. A restore backs up your current data first | test_datacare.py; Windows run |
+| — | Sending Chart check results or logs meant finding `%LOCALAPPDATA%` | **Save my results to send** / **Save a help file**: one zip in Downloads, secrets blanked out, `.env` never included | test_datacare.py |
+| — | If port 8765 was taken, the app told you to edit `.env` | The app moves to the next free port by itself | test_datacare.py; Windows run (port blocked on purpose) |
+| — | When the app couldn't start at all, the message pointed at a log folder | It saves a help file to Downloads and says so in plain words | code review; not triggered on Windows |
+| C2 | Trust & Validation intervals treated correlated screenshots as independent | Counted by session: the interval widens when misreads bunch together in one session, and passing needs samples from at least 3 different days | test_audit_fixes.py |
+| C3 | The in-sample cost table carried "promising" labels | Labels removed when the table is made and when old results load; the screen says "in-sample, not evidence of an edge" | test_audit_fixes.py |
 
 ## Found and fixed during this audit
 
@@ -63,8 +76,8 @@ Severity: **High** = can mislead you or make a feature useless in your setup. **
 | # | Calculation | Issue | Severity |
 |---|---|---|---|
 | C1 | Futures "change" on Home and My chart | Measured from the first price read after 6 PM New York (or from when watching started). Not the exchange's settlement-based daily change, and not the 9:30 AM open many day traders use. Labelled on screen. | Medium |
-| C2 | Accuracy intervals on Trust & Validation | Wilson intervals assume each sample is independent. Screenshots taken minutes apart on the same chart are correlated, so the intervals are narrower than they should be. Counting by session would be more honest. | Medium |
-| C3 | Strategy cost-sensitivity table (Futures > Evidence) | Computed over **all dates with the final parameters**, including the period the parameters were chosen on. Its "promising" labels are therefore not out-of-sample evidence. The screen says "(all dates)", but the tier words can still mislead. | High |
+| C2 (fixed 0.13.4) | Accuracy intervals on Trust & Validation | Wilson intervals assume each sample is independent. Screenshots taken minutes apart on the same chart are correlated, so the intervals are narrower than they should be. Counting by session would be more honest. | Medium |
+| C3 (fixed 0.13.4) | Strategy cost-sensitivity table (Futures > Evidence) | Computed over **all dates with the final parameters**, including the period the parameters were chosen on. Its "promising" labels are therefore not out-of-sample evidence. The screen says "(all dates)", but the tier words can still mislead. | High |
 | C4 | NQ and MNQ research | Same underlying price series. They are not two independent confirmations; the same goes for ES and MES. | Medium |
 | C5 | Live price | Read about twice a second from the price box; moves between reads are not seen; same price within 1 s is stored once. Accurate as a reading of the screen (0 wrong in 300 synthetic frames), not tick data. | Low (documented) |
 | C6 | Risk audit "loss above 1.25x the per-trade limit" | A heuristic allowance for slippage, not a TopstepX rule. | Low |
@@ -79,8 +92,8 @@ Severity: **High** = can mislead you or make a feature useless in your setup. **
 | E3 | App killed or crashed | Next start reports "didn't close normally" | test_watchdog.py; Windows job |
 | E4 | Backup can't be written | Start-up continues; Home shows it; next start retries | test_backup.py |
 | E5 | Yahoo down | Last data served, labelled CACHED, never "live" | test_futures_p2_data.py |
-| E6 | Damaged database file | **Not handled.** App won't start, technical error only; file kept. See Phase 5. | Windows job |
-| E7 | Data folder on a full or read-only disk | Not tested. | — |
+| E6 | Damaged database file | **Fixed in 0.13.4**: Recovery mode (see above). | test_datacare.py; Windows job |
+| E7 | Data folder on a full or read-only disk | **Fixed in 0.13.4**: Recovery screen / low-space warning. Simulated only. | test_datacare.py |
 | E8 | Edge/TopstepX layout changes after a TopstepX update | Detected as layout change → "Check chart settings"; reading stops rather than guessing. Only tested on synthetic layouts. | test_visual_monitor.py |
 
 ### 1.6 Works only with synthetic or simulated data so far
@@ -191,7 +204,8 @@ above zero after realistic costs, and the result repeated on a second period.
 ## Phase 5: Windows reliability
 
 Run on a **GitHub-hosted Windows Server 2022 machine**, not on your PC. Table: 0.13.2 (run 43525788935). Re-run for 0.13.3
-(run 43532538992): all 16 checks passed, damaged database observed the same way, upgrade 0.13.2 → 0.13.3 kept all data. It installs the real
+(run 43532538992): all 16 checks passed, damaged database observed the same way, upgrade 0.13.2 → 0.13.3 kept all data.
+0.13.4 (run 43539726145): **all 19 checks passed**, including the three new ones, with nothing left "observed"; upgrade 0.13.3 → 0.13.4 kept all data. It installs the real
 installer the build produces, silently, as a normal user. Script: `scripts/windows-reliability.ps1`; full output is kept as the
 `windows-reliability` artifact on each run.
 
@@ -210,7 +224,8 @@ installer the build produces, silently, as a normal user. Script: `scripts/windo
 | Your data survives the upgrade | **FAIL → fixed in the check (X3)** | all 10 views identical, no unexpected row changes; the failure was the build marker and Yahoo cache changing, which they're meant to |
 | Restore from the backup | **PASS** | restored copy starts; data as before |
 | Installer rollback after a failed setup | **PASS** | a deliberately failing setup was used; the previous program was restored byte-for-byte and the half-installed file removed |
-| Damaged database file | **OBSERVED: not handled** | the app refuses to start (exit 1) with a technical error in the log; the damaged file is left in place, not deleted or overwritten. There is no plain message and no offer to restore from the backup. You would have to restore by hand from `%LOCALAPPDATA%\StudyTerminal\backups`. |
+| Damaged database file | **OBSERVED in 0.13.2/0.13.3: not handled → fixed in 0.13.4** | 0.13.2/0.13.3 refused to start with a technical error. 0.13.4 (run 43539726145): opens Recovery mode (self-test exit 2), damaged file left byte-for-byte; a scheduled restore then starts normally, keeps the damaged file in `damaged\`, and all 10 views of your data match the pre-damage data |
+| Starts when its usual port is taken (0.13.4) | **PASS** | port blocked on purpose; the app moved to the next port by itself |
 
 Not tested on Windows: your PC; Windows 10/11 desktop editions; a non-admin account with a different user profile path; a full
 or read-only disk; antivirus interference; the installer's dependency auto-install via winget (the GitHub machine already has

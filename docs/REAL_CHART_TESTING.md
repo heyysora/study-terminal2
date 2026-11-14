@@ -49,6 +49,7 @@ How each value is obtained is always shown next to it:
 
 ## Sending results
 
-The results are in your data folder (`%LOCALAPPDATA%\StudyTerminal\chart_checks\results.jsonl`, with the pictures next to
-it). Send `results.jsonl` (and the pictures for any failed checks) and they can be reviewed and added to
+At the bottom of the Chart check screen, click **Save my results to send**. It saves one file in your Downloads folder
+(`StudyTerminal-help-<date>.zip`) with every result, the pictures and the app's logs; click **Show it** to open the folder.
+Send that file. Passwords and API keys are blanked out of it. The results are then reviewed and added to
 `docs/STUDY_TERMINAL_READINESS_REPORT.md`.

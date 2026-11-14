@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.13.4 (2026-11-13)
+
+Makes the problems found in the audit fixable from inside the app. No trading changes.
+
+- **Recovery mode.** If your data file is damaged or the data folder can't be written, Study Terminal opens a plain Recovery
+  screen instead of crashing: use the newest backup (shows when it was made and what's in it), rescue whatever can still be
+  read, start with empty data, or save a help file. It restarts itself to do it. The damaged file is kept in `damaged\`.
+- **Backups you can see and use.** Daily backups (newest 7 kept), **Back up now**, and **Restore** in Settings > Your data. A
+  restore backs up your current data first. **Open my data folder** and **Open backups folder** buttons.
+- **Help file.** One click saves a zip with logs, Chart check results and pictures, and app status to your Downloads folder.
+  Passwords and keys are blanked out; `.env` is never included. Chart check has **Save my results to send**.
+- If port 8765 is taken by another program, Study Terminal moves to the next free one by itself.
+- If it can't start at all, it says so in plain words and saves a help file automatically.
+- Home warns when the disk is nearly full.
+- Trust & Validation accuracy is counted by session (screenshots from one session aren't independent) and needs samples from
+  at least 3 different days to pass. The in-sample cost table no longer shows "promising" labels.
+- Windows reliability now also checks Recovery mode, a restore on Windows, and starting with the port taken: 19 of 19 passed.
+
 ## 0.13.3 (2026-11-13)
 
 Fixes from the post-feature audit (`docs/POST_FEATURE_AUDIT.md`, `docs/STUDY_TERMINAL_READINESS_REPORT.md`). No new features.

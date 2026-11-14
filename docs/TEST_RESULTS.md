@@ -4,9 +4,10 @@
 
 | Run | Result |
 |---|---|
-| Python 3.11, Linux (rapidocr 1.4.4) | **485 passed**, 0 failed |
-| Python 3.13, Linux (rapidocr 1.2.3, same OCR version as the Windows app) | **485 passed**, 0 failed |
-| Python 3.12, GitHub Windows Server machine, 0.13.3 build (run 43532538992) | **485 passed**, 0 failed |
+| Python 3.11, Linux (rapidocr 1.4.4) | **502 passed**, 0 failed |
+| Python 3.13, Linux (rapidocr 1.2.3, same OCR version as the Windows app) | **502 passed**, 0 failed |
+| Python 3.12, GitHub Windows Server machine, 0.13.4 build (run 43539726145) | **502 passed**, 0 failed |
+| Same, 0.13.3 build (run 43532538992) | 485 passed, 0 failed |
 | Same, 0.13.2 build | 482 passed, **1 failed** (wrong market reported as Working; fixed in 0.13.3) |
 | Lint (`ruff --select E9,F,B`) on files changed in 0.13.x | clean |
 
@@ -14,6 +15,9 @@ Passing these tests shows the code does what the tests check, on made-up charts 
 your real TopstepX chart correctly; see `docs/STUDY_TERMINAL_READINESS_REPORT.md`.
 
 ## Windows reliability (GitHub-hosted Windows Server, not your PC)
+
+0.13.4, run 43539726145: **19 passed**, 0 failed, nothing left "observed": a damaged data file opens Recovery mode, a restore
+from it brings your data back exactly, and the app starts when its port is taken.
 
 0.13.3, run 43532538992: **16 passed**, 0 failed, 1 observed (damaged database: the app won't start; the file is kept).
 Upgrade tested from 0.13.2 with data: everything kept.
