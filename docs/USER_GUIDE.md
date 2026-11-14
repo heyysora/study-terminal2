@@ -141,6 +141,12 @@ If the data file is ever damaged, Study Terminal opens a **Recovery** screen ins
 rescue what can still be read, or start with empty data. Whatever you pick, the damaged file is kept in a folder called
 `damaged`. If another program is using Study Terminal's usual port, it quietly uses the next free one.
 
+## Weekends and closed markets (0.13.6)
+
+Stocks and futures don't trade at the weekend (futures: Friday 5 PM to Sunday 6 PM ET), so their prices stay at the last real
+price, with a countdown to the open. Bitcoin and Ethereum trade around the clock: tap them on Charts to watch prices move live
+any time. Crypto is for watching only; practice trading covers stocks and futures.
+
 ## Health (0.13.5)
 
 **Health** in the menu shows whether Study Terminal itself is OK: the app, your data file, backups (last good one and whether

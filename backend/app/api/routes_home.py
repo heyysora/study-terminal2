@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import logging
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from .. import home, plain
+
+ET = ZoneInfo("America/New_York")
 
 router = APIRouter(prefix="/api", tags=["home"])
 log = logging.getLogger(__name__)
@@ -26,6 +29,48 @@ def _point_value(code: str | None) -> float | None:
 def watchdog_view(request: Request):
     """Reliability status per watched chart, the newest changes, and whether the last session ended normally."""
     return request.app.state.watchdog.check(restart=False)
+
+
+def _key_symbol(s, trades: str) -> str:
+    if trades != "futures":
+        return "SPY"
+    try:
+        for prof in s.visual.store.all():
+            root = getattr(prof, "root", "") or ""
+            if root and root != "auto":
+                return f"{root.upper()}=F"
+    except Exception:  # noqa: BLE001
+        pass
+    return "NQ=F"
+
+
+def _last_session(s, sym: str) -> dict | None:
+    """The last finished session's change from real daily bars (cached 10 minutes). None if it can't be fetched."""
+    import time as _t
+    from datetime import datetime, timedelta, timezone
+
+    import anyio
+
+    from ..market_data.types import Timeframe
+    cache = getattr(s, "last_session_cache", None) or {}
+    hit = cache.get(sym)
+    if hit and _t.monotonic() - hit[0] < 600:
+        return hit[1]
+    out = None
+    try:
+        bars, _, _ = anyio.from_thread.run(s.monitor.bars, sym, Timeframe.D1, datetime.now(timezone.utc) - timedelta(days=12))
+        bars = [b for b in bars if b.close]
+        if len(bars) >= 2:
+            last, prev = bars[-1], bars[-2]
+            day = last.ts.astimezone(ET)
+            out = {"close": float(last.close), "change_pct": round((float(last.close) / float(prev.close) - 1) * 100, 2),
+                   "day": "On " + day.strftime("%A"), "as_of": last.ts.isoformat(),
+                   "name": {"SPY": "S&P 500 fund, SPY"}.get(sym, sym.replace("=F", " futures, free delayed data"))}
+    except Exception:  # noqa: BLE001 - no network or no data: just don't show a last result
+        log.info("couldn't get the last session for %s", sym, exc_info=True)
+    cache[sym] = (_t.monotonic(), out)
+    s.last_session_cache = cache
+    return out
 
 
 @router.get("/home")
@@ -57,6 +102,10 @@ def home_view(request: Request):
         c.get("status") == "screen_capture" for c in (visual.get("charts") or {}).values())
     sig = s.signals
     wd = safe(lambda: s.watchdog.check(restart=False), None)
+    from ..market_data.hours import public
+    key = _key_symbol(s, trades)
+    hours = safe(lambda: public(s.monitor.market_state(key)), None)
+    last_session = _last_session(s, key) if hours and not hours.get("open") else None
     return home.build(
         trades=trades, db_ok=db_ok, monitor=safe(s.monitor.status, {}), visual=visual,
         automation=safe(s.futures.automation.status, {}), profiles=len(safe(s.visual.store.all, []) or []),
@@ -65,7 +114,7 @@ def home_view(request: Request):
         signals={"market": sig.market, "summary": [sig.brief(e) for e in sig.latest.values()]},
         backup=getattr(s, "backup", None), trades_chosen=bool(store.get("ui.trades_chosen", False)) or trades == "futures",
         chart_seen=chart_seen, setup_dismissed=bool(store.get("ui.setup_dismissed", False)), ui_mode=store.get("ui.mode", "simple"),
-        point_value_of=_point_value, engine_error=err, watchdog=wd)
+        point_value_of=_point_value, engine_error=err, watchdog=wd, hours=hours, last_session=last_session)
 
 
 class StopIn(BaseModel):

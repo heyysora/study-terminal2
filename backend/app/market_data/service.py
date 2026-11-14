@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,7 @@ from ..core.events import Broadcaster
 from ..core.market_clock import MarketClock
 from ..db.models import AppEvent, BarRecord, WatchlistSymbol
 from ..db.session import Database
+from . import hours
 from .freshness import FreshnessTracker
 from .providers.base import MarketDataProvider, ProviderError, ProviderRateLimited, StreamState, SymbolNotFound, TickStream
 from .types import Bar, DataStatus, LabeledValue, Tick, Timeframe
@@ -58,6 +60,7 @@ class MarketMonitor:
         self.tick_listeners: list[TickListener] = []
         self.bar_listeners: list[BarListener] = []
         self.extra_symbols: Callable[[], list[str]] = lambda: []
+        self.viewing: dict[str, float] = {}     # symbols open on screen right now -> when to stop following them
         self._tasks: list[asyncio.Task] = []
         self._pending_bars: list[Bar] = []
         self._last_bar_ts: dict[str, datetime] = {}
@@ -106,13 +109,28 @@ class MarketMonitor:
             rows = s.scalars(select(WatchlistSymbol.symbol).order_by(WatchlistSymbol.watchlist_id, WatchlistSymbol.position)).all()
         return list(dict.fromkeys(rows))
 
+    def _viewing_now(self) -> list[str]:
+        now = time.monotonic()
+        self.viewing = {s: t for s, t in self.viewing.items() if t > now}
+        return list(self.viewing)
+
     def monitored_symbols(self) -> list[str]:
-        """Open positions/orders first (never dropped), then watchlists, capped for rate limits."""
-        syms = list(dict.fromkeys([*self.extra_symbols(), *self.watchlist_symbols()]))
+        """Open positions/orders first (never dropped), then what's on screen right now, then watchlists, capped for rate limits."""
+        syms = list(dict.fromkeys([*self.extra_symbols(), *self._viewing_now(), *self.watchlist_symbols()]))
         return [s for s in syms if s not in self._unknown][: self.settings.max_live_symbols]
 
+    async def view(self, symbol: str, seconds: float = 120) -> bool:
+        """Follow a symbol live (stream + polling) while it's on screen. The page renews this every minute; it lapses by itself."""
+        new = symbol not in self._viewing_now()
+        self.viewing[symbol] = time.monotonic() + seconds
+        if new:
+            await self.refresh_symbols()
+            if self.monitoring_enabled:
+                await self.poll_once([symbol])
+        return new
+
     def over_limit(self) -> list[str]:
-        syms = list(dict.fromkeys([*self.extra_symbols(), *self.watchlist_symbols()]))
+        syms = list(dict.fromkeys([*self.extra_symbols(), *self._viewing_now(), *self.watchlist_symbols()]))
         return [s for s in syms if s not in self._unknown][self.settings.max_live_symbols:]
 
     async def refresh_symbols(self) -> None:
@@ -287,11 +305,18 @@ class MarketMonitor:
 
     # ---------------- queries ----------------
 
+    def market_state(self, symbol: str) -> dict:
+        """Open/closed by the symbol's OWN market: stocks (NYSE), futures (CME Globex, trades weekday evenings), crypto (24/7)."""
+        return hours.market_state(symbol, self.clock)
+
     def label(self, symbol: str) -> LabeledValue:
-        return self.tracker.label(symbol, self.clock.session_at().session)
+        st = self.market_state(symbol)
+        return self.tracker.label(symbol, st["session"], closed_note=hours.closed_note(st))
 
     def signals_allowed(self, symbol: str) -> tuple[bool, str, str | None]:
-        return self.tracker.signals_allowed(symbol, self.clock.session_at().session)
+        if hours.asset_kind(symbol) == "crypto":   # the setups are built around stock and futures sessions
+            return False, "Crypto is shown for watching only; the trade setups are built for stock and futures sessions.", None
+        return self.tracker.signals_allowed(symbol, self.market_state(symbol)["session"])
 
     def status(self) -> dict:
         sess = self.clock.session_at()
@@ -338,7 +363,8 @@ class MarketMonitor:
         t = self.tracker.latest(symbol)
         fi = self.tracker.feed_info(symbol)
         return {"symbol": symbol, "last": t.model_dump(mode="json") if t else None,
-                "label": self.label(symbol).model_dump(mode="json"), "feed_info": fi.model_dump(mode="json") if fi else None}
+                "label": self.label(symbol).model_dump(mode="json"), "feed_info": fi.model_dump(mode="json") if fi else None,
+                "market": hours.public(self.market_state(symbol))}
 
     async def bars(self, symbol: str, timeframe: Timeframe, start: datetime, end: datetime | None = None):
         bars, notes = await self.provider.get_bars(symbol, timeframe, start, end)

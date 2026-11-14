@@ -124,6 +124,9 @@ SIMPLIFY: list[list[str]] = [
 # ---- why the app says WAIT ----------------------------------------------------------------------------------------------------------
 # (pattern on the original reason, kind, headline, what to do). Headline/do may use \1 etc. from the pattern.
 REASONS: list[list[str]] = [
+    # market hours
+    [r"^Signals disabled: Crypto is shown for watching only", "market", "Crypto is here to watch, not to practice.", "The practice setups are built for stock and futures trading hours."],
+    [r"^Signals disabled: historical: Market closed", "market", "The market is closed, so there's nothing to practice right now.", "Prices start moving again when the market opens. Bitcoin and Ethereum trade all weekend if you want to watch something live."],
     # chart reading
     [r"another tab is open", "chart", "Your browser is showing a different tab, so I'm not looking.", "Switch back to the TopstepX tab. For privacy, nothing else is ever read."],
     [r"window is minimized", "chart", "The TopstepX window is minimized, so I can't see it.", "Open the window again. It can sit behind other windows, but not minimized."],

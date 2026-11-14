@@ -107,7 +107,7 @@ class FreshnessTracker:
             return True, "Polling OK" + ("" if not self.streaming_enabled else f" (stream: {self.stream_reason})")
         return False, f"No successful update yet (stream: {self.stream_reason})"
 
-    def label(self, symbol: str, session: Session, now: datetime | None = None) -> LabeledValue:
+    def label(self, symbol: str, session: Session, now: datetime | None = None, closed_note: str | None = None) -> LabeledValue:
         now = now or datetime.now(timezone.utc)
         st = self._symbols.get(symbol)
         latest = st.latest if st else None
@@ -124,7 +124,8 @@ class FreshnessTracker:
             ok, why = self.provider_health()
             return lv(DataStatus.UNAVAILABLE, "No data received for this symbol yet" if ok else f"No data: {why}")
         if session == Session.CLOSED:
-            return lv(DataStatus.HISTORICAL, f"Market closed; last value from {latest.ts.astimezone(ET):%a %m-%d %H:%M} ET", latest.source)
+            return lv(DataStatus.HISTORICAL, f"Market closed; last price from {latest.ts.astimezone(ET):%a %m-%d %H:%M} ET"
+                                             + (f". {closed_note}." if closed_note else ""), latest.source)
         feed = st.feed
         if feed and feed.realtime_price is False and (feed.delay_minutes or 0) > 0:
             return lv(DataStatus.DELAYED, f"{self.provider.display_name} marks {symbol} as delayed {feed.delay_minutes} min", latest.source)

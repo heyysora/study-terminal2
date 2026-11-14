@@ -490,3 +490,7 @@ dl.explain { display: grid; grid-template-columns: 11em 1fr; gap: 4px 12px; marg
 dl.explain dt { color: var(--muted); }
 dl.explain dd { margin: 0; }
 @media (max-width: 640px) { dl.explain { grid-template-columns: 1fr; } dl.explain dt { margin-top: 6px; } }
+
+/* market hours */
+.countdown { font-variant-numeric: tabular-nums; }
+.open-now { margin-left: 8px; }

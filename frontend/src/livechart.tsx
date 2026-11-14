@@ -6,6 +6,7 @@ import {
 } from "lightweight-charts";
 import { api, onLiveMessage } from "./lib";
 import { explain } from "./plain";
+import { Countdown, futuresHoursSymbol, useMarketState } from "./markethours";
 
 const RANGES: [string, string][] = [["live", "5 min"], ["1h", "1 hour"], ["4h", "4 hours"], ["day", "Today"]];
 const css = (v: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -122,6 +123,8 @@ export function LivePrice({ pid = null, compact = false }: { pid?: string | null
   const [mode, setMode] = useState<"line" | "candles">("line");
   const [hover, setHover] = useState<{ price: number; t: number } | null>(null);
   const { d, err } = useLivePrice(pid, range);
+  const ms = useMarketState(futuresHoursSymbol(d?.contract));
+  const closed = ms.data && ms.data.open === false;
   const [flash, setFlash] = useState<"" | "up" | "down">("");
   const prev = useRef<number | null>(null);
   useEffect(() => {
@@ -172,10 +175,14 @@ export function LivePrice({ pid = null, compact = false }: { pid?: string | null
           </div>
         </div>
         <div className="hero-status">
-          <span className={`pill-status ${d.live ? "on" : "off"}`}><i />{d.live ? "Live" : d.status_word}</span>
-          <div className="small muted">{d.live
-            ? <>Read from your chart {d.age_seconds != null && d.age_seconds < 2 ? "just now" : `${Math.round(d.age_seconds ?? 0)} s ago`}</>
-            : d.at ? <>Last price read at {clock(d.at, true)}</> : <>No price read yet</>}</div>
+          {closed && !d.live
+            ? <><span className="pill-status off"><i />Futures {ms.data.label.toLowerCase()}</span>
+                <div className="small">{ms.data.opens_text} · <Countdown to={ms.data.next_open} /></div>
+                <div className="small muted">{d.at ? <>Last price read at {clock(d.at, true)}. </> : null}Prices move again when futures reopen.</div></>
+            : <><span className={`pill-status ${d.live ? "on" : "off"}`}><i />{d.live ? "Live" : d.status_word}</span>
+                <div className="small muted">{d.live
+                  ? <>Read from your chart {d.age_seconds != null && d.age_seconds < 2 ? "just now" : `${Math.round(d.age_seconds ?? 0)} s ago`}</>
+                  : d.at ? <>Last price read at {clock(d.at, true)}</> : <>No price read yet</>}</div></>}
         </div>
       </div>
       {why && <div className="hero-warn"><b>{why.headline}</b> {why.do}</div>}

@@ -92,6 +92,23 @@ async def quote(symbol: str, m: MarketMonitor = Depends(mon)):
         raise _provider_http(e) from e
 
 
+@router.get("/market/state/{symbol}")
+def market_state(symbol: str, m: MarketMonitor = Depends(mon)):
+    """Is this symbol's market open right now, and when does it open next? (stocks, futures and crypto each have their own hours)"""
+    from ..market_data.hours import WEEKEND_MARKETS, public
+    return {**public(m.market_state(_sym(symbol))), "symbol": _sym(symbol),
+            "open_now": [{"symbol": s, "name": n} for s, n in WEEKEND_MARKETS]}
+
+
+@router.post("/market/view/{symbol}")
+async def market_view(symbol: str, m: MarketMonitor = Depends(mon)):
+    """The chart page calls this every minute so the symbol on screen updates live even if it isn't on a watchlist."""
+    from ..market_data.hours import public
+    sym = _sym(symbol)
+    new = await m.view(sym)
+    return {"symbol": sym, "following": True, "started": new, "market": public(m.market_state(sym))}
+
+
 @router.get("/market/bars/{symbol}")
 async def bars(symbol: str, timeframe: Timeframe = Timeframe.M5,
                days: int = Query(5, ge=1, le=10_000, description="Calendar days back"), m: MarketMonitor = Depends(mon)):

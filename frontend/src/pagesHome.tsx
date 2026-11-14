@@ -4,6 +4,7 @@ import { api, money } from "./lib";
 import { reloadHome, useHome, useUiMode } from "./plain";
 import { LEVEL_CLASS, Term, WhyBlock } from "./simple";
 import { LivePrice } from "./livechart";
+import { Countdown } from "./markethours";
 
 const clock = (iso?: string | null) => { if (!iso) return null; const d = new Date(iso); return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
 
@@ -141,8 +142,8 @@ export function Home() {
         </Row>
 
         <Row n={2} q="What is the market doing?">
-          <div className="big-line">{market.sentence}</div>
-          {market.details?.length > 0 && <ul className="plain-list">{market.details.map((t: string) => <li key={t}>{t}</li>)}</ul>}
+          <div className="big-line">{market.sentence}{market.closed && market.opens_at ? <> <span className="muted small"><Countdown to={market.opens_at} /></span></> : null}</div>
+          {market.details?.length > 0 && <ul className="plain-list">{market.details.map((t: string) => <li key={t}>{t.includes("open Charts") ? <>{t.replace(": open Charts to watch them live.", ":")} <a href="#/chart/BTC-USD">Bitcoin</a> · <a href="#/chart/ETH-USD">Ethereum</a></> : t}</li>)}</ul>}
           {market.source && <div className="small faint">{market.source}{clock(market.as_of) ? ` Read at ${clock(market.as_of)}.` : ""}
             {market.confidence ? <> <Term k="data_confidence">How sure I am about the reading</Term>: {market.confidence}.</> : null}</div>}
           {!market.known && fut && <div className="why-do"><span className="k">What to do</span> {health.level === "bad" && health.do ? health.do : "Connect your chart and turn watching on."} <a href="#/visual">Open my chart</a></div>}

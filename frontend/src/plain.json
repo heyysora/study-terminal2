@@ -55,6 +55,18 @@
  },
  "reasons": [
   [
+   "^Signals disabled: Crypto is shown for watching only",
+   "market",
+   "Crypto is here to watch, not to practice.",
+   "The practice setups are built for stock and futures trading hours."
+  ],
+  [
+   "^Signals disabled: historical: Market closed",
+   "market",
+   "The market is closed, so there's nothing to practice right now.",
+   "Prices start moving again when the market opens. Bitcoin and Ethereum trade all weekend if you want to watch something live."
+  ],
+  [
    "another tab is open",
    "chart",
    "Your browser is showing a different tab, so I'm not looking.",

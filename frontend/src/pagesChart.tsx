@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { OrderTicket } from "./components";
 import { LineChart } from "./livechart";
-import { money, num, useLive, usePoll } from "./lib";
+import { api, money, num, useLive, usePoll } from "./lib";
+import { Countdown, OpenNowChips, useMarketState, useNow } from "./markethours";
 import { Catalysts } from "./pages3";
 import { actionWord, explain, statusWord } from "./plain";
 import { ActionWord, Term, WhyBlock } from "./simple";
@@ -25,8 +26,20 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
   const [ticket, setTicket] = useState<any>(null);
   useEffect(() => { if (routeSym) { setSym(routeSym.toUpperCase()); setInput(routeSym.toUpperCase()); } }, [routeSym]);
   const R = RANGES[range];
-  const an = usePoll(`/analysis/${sym}?timeframes=${R.tf}&chart=${R.tf}&extended=false`, 30000, []);
-  const day5 = usePoll(R.tf === "5Min" ? null : `/analysis/${sym}?timeframes=5Min&chart=5Min&extended=false`, 60000, []);
+  const ms = useMarketState(sym);
+  const st = ms.data;
+  const crypto = st?.kind === "crypto" || /-(USD|USDT|USDC|EUR|GBP)$/.test(sym);
+  const ext = crypto ? "true" : "false";              // crypto trades around the clock: keep every hour, not just stock hours
+  const an = usePoll(`/analysis/${sym}?timeframes=${R.tf}&chart=${R.tf}&extended=${ext}`, 30000, [ext]);
+  const day5 = usePoll(R.tf === "5Min" ? null : `/analysis/${sym}?timeframes=5Min&chart=5Min&extended=${ext}`, 60000, [ext]);
+  // Follow this symbol live (stream + polling) while it's on screen, even if it isn't on a watchlist.
+  useEffect(() => {
+    const ping = () => { api(`/market/view/${encodeURIComponent(sym)}`, { method: "POST" }).catch(() => { /* the chart still loads */ }); };
+    ping();
+    const t = setInterval(ping, 60000);
+    return () => clearInterval(t);
+  }, [sym]);
+  const now = useNow(1000);
   const sg = usePoll(`/signals/${sym}?timeframe=5Min`, 30000, []);
   const ex = usePoll(`/ai/explain/${sym}?timeframe=5Min`, 120000, [sym]);
   const wls = usePoll("/watchlists");
@@ -35,22 +48,44 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
   const bars: any[] = useMemo(() => {
     const all: any[] = an.data?.chart?.bars || [];
     if (R.bars) return all.slice(-R.bars);
+    if (crypto && all.length) {                       // no "trading day" for crypto: 1D = the last 24 hours, 5D = the last 5 days
+      const end = all[all.length - 1].time;
+      return all.filter((b) => b.time > end - (R.days || 1) * 86400);
+    }
     const days = [...new Set(all.map((b) => etDay.format(new Date(b.time * 1000))))];
     const keep = new Set(days.slice(-(R.days || 1)));
     return all.filter((b) => keep.has(etDay.format(new Date(b.time * 1000))));
-  }, [an.data, R]);
+  }, [an.data, R, crypto]);
   const snap5 = (R.tf === "5Min" ? an.data : day5.data)?.snapshots?.["5Min"];
   const prevClose: number | null = snap5?.session?.pdc ?? null;
   const live = L.symbols[sym];
   const lastBar = bars[bars.length - 1];
-  const price: number | null = live?.last?.price ?? lastBar?.close ?? null;
-  const ref: number | null = range === "1D" ? (prevClose ?? bars[0]?.open ?? null) : bars[0]?.open ?? null;
+  const closedNow = !!(st && st.open === false);
+  // official daily closes (the closing auction can differ a little from the last 5-minute bar)
+  const daily = usePoll(closedNow && !crypto ? `/market/bars/${encodeURIComponent(sym)}?timeframe=1Day&days=12` : null, 600000, [closedNow, crypto]);
+  const dBars: any[] = (daily.data?.bars || []).filter((b: any) => b.close);
+  const officialClose: number | null = dBars.length ? dBars[dBars.length - 1].close : null;
+  const officialPrev: number | null = dBars.length > 1 ? dBars[dBars.length - 2].close : null;
+  // When the market is closed the big price is the last real close of the session; a later after-hours trade is shown on its own line.
+  const closeNow: number | null = officialClose ?? lastBar?.close ?? null;
+  const price: number | null = closedNow && !crypto && closeNow != null ? closeNow : live?.last?.price ?? lastBar?.close ?? null;
+  const afterHours: number | null = closedNow && !crypto && closeNow != null && live?.last?.price != null && Math.abs(live.last.price - closeNow) > 0.005 ? live.last.price : null;
+  const ref: number | null = range === "1D" && !crypto ? ((closedNow ? officialPrev : null) ?? prevClose ?? bars[0]?.open ?? null) : bars[0]?.open ?? null;
+  const closed = st && !st.open;
+  const lastDay = lastBar ? new Date(lastBar.time * 1000).toLocaleDateString([], { weekday: "long" }) : "";
   const shown = hover ? hover.price : price;
   const ch = shown != null && ref != null ? shown - ref : null;
   const chPct = ch != null && ref ? (ch / ref) * 100 : null;
   const trend: "up" | "down" | "flat" = ch == null ? "flat" : ch > 0 ? "up" : ch < 0 ? "down" : "flat";
   useEffect(() => { document.documentElement.dataset.trend = trend === "down" ? "down" : "up"; return () => { delete document.documentElement.dataset.trend; }; }, [trend]);
-  const series = useMemo(() => bars.map((b) => [b.time, b.close] as [number, number]), [bars]);
+  const livePx: number | null = live?.last?.price ?? null;
+  const liveT: number | null = live?.last?.ts ? Math.floor(new Date(live.last.ts).getTime() / 1000) : null;
+  const series = useMemo(() => {
+    const out = bars.map((b) => [b.time, b.close] as [number, number]);
+    // the newest live price extends the line between chart refreshes (only while the market is open and on the short ranges)
+    if (livePx != null && liveT != null && out.length && !closed && (range === "1D" || range === "5D") && liveT > out[out.length - 1][0]) out.push([liveT, livePx]);
+    return out;
+  }, [bars, livePx, liveT, closed, range]);
   const label = live?.label || an.data?.data_label;
   const sw = label ? statusWord(label.status) : null;
   const age = label?.age_seconds;
@@ -66,8 +101,9 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
   return (
     <div className="page stock">
       <form className="symbar" onSubmit={(e) => { e.preventDefault(); const s = input.trim().toUpperCase(); if (s) location.hash = `#/chart/${s}`; }}>
-        <input aria-label="Look up a stock" placeholder="Look up a stock, e.g. AAPL" value={input} onChange={(e) => setInput(e.target.value)} />
+        <input aria-label="Look up a stock" placeholder="Look up a stock (AAPL) or crypto (BTC-USD)" value={input} onChange={(e) => setInput(e.target.value)} />
         <div className="pills">{watch.map((w) => <a key={w} className={`chip${w === sym ? " on" : ""}`} href={`#/chart/${w}`}>{w}</a>)}</div>
+        <OpenNowChips current={sym} />
       </form>
 
       <section className={`hero${sw && sw.level !== "ok" ? " not-live" : ""}`} aria-label={`${sym} price`}>
@@ -77,12 +113,20 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
             <div className="hero-price">{shown != null ? money(shown) : "—"}</div>
             <div className={`hero-change ${trend === "up" ? "up" : trend === "down" ? "down" : ""}`}>
               {ch == null ? <span className="muted">Loading…</span> : <>{ch > 0 ? "+" : ch < 0 ? "−" : ""}{money(Math.abs(ch))} ({ch > 0 ? "+" : ch < 0 ? "−" : ""}{num(Math.abs(chPct ?? 0))}%)
-                <span className="muted"> {hover ? (range === "1D" || range === "5D" ? `at ${clock(hover.t)}` : `on ${day(hover.t)}`) : range === "1D" ? (prevClose != null ? "today" : "since the open") : `past ${R.label}`}</span></>}
+                <span className="muted"> {hover ? (range === "1D" || range === "5D" ? `at ${clock(hover.t)}` : `on ${day(hover.t)}`)
+                  : range === "1D" ? (crypto ? "past 24 hours" : closed ? `on ${lastDay}` : prevClose != null ? "today" : "since the open") : `past ${R.label}`}</span></>}
             </div>
+            {afterHours != null && closeNow != null && !hover && <div className="small muted">After hours: {money(afterHours)} ({afterHours >= closeNow ? "+" : "−"}{num(Math.abs(((afterHours - closeNow) / closeNow) * 100))}% from the close)</div>}
           </div>
           <div className="hero-status">
-            {sw && <span className={`pill-status ${sw.level === "ok" ? "on" : "off"}`}><i />{sw.level === "ok" ? "Updating" : sw.word}</span>}
-            <div className="small muted">Free prices from Yahoo Finance{age != null ? `, ${age < 90 ? "about a minute" : `${Math.round(age / 60)} min`} behind` : ", can be a little behind"}</div>
+            {closed
+              ? <><span className="pill-status off"><i />{st.label}</span>
+                  <div className="small">{st.opens_text} · <Countdown to={st.next_open} /></div>
+                  <div className="small muted">Showing the last real price{lastBar ? ` (${lastDay})` : ""}. It starts moving again when the market opens.</div></>
+              : <>{sw && <span className={`pill-status ${sw.level === "ok" ? "on" : "off"}`}><i />{sw.level === "ok" ? "Updating" : sw.word}</span>}
+                  <div className="small muted">{crypto ? "Trades 24/7. " : ""}Free prices from Yahoo Finance{live?.last?.received_at
+                    ? `, last update ${Math.max(0, Math.round((now - new Date(live.last.received_at).getTime()) / 1000))} s ago`
+                    : age != null ? `, ${age < 90 ? "about a minute" : `${Math.round(age / 60)} min`} behind` : ", can be a little behind"}</div></>}
           </div>
         </div>
         {an.error ? <div className="hero-warn">{an.error}</div> : !bars.length ? <div className="live-chart empty muted">Loading the chart…</div> :
@@ -93,7 +137,7 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
             <span className="sep" />
             <button className={mode === "candles" ? "on" : ""} aria-pressed={mode === "candles"} onClick={() => setMode(mode === "line" ? "candles" : "line")}>Candles</button>
           </div>
-          {range === "1D" && prevClose != null && <span className="small muted">Dotted line: yesterday's close ({money(prevClose)})</span>}
+          {range === "1D" && !crypto && prevClose != null && <span className="small muted">Dotted line: the previous close ({money(prevClose)})</span>}
         </div>
       </section>
 
@@ -103,7 +147,8 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
           <div className="a">
             <div className="verdict"><ActionWord a={act} big /><span className="muted">5-minute chart</span></div>
             <WhyBlock why={why} />
-            {isIdea && <div className="plan"><div className="plan-title">The practice plan</div>
+            {crypto && <p className="small muted">Crypto is here to watch. The practice setups are built for stock and futures trading hours.</p>}
+            {!crypto && isIdea && <div className="plan"><div className="plan-title">The practice plan</div>
               <dl>
                 <div><dt><Term k="entry" /></dt><dd>{money(best.trigger)}</dd></div>
                 <div><dt><Term k="stop" /></dt><dd>{money(best.stop)}</dd></div>
@@ -111,11 +156,11 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
               </dl>
               <button className="primary" onClick={() => setTicket(best)}>Practice this trade</button>
             </div>}
-            {!isIdea && <button onClick={() => setTicket({})}>Practice a trade anyway</button>}
+            {!crypto && !isIdea && <button onClick={() => setTicket({})}>Practice a trade anyway</button>}
             {ticket && <div className="plan"><OrderTicket symbol={sym} prefill={ticket.trigger ? ticket : null} /></div>}
           </div>
         </section>
-        <section className="qa" aria-label="Key prices">
+        {!crypto && <section className="qa" aria-label="Key prices">
           <div className="q"><h2>Key prices</h2></div>
           <div className="a">
             <dl className="facts">
@@ -127,7 +172,7 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
               {se.pdh != null && <div><dt>Yesterday's high / low</dt><dd>{money(se.pdh)} / {money(se.pdl)}</dd></div>}
             </dl>
           </div>
-        </section>
+        </section>}
       </div>
 
       <section className="qa" aria-label="What's happening">

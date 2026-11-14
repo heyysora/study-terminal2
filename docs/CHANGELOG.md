@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.6 (2026-11-14)
+
+Prices that keep moving where the market really is moving, and honest "closed" screens where it isn't. No trading changes.
+
+- **Each market by its own hours.** Stocks follow the stock exchange; futures follow CME Globex (Sunday 6 PM to Friday 5 PM ET,
+  so they now count as open on weekday evenings); crypto is open 24/7. Before, everything used stock-market hours, so Bitcoin
+  was labelled "Market closed" on weekends even though its price was current.
+- **Watch something live at the weekend.** Charts has **Bitcoin** and **Ethereum** chips ("Open 24/7"). Their prices stream
+  live from Yahoo's free feed (unofficial, can lag a little), the big price and the line update as it goes, and 1D means the
+  last 24 hours. Crypto is watch-only: no practice trades or setups for it.
+- **Whatever is on the Charts page updates live**, even if it isn't on your watchlist (it's followed while it's on screen).
+- **Closed markets say so plainly.** Charts shows the official close, the after-hours price on its own line, and a live
+  countdown to the open. My chart (TopstepX) shows "Futures closed for the weekend, opens Sun 6:00 PM ET" with a countdown
+  instead of looking frozen. Home says the market is closed, gives Friday's real result (from daily bars) and the opening time.
+- Prices are never invented: when a market is closed its last real price stays on screen, marked with when it was.
+
 ## 0.13.5 (2026-11-13)
 
 Finishes recovery and reliability so ordinary problems can be fixed from inside the app. No trading changes.

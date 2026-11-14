@@ -27,7 +27,7 @@ def _hhmm(iso: str | None) -> str | None:
 # ---------------------------------------------------------------- 1. health
 
 def health(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | None, automation: dict | None, profiles: int,
-           backup: dict | None, engine_error: str | None = None, watchdog: dict | None = None) -> dict:
+           backup: dict | None, engine_error: str | None = None, watchdog: dict | None = None, hours: dict | None = None) -> dict:
     checks: list[dict] = []
     if engine_error:
         checks.append(_check("engine", "Study Terminal", "bad", "Part of Study Terminal failed to answer.",
@@ -58,6 +58,8 @@ def health(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | Non
             w = max(wc, key=lambda c: LEVEL_ORDER[lvl_of[c["level"]]])
             name = (w.get("chart") or {}).get("name") or "your chart"
             text = f"I can see {name} and it's updating." if w["code"] == "HEALTHY" else w["reason"]
+            if w["code"] == "HEALTHY" and hours and not hours.get("open"):
+                text = f"{_closed_sentence('Futures', hours)} {name} is connected and will move again then."
             ck = _check("chart", "Your chart", lvl_of[w["level"]], text, w["do"] if w["code"] != "HEALTHY" else "",
                         "#/visual" if w["code"] != "HEALTHY" else None, "Check my chart" if w["code"] != "HEALTHY" else None)
             ck["detail"] = "; ".join(w.get("details") or []) or None
@@ -69,7 +71,8 @@ def health(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | Non
                 ps = plain_status(c.get("status"))
                 name = (c.get("profile") or {}).get("name") or "your chart"
                 if ps["level"] == "ok":
-                    ck = _check("chart", "Your chart", "ok", f"I can see {name} and it's updating.")
+                    ck = _check("chart", "Your chart", "ok", f"I can see {name} and it's updating." if not (hours and not hours.get("open"))
+                                else f"{_closed_sentence('Futures', hours)} {name} is connected and will move again then.")
                 else:
                     r = plain_reason(f"{str(c.get('status', '')).upper()}: {c.get('reason') or ''}")
                     ck = _check("chart", "Your chart", "bad", r["headline"], r["do"], "#/visual", "Check my chart")
@@ -81,6 +84,9 @@ def health(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | Non
         m = monitor or {}
         if not m.get("monitoring_enabled", True):
             checks.append(_check("prices", "Prices", "off", "Price checking is paused.", "Turn it back on in Settings."))
+        elif m.get("healthy") and hours and not hours.get("open"):
+            checks.append(_check("prices", "Prices", "ok", _closed_sentence("The stock market", hours)
+                                 + " Prices shown are from the last close; Bitcoin and Ethereum keep trading."))
         elif m.get("healthy"):
             checks.append(_check("prices", "Prices", "ok", "Stock prices are arriving."))
         else:
@@ -110,7 +116,31 @@ def _live_chart(visual: dict | None) -> dict | None:
     return None
 
 
-def market(*, trades: str, visual: dict | None, signals_market: dict | None) -> dict:
+def _closed_sentence(what: str, hours: dict) -> str:
+    when = " for the weekend" if "weekend" in (hours.get("label") or "").lower() else ""
+    are = "are" if what in ("Futures",) else "is"
+    return f"{what} {are} closed{when}." + (f" {hours['opens_text']}." if hours.get("opens_text") else "")
+
+
+def _closed_market(trades: str, hours: dict, last: dict | None) -> dict:
+    """The market is shut (weekend, holiday, overnight for stocks): say so, give the last real session's result, and say when
+    it opens. Nothing is made up: no last result is shown if it isn't known."""
+    what = "Futures" if trades == "futures" else "The stock market"
+    details = []
+    if last and last.get("change_pct") is not None:
+        ch = last["change_pct"]
+        moved = f"finished {'up' if ch > 0 else 'down'} {abs(ch):.2f}%" if abs(ch) >= 0.05 else "finished about flat"
+        details.append(f"{last['day']} it {moved} ({last['name']}, closed at {last['close']:,.2f}).")
+    details.append("Bitcoin and Ethereum trade all weekend: open Charts to watch them live.")
+    return {"known": True, "closed": True, "sentence": _closed_sentence(what, hours), "details": details,
+            "opens_at": hours.get("next_open"), "source": "From free market prices (Yahoo Finance), which can be a little behind.",
+            "as_of": None}
+
+
+def market(*, trades: str, visual: dict | None, signals_market: dict | None, hours: dict | None = None,
+           last_session: dict | None = None) -> dict:
+    if hours and not hours.get("open"):
+        return _closed_market(trades, hours, last_session)
     if trades == "futures":
         c = _live_chart(visual)
         if not c:
@@ -306,10 +336,10 @@ def recent(decisions: list[dict], n: int = 3) -> list[dict]:
 def build(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | None, automation: dict | None, profiles: int,
           futures_account: dict | None, stock_account: dict | None, decisions: list[dict], signals: dict | None, backup: dict | None,
           trades_chosen: bool, chart_seen: bool, setup_dismissed: bool, ui_mode: str, point_value_of=None, engine_error: str | None = None,
-          watchdog: dict | None = None) -> dict:
+          watchdog: dict | None = None, hours: dict | None = None, last_session: dict | None = None) -> dict:
     h = health(trades=trades, db_ok=db_ok, monitor=monitor, visual=visual, automation=automation, profiles=profiles, backup=backup,
-               engine_error=engine_error, watchdog=watchdog)
-    mk = market(trades=trades, visual=visual, signals_market=(signals or {}).get("market"))
+               engine_error=engine_error, watchdog=watchdog, hours=hours)
+    mk = market(trades=trades, visual=visual, signals_market=(signals or {}).get("market"), hours=hours, last_session=last_session)
     dc = decision(trades=trades, visual=visual, decisions=decisions, signals_summary=(signals or {}).get("summary"),
                   point_value_of=point_value_of)
     rk = risk(trades=trades, futures_account=futures_account, stock_account=stock_account)
@@ -326,5 +356,5 @@ def build(*, trades: str, db_ok: bool, monitor: dict | None, visual: dict | None
         "health": h, "market": mk, "decision": dc, "risk": rk, "setup": sg,
         "next": next_step(trades=trades, health_=h, setup=sg, risk_=rk, decision_=dc, automation=automation),
         "recent": recent(decisions) if trades == "futures" else [],
-        "backup": backup, "watchdog": watchdog,
+        "backup": backup, "watchdog": watchdog, "hours": hours,
     }
