@@ -144,7 +144,7 @@ From the investigate list: natural-language summaries and daily/weekly reports b
 | C Data integrity | **PASS for classification** | Every source has a status from real checks (`DATA_VALIDATION_REPORT.md`) | Stocks and futures prices have no independent confirmation; TopstepX chart has no real readings yet |
 | D Trading safety | **PASS** | Controller tests; bad data → NO TRADE through the running app (simulated sources) | Not yet exercised by a real outage on Windows |
 | E Strategy evidence | **FAIL** | Research and evidence tiers exist | No strategy has forward paper evidence in sufficient quantity; maturity labels and drift rules not built |
-| F Windows reliability | **PARTIAL** | 39 install/upgrade/recovery checks + data-health drill on GitHub Windows | Start with Windows, sleep/wake, long-duration runs, uninstall test; nothing verified on your PC |
+| F Windows reliability | **PARTIAL** | 54 of 54 checks on GitHub Windows for 0.16.0 (39 install/upgrade/recovery + 15 data-check drill) | Start with Windows, sleep/wake, long-duration runs, uninstall test; nothing verified on your PC |
 | G iPhone functionality | **FAIL** | – | Not started; needs the notification decision |
 | H Security | **PARTIAL** | Safety audit tests, ccxt lock, no secrets in help files | Threat model, dependency scan, unsigned installer |
 | I Recovery | **PASS on GitHub Windows** | Backup, restore, rescue, rollback drill | Not run on your PC |

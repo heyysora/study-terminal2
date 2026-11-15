@@ -1,5 +1,15 @@
 # Test results (0.16.0, 2026-11-14)
 
+## 0.16.0 (data validation, safety controller, TopstepX automatic validation)
+
+Each line says where it ran and whether the data was real or simulated.
+
+- SIMULATED TEST ONLY, Linux, Python 3.11 and 3.13: 587 passed, 0 failed on each (35 new cases: 34 in `test_datahealth.py`, 1 in `test_integration.py`). These prove the software handles corrupted, stale, conflicting and missing data correctly. They are not evidence about any live source.
+- VERIFIED WITH LIVE DATA, Linux build machine, 2026-11-14 (Saturday; US stock and futures markets closed): crypto exchanges VERIFIED (three exchanges within 0.06–0.41%), Solana token data VERIFIED (DexScreener vs Jupiter and GeckoTerminal; token identity vs the chain), stock prices HEALTHY, futures prices DELAYED, Solana RPC HEALTHY, FOMO and pump.fun direct UNSUPPORTED, TopstepX chart UNVERIFIED.
+- VERIFIED ON WINDOWS (GitHub Windows Server 2025, run 43673137873, installed app, live sources): full Windows test suite passed; 54 of 54 reliability checks passed (the 39 install, upgrade and recovery checks plus 15 data-check drill results). From that machine: crypto VERIFIED (largest gap 0.18%), Solana token data VERIFIED, stocks HEALTHY, futures DELAYED, Solana RPC HEALTHY, FOMO and pump.fun UNSUPPORTED, TopstepX UNVERIFIED; safety controller matched the data; evidence stored with versions and kept across a restart.
+- UNVERIFIED: freshness and "still updating" for stocks and futures during market hours (markets were closed for every run); a real outage on Windows; anything on your PC.
+- BLOCKED on your PC: TopstepX chart validation (needs a logged-in chart in Edge).
+
 ## 0.15.0 (dark look, crypto exchange prices, memecoin exit plans and journal)
 
 - Here (Linux, Python 3.11 and 3.13): 552 passed, 0 failed on each. (One port-discovery test failed once when both suites ran at the same moment and grabbed the same ports; it passes on its own and in a single run.)
