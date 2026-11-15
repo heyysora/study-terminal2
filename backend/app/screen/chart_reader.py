@@ -440,6 +440,15 @@ def read_chart(img: np.ndarray, profile: ChartProfile, captured_at: datetime, to
         r.ok, r.problems = False, [f"Possible login/sensitive screen ('{auth}'); nothing is read or kept."]
         return r
     r.instrument, p1 = read_instrument(tokens, h, profile)
+    from .platforms import topstepx_title
+    tab = topstepx_title(title)                # TopstepX names its browser tab after the contract: exact text, no picture-reading needed
+    if tab and tab["root"] in ROOTS:
+        weak = r.instrument.value is None or r.instrument.cls != TEXT or r.instrument.confidence < 0.6
+        if weak and (profile.root == "auto" or profile.root == tab["root"]):
+            r.instrument, p1 = Observation(tab["root"], TEXT, 0.9, f"browser tab title '{tab['contract']}'"), []
+        elif r.instrument.value is not None and r.instrument.value != tab["root"]:
+            p1 = p1 + [f"Instrument conflict: the chart reads {r.instrument.value} but the browser tab is titled {tab['contract']}."]
+            r.instrument = Observation(r.instrument.value, r.instrument.cls, min(r.instrument.confidence, 0.2), r.instrument.source + " (contradicted by the tab title)")
     r.timeframe, p2 = read_timeframe(tokens, h, profile)
     r.problems += p1 + p2
     try:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.1 (2026-11-14)
+
+Fix: Study Terminal couldn't find or read the TopstepX chart in Edge.
+
+- Cause: the app looked for a browser tab with "TopstepX" in its name. The real TopstepX tab is named after the contract and its price, for example "NQZ26 $27,927.25 ▼ -1.61%", with no "TopstepX" in it. So the window was never found, and a privacy check that only lets chart-looking tabs through would have refused it as well. Earlier tests used a made-up tab name.
+- Now a tab named as a known futures contract followed by a dollar price is recognised as TopstepX: when finding the window, in the window list (marked with a star), and in the privacy check. Bank, mail and other tabs are still refused.
+- The contract is taken from the tab name when the chart header can't be read, and a mismatch between the two is flagged.
+- Tested with the exact tab name reported from a real PC. Not yet confirmed on that PC with this version.
+
 ## 0.16.0 (2026-11-14)
 
 Study Terminal now checks its own data, by itself, all the time, and stops trade ideas when the data can't be trusted.

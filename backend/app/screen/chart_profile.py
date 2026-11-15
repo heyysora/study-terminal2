@@ -85,7 +85,11 @@ class ChartProfile:
     def matches(self, title: str | None, process: str | None) -> bool:
         if not title:
             return False
-        ok = self.window_title_contains.lower() in title.lower() if self.window_title_contains else True
+        want = (self.window_title_contains or "").lower()
+        ok = want in title.lower() if want else True
+        if not ok and any(w in want for w in ("topstep", "projectx")):
+            from .platforms import topstepx_title          # the real TopstepX tab is titled "<contract> $<price> ...", without its name
+            ok = topstepx_title(title) is not None
         if ok and self.window_process:
             ok = (process or "").lower() == self.window_process.lower()
         return ok

@@ -122,6 +122,8 @@ def parse_number(s: str) -> float | None:
 
 
 TITLE_PATTERNS = [
+    # TopstepX tab: "NQZ26 $27,927.25 ▼ -1.61% - Personal - Microsoft Edge" (contract, $ price; no platform name in the title)
+    ("topstepx", re.compile(r"^\s*([A-Z0-9]{1,4}[FGHJKMNQUVXZ]\d{1,2})\s+\$\s?([\d,]+(?:\.\d+)?)(?=\s|$)")),
     # TradingView tab: "TSLA 359.40 ▲ +4.61% Unnamed - Google Chrome" ; "NASDAQ:TSLA ..."
     ("tradingview", re.compile(r"^(?:[A-Z_]+:)?([A-Z][A-Z0-9.!\-]{0,9})\s+([\d,]+\.\d+)\s*[▲▼+\-−]")),
     # generic "TSLA - something" or "TSLA | ..."
@@ -132,6 +134,9 @@ TITLE_PATTERNS = [
 def guess_platform(title: str, process: str | None) -> str:
     t, p = (title or "").lower(), (process or "").lower()
     if "topstepx" in t or "projectx" in t or "topstepx" in p:   # TopstepX hosts TradingView charts: check it first
+        return "topstepx"
+    from .platforms import topstepx_title
+    if topstepx_title(title):                                    # its real tab title is "<contract> $<price> ..." with no name in it
         return "topstepx"
     if "tradingview" in t or "tradingview" in p or "unnamed" in t:
         return "tradingview"
@@ -190,8 +195,10 @@ def recognize(title: str, header_tokens: list[Token], platform: str) -> Recognit
             fut = adapter.futures_symbol(m.group(1))
             if fut:
                 r.asset_class, r.futures = "futures", fut.to_dict()
-            r.ticker, r.ticker_confidence, r.ticker_source = m.group(1), 0.95 if name == "tradingview" else 0.6, f"window title ({name})"
-            if name == "tradingview":
+            if name == "topstepx" and not fut:
+                continue                                          # contract-shaped text that isn't a known futures contract
+            r.ticker, r.ticker_confidence, r.ticker_source = m.group(1), 0.95 if name in ("tradingview", "topstepx") else 0.6, f"window title ({name})"
+            if name in ("tradingview", "topstepx"):
                 r.title_price = parse_number(m.group(2))
             break
     # timeframe + ticker from header text

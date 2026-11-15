@@ -1,4 +1,4 @@
-# Known limitations (0.16.0)
+# Known limitations (0.16.1)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -92,7 +92,7 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 ## AI
 - Claude and Ollama wording were not tested (no key or local model in the build environment). The built-in mentor works offline.
 
-## Crypto exchange prices (0.16.0)
+## Crypto exchange prices (0.16.1)
 
 - Eight coins only, US-dollar pairs, from Kraken (fallback Coinbase, then Bitstamp). Other coins use Yahoo Finance as before.
 - The 24-hour change is worked out from hourly candles, so it can differ by a fraction of a percent from an exchange's own figure.
@@ -100,7 +100,7 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - ccxt is bundled locked to public prices. This was tested here and is checked by the installer's self-test; it has not been tested on your PC.
 - Memecoin stage (starting curve or graduated) comes from which exchange DexScreener lists the token on. There is no "percent to graduation" figure because public sources disagree on the threshold.
 
-## Data validation (0.16.0)
+## Data validation (0.16.1)
 
 - Stock and futures prices come from one free source. They can pass every check and still be wrong in a way only a second source would show. They are labelled Healthy or Delayed, never Verified.
 - Free futures data runs 10 to 15 minutes behind. TopstepX readings are compared against it about 20 minutes later, for the same minute.

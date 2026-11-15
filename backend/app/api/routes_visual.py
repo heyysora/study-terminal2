@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from ..screen import capture as cap
 from ..screen.chart_profile import ChartProfile
+from ..screen.platforms import topstepx_title
 from ..screen.vision import is_browser, title_looks_like_trading
 
 router = APIRouter(prefix="/api/visual", tags=["visual"])
@@ -48,7 +49,7 @@ def edge_first(targets: list[dict]) -> dict:
         if t.get("kind") != "window":
             continue
         out.append({**t, "is_edge": (t.get("process") or "").lower() == "msedge.exe",
-                    "looks_like_topstepx": "topstep" in (t.get("title") or "").lower()})
+                    "looks_like_topstepx": "topstep" in (t.get("title") or "").lower() or topstepx_title(t.get("title")) is not None})
     out.sort(key=lambda x: (not (x["is_edge"] and x["looks_like_topstepx"]), not x["is_edge"], not x["looks_like_topstepx"], x.get("title") or ""))
     return {"windows": out}
 

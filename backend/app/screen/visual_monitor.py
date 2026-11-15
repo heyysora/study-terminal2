@@ -348,8 +348,9 @@ class VisualMonitor:
         session_open = clock.window_at(now) is not None
         if not self._resolve_window(rt):
             self._set(rt, "disconnected", f"No open window matches '{p.window_title_contains}'"
-                                          f"{' in ' + p.window_process if p.window_process else ''}. Open TopstepX in Microsoft Edge "
-                                          "(or re-select the window). Monitoring has stopped producing observations.")
+                                          f"{' in ' + p.window_process if p.window_process else ''}. Open your TopstepX chart in Microsoft Edge and keep its tab "
+                                          "in front (the tab is named after the contract and price, like 'NQZ26 $27,927.25'), "
+                                          "or re-select the window. Monitoring has stopped producing observations.")
             return self._after(rt, now, None)
         from .vision import is_browser, title_looks_like_trading
         if is_browser(rt.process) and not title_looks_like_trading(rt.title or "", rt.process):
