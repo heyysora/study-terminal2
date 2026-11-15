@@ -1,5 +1,11 @@
 # Test results (0.15.0, 2026-11-14)
 
+## 0.15.0 (dark look, crypto exchange prices, memecoin exit plans and journal)
+
+- Here (Linux, Python 3.11 and 3.13): 552 passed, 0 failed on each. (One port-discovery test failed once when both suites ran at the same moment and grabbed the same ports; it passes on its own and in a single run.)
+- GitHub Windows Server 2025, run 43669539846: full test suite passed; packaged self-test reports "crypto price library read-only"; reliability 39/39 checks passed, including upgrade from 0.14.1 and the recovery drill.
+- Your PC: not tested yet.
+
 ## 0.14.1 (design-only release)
 
 - Here (Linux, Python 3.11): 538 passed, 0 failed.
