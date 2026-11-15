@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -407,3 +408,21 @@ def manage_position(pos: dict, ff: FeatureFrame, live_price: float) -> dict:
     else:
         res["reasons"].append("Original idea still intact: no invalidation signs.")
     return res
+
+
+def close_reminder(symbols: list[str], now: datetime, flat_by: str = "15:55", regular_session: bool = True) -> dict | None:
+    """Ten minutes before the planned flat time on a trading day, remind about open practice day trades. None otherwise.
+    Only a reminder: nothing is closed for you."""
+    if not symbols or not regular_session:
+        return None
+    from zoneinfo import ZoneInfo
+    et = now.astimezone(ZoneInfo("America/New_York"))
+    h, m = (int(x) for x in flat_by.split(":"))
+    flat = et.replace(hour=h, minute=m, second=0, microsecond=0)
+    if not (flat - timedelta(minutes=10) <= et < et.replace(hour=16, minute=0, second=0, microsecond=0)):
+        return None
+    names = ", ".join(sorted(symbols)[:5]) + ("..." if len(symbols) > 5 else "")
+    when = f"{h % 12 or 12}:{m:02d} PM" if h >= 12 else f"{h}:{m:02d} AM"
+    return {"key": f"close|{et.date().isoformat()}", "title": f"Market closes at 4:00 PM - {len(symbols)} practice trade(s) open",
+            "body": f"Open: {names}. Day trades are planned to be closed by {when}. A stop is a plan, not a guarantee: "
+                    "overnight news can open the price past it."}

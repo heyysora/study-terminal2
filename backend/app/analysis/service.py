@@ -50,7 +50,8 @@ class AnalysisService:
             if tf != Timeframe.D1:
                 bars = [b for b in bars if b.ts + timedelta(seconds=tf.seconds) <= now]  # closed bars only
             bars, report = validate_bars(bars, tf.seconds if tf != Timeframe.D1 else None)
-            ff = await asyncio.to_thread(build, bars, tf)
+            from ..market_data.hours import asset_kind
+            ff = await asyncio.to_thread(build, bars, tf, asset_kind(symbol) == "crypto")
             ff.notes = list(notes) + ff.notes
             ff.quality = report.to_dict()
             ff.provider = self.provider.info.name

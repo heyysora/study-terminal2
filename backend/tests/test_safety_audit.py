@@ -52,6 +52,7 @@ NETWORK_FILES = {
     "market_data/providers/yahoo_stream.py": "free Yahoo Finance price stream",
     "news/econ_data.py": "free U.S. Bureau of Labor Statistics data",
     "news/sources.py": "free news and public economic calendars",
+    "memecoins/sources.py": "read-only memecoin data: DexScreener prices and Solana public chain data (no wallet, no signing)",
 }
 
 
@@ -211,3 +212,18 @@ async def test_limits_and_modes_are_identical_after_restart(make_app):
     _, c2 = await start()
     assert (await c2.get("/api/futures/info")).json()["personal"] == before
     assert (await c2.get("/api/futures/automation")).json()["live"]["locked"] is True
+
+
+def test_memecoin_code_cannot_sign_or_send_transactions():
+    """Study Terminal practises memecoins only: no wallet, no key, no transaction can exist in its code."""
+    import re
+    root = Path(__file__).resolve().parents[1] / "app"
+    banned = re.compile(r"sendTransaction|sendRawTransaction|simulateTransaction|requestAirdrop|\bKeypair\b|private_?key|secret_?key|"
+                        r"seed ?phrase|mnemonic|from_base58|solders|solana\.rpc|anchorpy|\bsign\(", re.I)
+    for f in list((root / "memecoins").glob("*.py")) + [root / "api" / "routes_meme.py"]:
+        code = f.read_text(encoding="utf-8")
+        hits = [m.group(0) for m in banned.finditer(code)]
+        assert not hits, f"{f.name} mentions {hits}"
+    rpc_methods = set(re.findall(r'_rpc\("([A-Za-z]+)"', (root / "memecoins" / "sources.py").read_text(encoding="utf-8")))
+    assert rpc_methods <= {"getAccountInfo", "getTokenLargestAccounts", "getMultipleAccounts"}, rpc_methods     # read-only calls
+

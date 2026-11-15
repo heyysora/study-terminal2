@@ -5,6 +5,7 @@ import { reloadHome, useHome, useUiMode } from "./plain";
 import { LEVEL_CLASS, Term, WhyBlock } from "./simple";
 import { LivePrice } from "./livechart";
 import { Countdown } from "./markethours";
+import { OddsCheck } from "./odds";
 
 const clock = (iso?: string | null) => { if (!iso) return null; const d = new Date(iso); return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
 
@@ -108,6 +109,8 @@ export function Home() {
               <div><dt><Term k="contract">Contracts</Term></dt><dd>{decision.plan.contracts}</dd></div>
             </dl>
             <div className="small faint">{decision.plan.note}{decision.plan.cancelled_if ? ` The plan is cancelled if: ${decision.plan.cancelled_if}` : ""}</div>
+            {decision.contract && decision.plan.take_gain != null &&
+              <OddsCheck symbol={decision.contract} direction={decision.plan.direction} entry={decision.plan.start_price} stop={decision.plan.exit_if_wrong} target={decision.plan.take_gain} />}
           </div>}
           <div className="small muted">{decision.note}{decision.confidence ? ` Chart reading: ${decision.confidence}. ${decision.confidence_note}` : ""}</div>
         </Row>

@@ -86,6 +86,12 @@ class RiskConfig:
     require_stop: bool = True
     max_consecutive_losses: int = 3      # losing trades in a row today before new entries are blocked
     max_exposure_pct: float = 100.0      # total position value as % of equity
+    # Day-trading discipline (from the day-trader checklist): a warning by default; a hard block only if you set a limit.
+    warn_trades_per_day: int = 3          # warn on the next new trade once this many were started today
+    max_trades_per_day: int | None = None # block new trades after this many today (off unless set)
+    warn_entries_after: str = "15:30"     # New York time: warn that there's little time left to be flat by the close
+    no_new_entries_after: str | None = None  # block new trades after this time (off unless set)
+    flat_by: str = "15:55"                # day trades are planned to be closed by this time
 
 
 class OrderRequest(BaseModel):
@@ -340,6 +346,13 @@ class PaperEngine:
         start = now_et.date() - timedelta(days=now_et.weekday()) if days == 7 else now_et.date()
         return sum(f.realized_pnl - f.commission for f in self.fills if f.ts.astimezone(ET).date() >= start)
 
+    def trades_started_today(self, now: datetime | None = None) -> int:
+        """Round-trip trades opened today (New York date), open or closed."""
+        from .trades import round_trips
+
+        today = (now or datetime.now(timezone.utc)).astimezone(ET).date()
+        return sum(1 for t in round_trips(self.fills) if t.opened_at.astimezone(ET).date() == today)
+
     def consecutive_losses_today(self) -> int:
         """Losing round-trip trades in a row today (a trade with several partial exits counts once)."""
         from .trades import round_trips
@@ -502,6 +515,20 @@ class PaperEngine:
         if s["daily_loss_limit_hit"]:
             p.errors.append(f"Daily loss limit reached (day P&L ${s['day_pnl']:,.2f}, limit -${s['daily_loss_limit']:,.2f}). "
                             "New entries are disabled until tomorrow. Consider stopping for the day.")
+        started = self.trades_started_today(now)
+        if self.risk.max_trades_per_day and started >= self.risk.max_trades_per_day:
+            p.errors.append(f"You've started {started} trades today (your limit is {self.risk.max_trades_per_day}). "
+                            "New entries are off until tomorrow.")
+        elif self.risk.warn_trades_per_day and started >= self.risk.warn_trades_per_day:
+            p.warnings.append(f"This would be trade #{started + 1} today. Most overtrading starts here; your usual limit is "
+                              f"{self.risk.warn_trades_per_day}.")
+        hhmm = now.astimezone(ET).strftime("%H:%M")
+        if self.risk.no_new_entries_after and hhmm >= self.risk.no_new_entries_after:
+            p.errors.append(f"No new trades after {self.risk.no_new_entries_after} New York time (your setting). "
+                            f"Day trades are meant to be closed by {self.risk.flat_by}.")
+        elif self.risk.warn_entries_after and self.risk.warn_entries_after <= hhmm < "16:00":
+            p.warnings.append(f"It's {hhmm} New York time. A day trade started now has little time to work before you'd close it "
+                              f"by {self.risk.flat_by}.")
         new_symbol = req.symbol not in self.positions
         pending_new = {o.symbol for o in self.orders.values()
                        if o.status == OrderStatus.OPEN and o.role == OrderRole.ENTRY and o.symbol not in self.positions}

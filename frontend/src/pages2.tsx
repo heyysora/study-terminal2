@@ -275,10 +275,22 @@ export function Settings() {
       {saved && <div className="note">{saved}</div>}
       <div className="cols c-2">
         <Panel title="Your data" sub="backups, restore, and a help file to send if something goes wrong"><YourData /></Panel>
+        <Panel title="Memecoins (practice)" sub="pretend money; Study Terminal never holds a wallet">
+          <div className="form">{n("memecoins.start_usd", "Practice account starts with ($)")}{n("memecoins.max_trade_pct", "Max per buy (% of account)")}
+            {n("memecoins.fee_pct", "Assumed trading fee (%)")}{n("memecoins.network_fee_usd", "Assumed network fee per trade ($)")}
+            <label className="f">Your Solana RPC address (optional)<input type="url" placeholder="https://… (free from Helius or Chainstack)" value={v["memecoins.rpc_url"] ?? ""}
+              onChange={(e) => setV({ ...v, "memecoins.rpc_url": e.target.value })} onBlur={() => save({ "memecoins.rpc_url": v["memecoins.rpc_url"] || "" })} /></label></div>
+          <p className="small muted" style={{ marginTop: 6 }}>The free public Solana service often refuses the "biggest holders" check. A free RPC address of your own (no payment, just a sign-up) makes it work. It's only used to read public data.</p>
+        </Panel>
         <Panel title="Risk limits" sub="applied immediately to practice trading">
           <div className="form">{n("risk.max_per_trade_pct", "Max risk per trade (%)")}{n("risk.max_daily_loss_pct", "Max daily loss (%)")}{n("risk.max_open_positions", "Max open positions", "1")}
             {n("risk.min_reward_risk", "Preferred reward:risk")}{n("risk.max_consecutive_losses", "Losses in a row before pausing", "1")}{n("risk.max_exposure_pct", "Max exposure (% of equity)")}</div>
           <div style={{ marginTop: 10 }}>{b("risk.require_stop", "Every entry needs a stop loss")}</div>
+          <div className="form" style={{ marginTop: 10 }}>{n("risk.max_trades_per_day", "Stop new trades after this many per day (optional)", "1")}
+            <label className="f">No new trades after (New York time, optional)<input type="time" value={v["risk.no_new_entries_after"] ?? ""}
+              onChange={(e) => setV({ ...v, "risk.no_new_entries_after": e.target.value || null })} onBlur={() => save({ "risk.no_new_entries_after": v["risk.no_new_entries_after"] || null })} /></label></div>
+          <p className="small muted" style={{ marginTop: 6 }}>Left empty, these only warn you: from your 4th trade of the day (the journal's limit) and after 3:30 PM.
+            Set them to make them hard stops. Day trades are planned to be closed by 3:55 PM; you get a reminder at 3:45 PM if any are open.</p>
           <p className="small muted" style={{ marginTop: 8 }}>Empty fields use the defaults from your configuration (0.5% per trade, 2% per day, 3 positions, 2:1).</p>
         </Panel>
         <Panel title="Practice account settings (stocks)">

@@ -7,6 +7,8 @@ import { Countdown, OpenNowChips, useMarketState, useNow } from "./markethours";
 import { Catalysts } from "./pages3";
 import { actionWord, explain, statusWord } from "./plain";
 import { ActionWord, Term, WhyBlock } from "./simple";
+import { OddsCheck } from "./odds";
+import { CandleRead } from "./packet";
 
 const RANGES: Record<string, { tf: string; days?: number; bars?: number; label: string }> = {
   "1D": { tf: "5Min", days: 1, label: "Today" }, "5D": { tf: "15Min", days: 5, label: "5 days" }, "1M": { tf: "1Hour", days: 22, label: "1 month" },
@@ -142,12 +144,12 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
       </section>
 
       <div className="home-grid">
+        <CandleRead symbol={sym} />
         <section className="qa" aria-label="Practice a trade or wait?">
           <div className="q"><h2>Should I practice a trade or wait?</h2></div>
           <div className="a">
             <div className="verdict"><ActionWord a={act} big /><span className="muted">5-minute chart</span></div>
             <WhyBlock why={why} />
-            {crypto && <p className="small muted">Crypto is here to watch. The practice setups are built for stock and futures trading hours.</p>}
             {!crypto && isIdea && <div className="plan"><div className="plan-title">The practice plan</div>
               <dl>
                 <div><dt><Term k="entry" /></dt><dd>{money(best.trigger)}</dd></div>
@@ -155,6 +157,7 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
                 <div><dt><Term k="target" /></dt><dd>{money(best.targets?.t1)}</dd></div>
               </dl>
               <button className="primary" onClick={() => setTicket(best)}>Practice this trade</button>
+              {best.targets?.t1 != null && <OddsCheck symbol={sym} direction={best.direction} entry={best.trigger} stop={best.stop} target={best.targets.t1} />}
             </div>}
             {!crypto && !isIdea && <button onClick={() => setTicket({})}>Practice a trade anyway</button>}
             {ticket && <div className="plan"><OrderTicket symbol={sym} prefill={ticket.trigger ? ticket : null} /></div>}

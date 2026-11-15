@@ -12,7 +12,7 @@ from ..analysis.service import AnalysisService
 from ..backtest.engine import _ml_row
 from ..market_data.providers.base import ProviderError
 from ..market_data.types import Timeframe
-from .engine import apply_events, evaluate, manage_position, market_context
+from .engine import apply_events, close_reminder, evaluate, manage_position, market_context
 from .setups import SetupParams
 
 log = logging.getLogger(__name__)
@@ -196,3 +196,12 @@ class SignalService:
                 self.alerts.emit("position", a["severity"], f"{adv['action']} - {sym}: {a['type'].replace('_', ' ')}", a["text"],
                                  key=f"pos|{sym}|{a['type']}", fingerprint=adv["action"], symbol=sym, data={"advice": adv})
         self.position_advice = advice
+        try:
+            from ..core.market_clock import Session
+            now = datetime.now(timezone.utc)
+            rem = close_reminder([p["symbol"] for p in self.paper.positions()], now, self.paper.engine.risk.flat_by,
+                                 self.monitor.clock.session_of(now) == Session.REGULAR)
+            if rem:
+                self.alerts.emit("position", "high", rem["title"], rem["body"], key=rem["key"], fingerprint=rem["key"])
+        except Exception:  # noqa: BLE001 - a reminder must never break position checks
+            log.exception("close reminder failed")

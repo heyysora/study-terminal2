@@ -35,7 +35,7 @@ w("Validation needs a *reliable* out-of-sample tier (≥100 trades, ≥30 days, 
 w("## What the numbers suggest (not evidence of an edge)\n")
 for r, v in d.items():
     dg = v["diagnostics"]
-    def best(dim):
+    def best(dim, dg=dg):
         rows = [x for x in dg[dim] if x["trades"] >= 8]
         return ", ".join(f"{x['bucket']} {x['avg_r']:+.2f}R ({x['trades']})" for x in rows)
     w(f"**{r}** (final parameters {v['final_params']})")

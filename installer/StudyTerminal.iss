@@ -4,7 +4,7 @@
 
 #define AppName "Study Terminal"
 #ifndef AppVersion
-  #define AppVersion "0.13.6"
+  #define AppVersion "0.14.0"
 #endif
 
 [Setup]

@@ -63,7 +63,8 @@ def _last_two(confirmed: pd.Series) -> tuple[pd.Series, pd.Series]:
     return last, prev
 
 
-def build(bars: list[Bar] | pd.DataFrame, timeframe: Timeframe) -> FeatureFrame:
+def build(bars: list[Bar] | pd.DataFrame, timeframe: Timeframe, all_hours: bool = False) -> FeatureFrame:
+    """all_hours: keep every bar (crypto trades 24/7); otherwise intraday frames keep the regular stock session only."""
     raw = bars if isinstance(bars, pd.DataFrame) else bars_to_df(bars)
     notes: list[str] = []
     intraday = timeframe != Timeframe.D1
@@ -79,7 +80,7 @@ def build(bars: list[Bar] | pd.DataFrame, timeframe: Timeframe) -> FeatureFrame:
         # 13:00 are after-hours, not part of the session
         closes = {d: regular_close_minute(d) for d in set(et.date)}
         close_min = np.array([closes[d] for d in et.date])
-        regular = (minute >= 570) & (minute < close_min)
+        regular = np.ones(len(raw), dtype=bool) if all_hours else (minute >= 570) & (minute < close_min)
         pm = raw[(minute >= 240) & (minute < 570)]
         pm_by_date = pm.groupby(pd.Series(pm.index.tz_convert(ET).date, index=pm.index)).agg(pm_high=("high", "max"), pm_low=("low", "min"))
         df = raw[regular].copy()

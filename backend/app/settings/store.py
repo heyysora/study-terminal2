@@ -14,7 +14,9 @@ SCHEMA: dict[str, tuple[type, Any]] = {
     # risk
     "risk.max_per_trade_pct": (float, None), "risk.max_daily_loss_pct": (float, None), "risk.max_open_positions": (int, None),
     "risk.min_reward_risk": (float, None), "risk.require_stop": (bool, None), "risk.max_consecutive_losses": (int, 3),
-    "risk.max_exposure_pct": (float, 100.0),
+    "risk.max_exposure_pct": (float, 100.0), "risk.max_trades_per_day": (int, None), "risk.no_new_entries_after": (str, None),
+    "memecoins.rpc_url": (str, ""), "memecoins.start_usd": (float, 500.0), "memecoins.fee_pct": (float, 1.0),
+    "memecoins.network_fee_usd": (float, 0.05), "memecoins.max_trade_pct": (float, 10.0),
     # paper simulator
     "paper.slippage_bps": (float, None), "paper.slippage_min": (float, None), "paper.commission_per_share": (float, None),
     "paper.commission_per_order": (float, None), "paper.allow_short": (bool, None), "paper.margin_multiplier": (float, None),

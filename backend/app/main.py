@@ -19,7 +19,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_system, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
+from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_meme, routes_odds, routes_system, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -218,6 +218,14 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         s.watchdog = watchdog
         from .validation.chart_check import ChartCheck
         s.chart_check = ChartCheck(settings.data_dir, visual, watchdog, VERSION)
+        from .memecoins.practice import MemeCosts
+        from .memecoins.service import MemeService
+        meme = MemeService(db, alerts, store.get("memecoins.rpc_url"))
+        meme.practice.costs = MemeCosts(start_usd=float(store.get("memecoins.start_usd", 500.0) or 500.0),
+                                        fee_pct=float(store.get("memecoins.fee_pct", 1.0) or 1.0),
+                                        network_fee_usd=float(store.get("memecoins.network_fee_usd", 0.05) or 0.05),
+                                        max_trade_pct=float(store.get("memecoins.max_trade_pct", 10.0) or 10.0))
+        s.meme = meme
 
         def apply(changes: dict | None = None):
             v = store.all()
@@ -234,6 +242,16 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                             ("risk.max_exposure_pct", "max_exposure_pct")):
                 if v.get(k) is not None:
                     setattr(rc, attr, v[k])
+            meme.set_rpc(v.get("memecoins.rpc_url"))
+            mc = meme.practice.costs
+            mc.start_usd = float(v.get("memecoins.start_usd") or 500.0)
+            mc.fee_pct = float(v.get("memecoins.fee_pct") if v.get("memecoins.fee_pct") is not None else 1.0)
+            mc.network_fee_usd = float(v.get("memecoins.network_fee_usd") if v.get("memecoins.network_fee_usd") is not None else 0.05)
+            mc.max_trade_pct = float(v.get("memecoins.max_trade_pct") or 10.0)
+            rc.max_trades_per_day = v.get("risk.max_trades_per_day") or None          # off unless you set them
+            rc.warn_trades_per_day = int(v.get("journal.max_trades_per_day") or 3)    # one number for the warning and the journal
+            ntime = (v.get("risk.no_new_entries_after") or "").strip()
+            rc.no_new_entries_after = ntime if len(ntime) == 5 and ntime[2] == ":" else None
             alerts.prefs.update({"desktop": v["alerts.desktop"], "sound": v["alerts.sound"],
                                  "min_severity_desktop": v["alerts.min_severity_desktop"],
                                  "min_severity_sound": v["alerts.min_severity_sound"], "categories": v["alerts.categories"]})
@@ -257,6 +275,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await news.start()
             await futures.start()
             await visual.autostart()
+            await meme.start()
 
             async def watch():
                 n = 0
@@ -285,6 +304,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             if visual._task:
                 visual._task.cancel()
             await health.stop()
+            await meme.stop()
             await futures.stop()
             await news.stop()
             await scanner.stop()
@@ -331,6 +351,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_chart_check.router)
     app.include_router(routes_data.router)
     app.include_router(routes_system.router)
+    app.include_router(routes_odds.router)
+    app.include_router(routes_meme.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.14.0 (2026-11-14)
+
+New: memecoin practice, an odds check for any plan, and a plain read of the last candle. Still practice only; real orders remain
+impossible from Study Terminal.
+
+- **Memecoins (Solana), practice only.** Watch new tokens with live prices from DexScreener (free), run a rug-risk check in
+  plain words (can someone create more tokens or freeze yours, special token rules, pool size, age, selling pressure, biggest
+  holders), and practise with a separate pretend-money account. Costs are modelled: price impact from the pool size, a 1% fee
+  and a $0.05 network fee (editable). Every practice buy needs a stop; stops are checked about every 20 seconds and fill at the
+  price seen then, so fast drops fill below the stop. Token names with slurs are hidden. The lists are labelled for what they
+  are: tokens that paid DexScreener for a profile or a boost, not "trending". Study Terminal never holds a wallet or a key; a
+  new safety test checks that no memecoin code can sign or send a transaction.
+- **Real memecoin trading is kept outside the app.** `docs/MEMECOIN_REAL_TRADING.md` walks through pumpfun-cli in WSL with a
+  separate small wallet, a dry run before every trade, and why the auto-sniper and AI-wallet tools were left out.
+- **Check the odds** on any practice plan (Home, Charts, and the order ticket once a stop and target are set): how often the
+  target came first, the stop came first, or neither by the close, on each of the last ~60 days and in 10,000 simulated
+  sessions built from them, with a plain verdict ("close to a coin flip") and the break-even win rate. A simulation, not a
+  prediction; costs aren't included. Idea from the day-trader skill pack (jakeschincariol/day-trader-skill).
+- **Stock practice day-trading rules:** a warning from your 4th trade of the day (the journal's limit) and after 3:30 PM; set
+  a limit in Settings to make either a hard stop. A reminder at 3:45 PM if practice trades are still open before the 3:55 PM
+  flat time.
+- **Last closed candle** card on Charts: the candle in words, its pattern, the market mood (trending up/down, sideways,
+  jumpy), and how many of five checks point up or down (a count, not a win chance). **Copy for an AI** puts the same data as
+  JSON on the clipboard to paste into Claude or any AI. Closed candles only, so it never changes after the fact. Idea adapted
+  from AI Agent Lens (roan-maverick/tradingview-indicator-for-ai-agents), without its paid TradingView webhook or public tunnel.
+- Fixed: crypto charts and analysis were cut down to stock-market hours; they now keep every hour.
+- Faster start: screens load when first opened (initial download 695 KB -> 497 KB).
+- Looked at and not added: Point72 csp (a C++ streaming engine; not needed at Study Terminal's data rates), Goldman Sachs
+  gs-quant (needs institutional client credentials), Man Group ArcticDB (production use needs a paid licence), QuantOrb (a
+  Solana memecoin holder scanner; its checks overlap the new rug-risk check), solana-sniper-mcp and pumpclaw (real-money
+  wallet tools; see the guide).
+
 ## 0.13.6 (2026-11-14)
 
 Prices that keep moving where the market really is moving, and honest "closed" screens where it isn't. No trading changes.

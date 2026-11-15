@@ -4,6 +4,7 @@ import {
 } from "lightweight-charts";
 import { actionWord, statusWord, useUiMode } from "./plain";
 import { SOURCE_TEXT, STATUS_LEVEL, STATUS_TEXT, actionClass, ago, api, etDate, etTimeSec, money, num, pct } from "./lib";
+import { OddsCheck } from "./odds";
 
 /** Signal meter: how live the data is. 5 = real-time ... 0 = unavailable. */
 export function Meter({ status, big, withText, reason }: { status?: string; big?: boolean; withText?: boolean; reason?: string }) {
@@ -265,6 +266,9 @@ export function OrderTicket({ symbol, prefill, onDone }: { symbol: string; prefi
           {p.errors.map((e: string, i: number) => <div key={i} className="note bad">{e}</div>)}
           {p.warnings.map((e: string, i: number) => <div key={i} className="note warn">{e}</div>)}
           {p.ok && <div className="note">Practice order only: nothing goes to a broker. Review, then place it.</div>}
+          {p.est_fill_price && Number(f.stop_loss) > 0 && Number(f.take_profit) > 0 && !/-(USD|USDT|USDC|EUR|GBP)$/.test(symbol) &&
+            <OddsCheck key={`${f.stop_loss}|${f.take_profit}|${p.est_fill_price}`} symbol={symbol} direction={f.side === "buy" ? "long" : "short"}
+              entry={p.est_fill_price} stop={Number(f.stop_loss)} target={Number(f.take_profit)} />}
         </div>
       )}
       {msg && <div className={`note ${msg.kind}`}>{msg.text}</div>}

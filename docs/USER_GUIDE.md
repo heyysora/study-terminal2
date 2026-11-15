@@ -141,6 +141,20 @@ If the data file is ever damaged, Study Terminal opens a **Recovery** screen ins
 rescue what can still be read, or start with empty data. Whatever you pick, the damaged file is kept in a folder called
 `damaged`. If another program is using Study Terminal's usual port, it quietly uses the next free one.
 
+## Memecoins (0.14.0, practice only)
+
+**Memecoins** in the menu. Paste a Solana token address (or search a name) to see its live price and a rug-risk check in plain
+words. **Practice a trade** buys with pretend money: choose an amount, a stop (required) and, if you like, a take-profit. The
+preview shows the estimated price impact, fees and what you'd lose at the stop. The practice account shows what each position
+would fetch if sold now. Settings > Memecoins changes the starting amount and the cost assumptions, and takes an optional free
+Solana RPC address that makes the "biggest holders" check work. Real memecoin trading is done outside the app; see
+`docs/MEMECOIN_REAL_TRADING.md`.
+
+## Check the odds and the last candle (0.14.0)
+
+On any practice plan, **Check the odds** shows how often that exact stop and target worked out recently (past days and 10,000
+simulated sessions). On Charts, **Last closed candle** describes the newest finished candle and has **Copy for an AI**.
+
 ## Weekends and closed markets (0.13.6)
 
 Stocks and futures don't trade at the weekend (futures: Friday 5 PM to Sunday 6 PM ET), so their prices stay at the last real

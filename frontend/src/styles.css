@@ -494,3 +494,7 @@ dl.explain dd { margin: 0; }
 /* market hours */
 .countdown { font-variant-numeric: tabular-nums; }
 .open-now { margin-left: 8px; }
+
+/* odds check */
+.odds-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--rule); }
+.odds-bar .t { background: var(--up); } .odds-bar .n { background: var(--rule-strong); } .odds-bar .s { background: var(--down); }

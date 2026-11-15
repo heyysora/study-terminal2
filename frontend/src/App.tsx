@@ -1,30 +1,41 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { api, dismissToast, money, pct, sign, useHashRoute, useLive, usePoll } from "./lib";
 import { Meter } from "./components";
-import { ChartPage, Copilot, Dashboard, Paper, Scanner } from "./pages";
-import { Alerts, Backtest, Learn, Settings } from "./pages2";
-import { Journal } from "./pages3";
-import { Futures } from "./pages4";
-import { AutomationCenter } from "./pages5";
-import { LiveMarket } from "./pages6";
-import { VisualMonitor } from "./pages7";
-import { TrustDashboard } from "./pages8";
 import { Home } from "./pagesHome";
-import { ChartCheck } from "./pagesCheck";
 import { RecoveryScreen, when } from "./pagesData";
-import { SystemHealth } from "./pagesHealth";
 import { say, setUiMode, useHome, useUiMode } from "./plain";
 import { OfflineBanner, SimpleStrip, TopBar } from "./simple";
 import { useTheme } from "./theme";
 
+// Each screen loads when you first open it, so the app starts faster (Home is always ready).
+const screen = (load: () => Promise<any>, name: string) => lazy<React.ComponentType<any>>(() => load().then((m) => ({ default: m[name] })));
+const ChartPage = screen(() => import("./pages"), "ChartPage");
+const Copilot = screen(() => import("./pages"), "Copilot");
+const Dashboard = screen(() => import("./pages"), "Dashboard");
+const Paper = screen(() => import("./pages"), "Paper");
+const Scanner = screen(() => import("./pages"), "Scanner");
+const Alerts = screen(() => import("./pages2"), "Alerts");
+const Backtest = screen(() => import("./pages2"), "Backtest");
+const Learn = screen(() => import("./pages2"), "Learn");
+const Settings = screen(() => import("./pages2"), "Settings");
+const Journal = screen(() => import("./pages3"), "Journal");
+const Futures = screen(() => import("./pages4"), "Futures");
+const AutomationCenter = screen(() => import("./pages5"), "AutomationCenter");
+const LiveMarket = screen(() => import("./pages6"), "LiveMarket");
+const VisualMonitor = screen(() => import("./pages7"), "VisualMonitor");
+const TrustDashboard = screen(() => import("./pages8"), "TrustDashboard");
+const ChartCheck = screen(() => import("./pagesCheck"), "ChartCheck");
+const SystemHealth = screen(() => import("./pagesHealth"), "SystemHealth");
+const Memecoins = screen(() => import("./pagesMeme"), "Memecoins");
+
 const NAV: [string, string, string?][] = [
   ["home", "Home"], ["dashboard", "Stock overview"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Practice trading (stocks)"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["check", "Chart check"], ["health", "System health"], ["alerts", "Alerts"], ["settings", "Settings"],
+  ["paper", "Practice trading (stocks)"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["check", "Chart check"], ["meme", "Memecoins (practice)"], ["health", "System health"], ["alerts", "Alerts"], ["settings", "Settings"],
 ];
 // Simple mode: the few places a beginner needs. Every other screen is one click away under "All tools".
 const NAV_SIMPLE: Record<string, [string, string][]> = {
-  futures: [["home", "Home"], ["visual", "My chart"], ["futures", "Practice"], ["check", "Chart check"], ["trust", "Can I trust it?"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
-  equities: [["home", "Home"], ["chart", "Charts"], ["paper", "Practice"], ["journal", "My trades"], ["trust", "Can I trust it?"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
+  futures: [["home", "Home"], ["visual", "My chart"], ["futures", "Practice"], ["check", "Chart check"], ["trust", "Can I trust it?"], ["meme", "Memecoins"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
+  equities: [["home", "Home"], ["chart", "Charts"], ["paper", "Practice"], ["journal", "My trades"], ["trust", "Can I trust it?"], ["meme", "Memecoins"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
 };
 
 function ModeSwitch({ mode, onChange }: { mode: string; onChange: (m: string) => void }) {
@@ -106,6 +117,7 @@ export default function App() {
       case "trust": return <TrustDashboard />;
       case "check": return <ChartCheck />;
       case "health": return <SystemHealth />;
+      case "meme": return <Memecoins />;
       case "chart": return <ChartPage symbol={route[1]} />;
       case "copilot": return <Copilot />;
       case "scanner": return <Scanner />;
@@ -149,7 +161,7 @@ export default function App() {
         {ui === "simple" ? <SimpleStrip trades={curMode} onTrades={switchMode} />
           : curMode === "futures" || page === "futures" ? <FuturesStrip mode="futures" onMode={switchMode} /> : <StatusStrip mode={curMode} onMode={switchMode} />}
       </div>
-      <main className="main" key={theme}>{view}</main>
+      <main className="main" key={theme}><Suspense fallback={<div className="page muted">Loading…</div>}>{view}</Suspense></main>
       <div className="toast-stack" aria-live="polite">
         {L.toasts.filter((t) => ui !== "simple" || t.severity === "high").slice(0, ui === "simple" ? 1 : 3).map((t) => (
           <div key={t.id} className={`toast ${t.severity}`} role="alert">

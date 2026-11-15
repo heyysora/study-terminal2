@@ -37,6 +37,25 @@ async def analysis(symbol: str, request: Request, timeframes: str = "5Min,15Min,
     return out
 
 
+@router.get("/packet/{symbol}")
+async def packet(symbol: str, request: Request, timeframe: Timeframe = Timeframe.M5):
+    """A structured read of the last CLOSED candle (candle shape, regime, trend, momentum, volume, levels, agreement checks), for
+    the chart page and to paste into any AI. Free data; nothing repaints. Not a signal."""
+    from ..analysis.packet import build
+    s = st(request)
+    sym = _sym(symbol)
+    higher = {Timeframe.M1: Timeframe.M5, Timeframe.M5: Timeframe.H1, Timeframe.M15: Timeframe.H1}.get(timeframe)
+    try:
+        ff = await s.analysis.frame(sym, timeframe)
+        hff = await s.analysis.frame(sym, higher) if higher else None
+    except ProviderError as e:
+        raise _provider_http(e) from e
+    try:
+        return build(sym, timeframe.value, ff, hff, s.monitor.label(sym).model_dump(mode="json"))
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from None
+
+
 @router.get("/signals")
 def signals_all(request: Request):
     s = st(request)

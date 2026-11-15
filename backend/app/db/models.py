@@ -278,3 +278,37 @@ class NewsItemRecord(Base):
     published: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
     seen_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     data: Mapped[str] = mapped_column(Text)
+
+
+class MemePosition(Base):
+    """Memecoin PRACTICE position (pretend money; never a wallet)."""
+
+    __tablename__ = "meme_positions"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(String(128), default="")
+    qty: Mapped[float] = mapped_column(Float)
+    cost_usd: Mapped[float] = mapped_column(Float)          # what was paid in total, fees included
+    stop_price: Mapped[float] = mapped_column(Float)
+    target_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    opened_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    url: Mapped[str] = mapped_column(String(256), default="")
+
+
+class MemeFill(Base):
+    """Every memecoin practice buy and sell, with the modelled fee and price impact."""
+
+    __tablename__ = "meme_fills"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    token: Mapped[str] = mapped_column(String(64), index=True)
+    symbol: Mapped[str] = mapped_column(String(32))
+    side: Mapped[str] = mapped_column(String(4))           # buy | sell
+    qty: Mapped[float] = mapped_column(Float)
+    price_usd: Mapped[float] = mapped_column(Float)        # average fill price after price impact
+    usd: Mapped[float] = mapped_column(Float)              # cash in (sell) or out (buy), before fees
+    fee_usd: Mapped[float] = mapped_column(Float)
+    impact_pct: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str] = mapped_column(String(16), default="you")   # you | stop | target
