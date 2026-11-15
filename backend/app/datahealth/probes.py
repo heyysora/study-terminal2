@@ -60,7 +60,7 @@ class YahooProbe:
         for sym in self.symbols:
             is_open = bool(self.monitor.market_state(sym).get("open"))
             try:
-                bars, _notes = await self.monitor.provider.get_bars(sym, tf, now - timedelta(days=4))
+                bars, _notes = await self.monitor.provider.get_bars(sym, tf, now - timedelta(days=3))
             except Exception as e:  # noqa: BLE001 - an unreachable source is a result, not a crash
                 msg, rl = _err(e)
                 failed += 1

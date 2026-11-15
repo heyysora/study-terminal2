@@ -1,4 +1,4 @@
-# Test results (0.16.1, 2026-11-14)
+# Test results (0.17.0, 2026-11-15)
 
 ## 0.16.0 (data validation, safety controller, TopstepX automatic validation)
 

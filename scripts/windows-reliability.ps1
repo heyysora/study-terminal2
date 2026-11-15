@@ -237,6 +237,23 @@ if (Test-Path $up) {
     Copy-Item (Join-Path $env:TEMP "app-st-rel-datahealth.log") (Join-Path $Out "datahealth-drill-app.log") -ErrorAction SilentlyContinue
 }
 
+# ---------------------------------------------------------------- 11. the real window: loading screen first, then the app's page
+# Starts the installed app the way a double-click does (window opens at once, engine loads behind it), confirms the app's own
+# page loaded inside that window, and closes it.
+$wt = Join-Path $env:TEMP "st-rel-window"
+Remove-Item -Recurse -Force $wt -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $wt | Out-Null
+$so = Join-Path $Out "window-test.out.txt"; $se = Join-Path $Out "window-test.err.txt"
+$env:STUDY_TERMINAL_DATA_DIR = $wt; $env:STUDY_TERMINAL_NO_ENV_FILE = "1"; $env:PORT = "8851"
+$sw = [Diagnostics.Stopwatch]::StartNew()
+$p = Start-Process -FilePath $Exe -ArgumentList "--window-test" -PassThru -NoNewWindow -RedirectStandardOutput $so -RedirectStandardError $se
+if (-not $p.WaitForExit(240000)) { try { $p.Kill() } catch {}; $wcode = -1 } else { $wcode = $p.ExitCode }
+$sw.Stop()
+Remove-Item Env:STUDY_TERMINAL_DATA_DIR, Env:STUDY_TERMINAL_NO_ENV_FILE, Env:PORT -ErrorAction SilentlyContinue
+$wline = (Get-Content $so -ErrorAction SilentlyContinue | Select-String 'window-test:') -join ' '
+Copy-Item (Join-Path $wt "logs\desktop.log") (Join-Path $Out "window-test-desktop.log") -ErrorAction SilentlyContinue
+Record "Window opens with a loading screen, then the app" $(if ($wcode -eq 0) { "pass" } else { "fail" }) "Exit $wcode in $([math]::Round($sw.Elapsed.TotalSeconds,1)) s. $wline $((Get-Content $se -ErrorAction SilentlyContinue | Select-Object -Last 3) -join ' ')"
+
 # ---------------------------------------------------------------- summary
 $json = $Results | ConvertTo-Json -Depth 4
 $json | Set-Content (Join-Path $Out "results.json")

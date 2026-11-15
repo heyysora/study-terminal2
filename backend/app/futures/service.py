@@ -620,9 +620,16 @@ class FuturesService:
         a = self.automation
         if a.state.status == "running" or (a.state.status == "stopped" and self.store.get("automation.autostart", True)):
             was = a.state.status
-            await a.start()
-            a._log("info", "Monitoring resumed after a restart; missed bars are reconciled first." if was == "running"
-                   else "Monitoring started with Study Terminal (Settings > automation.autostart).")
+
+            async def resume():
+                # Not awaited by start-up: resuming can wait on market data, and the app's window shouldn't wait for that.
+                try:
+                    await a.start()
+                    a._log("info", "Monitoring resumed after a restart; missed bars are reconciled first." if was == "running"
+                           else "Monitoring started with Study Terminal (Settings > automation.autostart).")
+                except Exception:  # noqa: BLE001
+                    log.exception("automation could not resume after start-up")
+            self._resume_task = asyncio.create_task(resume())
         elif a.state.status == "emergency_stopped":
             a._log("high", "Study Terminal started with the emergency stop still active; automation stays off until you clear it.")
 

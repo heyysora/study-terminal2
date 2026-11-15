@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
@@ -76,7 +77,8 @@ def coverage(res: dict) -> dict:
 
 
 class DataHealth:
-    def __init__(self, db, probes: list, chartwatch=None, positions_fn=lambda: [], kind: str = "live"):
+    def __init__(self, db, probes: list, chartwatch=None, positions_fn=lambda: [], kind: str = "live", start_delay: float = 4.0):
+        self.start_delay = start_delay
         self.db, self.probes, self.chartwatch, self.positions_fn, self.kind = db, list(probes), chartwatch, positions_fn, kind
         self.state: dict[str, dict] = {}
         self.enforcing = False
@@ -85,6 +87,8 @@ class DataHealth:
         self._lock = asyncio.Lock()
         self.started_at = datetime.now(timezone.utc)
         self.token_flags: dict[str, dict] = {}
+        self._pruned = 0.0
+        self._settled = 0.0
         self._restore()
 
     # ---------------- persistence ----------------
@@ -104,7 +108,9 @@ class DataHealth:
             s.add(DataHealthRecord(ts=datetime.fromisoformat(entry["checked_at"]), source=entry["source"], status=entry["status"],
                                    signals_permitted=int(entry["signals_permitted"]), kind=self.kind, app_version=VERSION,
                                    test_version=TEST_VERSION, detail=json.dumps({k: v for k, v in entry.items() if k not in ("from_previous_run",)}, default=str)))
-            s.execute(delete(DataHealthRecord).where(DataHealthRecord.ts < datetime.now(timezone.utc) - timedelta(days=KEEP_DAYS)))
+            if time.monotonic() - self._pruned > 3600:   # old evidence is cleared once an hour, not on every write
+                self._pruned = time.monotonic()
+                s.execute(delete(DataHealthRecord).where(DataHealthRecord.ts < datetime.now(timezone.utc) - timedelta(days=KEEP_DAYS)))
 
     def _outage(self, source: str, was: str | None, now_status: str, why: str, at: datetime) -> None:
         bad_now, bad_before = now_status in DOWN, was in DOWN
@@ -139,9 +145,9 @@ class DataHealth:
         self.state[p.source] = entry
         if p.source == "memecoin_data":
             self.token_flags = {m: d for m, d in (res.get("symbols") or {}).items()}
-        try:
-            self._save(entry)
-            self._outage(p.source, was, status, why, at)
+        try:                                         # written off the main loop so a slow disk never stalls the app's pages
+            await asyncio.to_thread(self._save, entry)
+            await asyncio.to_thread(self._outage, p.source, was, status, why, at)
         except Exception:  # noqa: BLE001 - evidence storage failing must not stop the checks
             log.exception("could not store data-health evidence")
         return entry
@@ -156,7 +162,7 @@ class DataHealth:
         return self.summary()
 
     async def _loop(self) -> None:
-        import time
+        await asyncio.sleep(self.start_delay)        # let the first screens load before the checks start using the network
         while True:
             try:
                 async with self._lock:
@@ -168,7 +174,9 @@ class DataHealth:
                             self._due[p.source] = time.monotonic() + (p.every if st in GOOD or st == "UNSUPPORTED" else min(p.every, 60))
                     if self.chartwatch:
                         self.chartwatch.observe()
-                        await self.chartwatch.settle()
+                        if time.monotonic() - self._settled > 300:       # reference candles are fetched at most every 5 minutes
+                            self._settled = time.monotonic()
+                            await self.chartwatch.settle()
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001

@@ -162,7 +162,7 @@ def visual_capture(cal_rows: list[dict], capture_days: dict) -> dict:
     status = _combine([s_axis, s_cap])
     rem = []
     if s_axis != PASSED:
-        rem.append(f"Price-axis calibration on real screenshots: {n}/{CRIT['min_real_samples']} samples"
+        rem.append(f"Price scale, checked automatically against reference candles (or labelled by you): {n}/{CRIT['min_real_samples']} samples"
                    + (f", 95% lower bound {m_axis['ci95'][0]:.0%} (needs {CRIT['accuracy_lower_bound']:.0%})" if n else ""))
     if s_cap != PASSED:
         rem.append(f"Real monitoring captures: {attempts}/{CRIT['min_capture_attempts']} over {len(days)}/{CRIT['min_capture_days']} days"
@@ -181,7 +181,7 @@ def visual_capture(cal_rows: list[dict], capture_days: dict) -> dict:
 def ocr_price(cal_rows: list[dict]) -> dict:
     k, n, last, fails, ss = _field(_visual_rows(cal_rows), "price")
     st, m = _rate_status(k, n, CRIT["accuracy_lower_bound"], ss)
-    rem = [] if st == PASSED else [f"Current price vs what you typed, on real screenshots: {n}/{CRIT['min_real_samples']} samples"
+    rem = [] if st == PASSED else [f"Current price on real captures, checked automatically against reference prices (or typed by you): {n}/{CRIT['min_real_samples']} samples"
                                    + (f", 95% lower bound {m['ci95'][0]:.0%} (needs {CRIT['accuracy_lower_bound']:.0%})" if n else "")]
     return _cat("ocr_price", "OCR and price recognition", st, n, m, last,
                 ["Only the price tag is read as text; misreads are checked against the axis and tick grid but can still happen."],
@@ -198,7 +198,7 @@ def instrument_timeframe(cal_rows: list[dict]) -> dict:
     rem = []
     for label, s, n, m in (("Instrument", si, ni, mi), ("Timeframe", stf, nt, mt)):
         if s != PASSED:
-            rem.append(f"{label} on real screenshots: {n}/{CRIT['min_real_samples']} samples"
+            rem.append(f"{label}, checked automatically on real captures (or labelled by you): {n}/{CRIT['min_real_samples']} samples"
                        + (f", 95% lower bound {m['ci95'][0]:.0%}" if n else ""))
     return _cat("instrument_timeframe", "Instrument and timeframe recognition", _combine([si, stf]), ni + nt,
                 {"instrument": mi, "timeframe": mt}, max(filter(None, [li, lt]), default=None),
@@ -207,12 +207,21 @@ def instrument_timeframe(cal_rows: list[dict]) -> dict:
                 [f"Miss: read {f['read']} vs {f['truth']}" for f in fi + ft], rem)
 
 
-def candles_indicators(cal_rows: list[dict]) -> dict:
+def candles_indicators(cal_rows: list[dict], indicators_used: bool = True) -> dict:
+    """`indicators_used` is False when no VWAP/EMA line colors are assigned in any chart profile: then no indicator line is read
+    from the picture at all, nothing depends on one, and the category is judged on candles alone (and says so)."""
     rows = _visual_rows(cal_rows)
     kc, nc, lc, fc_, ssc = _field(rows, "last_candle")
     ki, ni, li, fi, ssn = _field(rows, "indicators")
     sc, mc = _rate_status(kc, nc, CRIT["candle_lower_bound"], ssc)
     si, mi = _rate_status(ki, ni, CRIT["candle_lower_bound"], ssn)
+    if not indicators_used and ni == 0:
+        rem = [] if sc == PASSED else [f"Last completed candle highs and lows, checked automatically against reference candles: {nc}/{CRIT['min_real_samples']} "
+                                       "samples" + (f", 95% lower bound {mc['ci95'][0]:.0%} (needs {CRIT['candle_lower_bound']:.0%})" if nc else "")]
+        return _cat("candles_indicators", "Candle and indicator recognition", sc, nc, {"last_candle": mc, "indicators": "not used"}, lc,
+                    ["Candle values are pixel estimates (about 1-3 ticks).",
+                     "No VWAP/EMA line colors are assigned in your chart profile, so no indicator line is read from the picture and none is judged here."],
+                    [f"Candles {kc}/{nc} within tolerance on real captures."] + [f"Miss: read {f['read']} vs {f['truth']}" for f in fc_], rem)
     rem = []
     if sc != PASSED:
         rem.append(f"Last completed candle O/H/L/C on real screenshots: {nc}/{CRIT['min_real_samples']} samples"
@@ -447,13 +456,17 @@ def readiness(cats: dict, trips: list[dict]) -> dict:
 
 
 def build(*, cal_rows: list[dict], capture_days: dict, decisions: list[dict], evidence: dict, trips: list[dict], rules: dict,
-          personal: dict, rules_confirmed: bool, now: datetime | None = None) -> dict:
+          personal: dict, rules_confirmed: bool, now: datetime | None = None, indicators_used: bool = True) -> dict:
     cats = {c["key"]: c for c in [
-        visual_capture(cal_rows, capture_days), ocr_price(cal_rows), instrument_timeframe(cal_rows), candles_indicators(cal_rows),
+        visual_capture(cal_rows, capture_days), ocr_price(cal_rows), instrument_timeframe(cal_rows), candles_indicators(cal_rows, indicators_used),
         signal_generation(decisions), historical_performance(evidence), walk_forward(evidence),
         paper_trading(trips), risk_management(trips, rules, personal, rules_confirmed)]}
     synth = sum(1 for r in cal_rows if r.get("synthetic"))
+    auto = sum(1 for r in cal_rows if r.get("automatic"))
     return {"generated_at": (now or datetime.now(timezone.utc)).isoformat(), "categories": list(cats.values()),
+            "automatic": {"samples": auto, "by_hand": len(cal_rows) - auto - synth,
+                          "note": "Automatic samples are real readings of your chart, checked against reference market data or the browser "
+                                  "tab's own text. They count the same as samples you label by hand."},
             "readiness": readiness(cats, trips), "criteria": CRIT,
             "excluded": {"synthetic_screenshots": synth,
                          "note": "Unit tests, synthetic screenshots, replay, delayed practice and sandbox trades are never counted."}}

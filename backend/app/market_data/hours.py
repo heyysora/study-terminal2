@@ -65,7 +65,9 @@ def market_state(symbol: str, clock: MarketClock | None = None, now: datetime | 
     if kind == "futures":
         st = _futures_state(symbol, now)
         return {"kind": kind, **st, "session": Session.REGULAR if st["open"] else Session.CLOSED}
-    clock = clock or MarketClock()
+    if clock is None:
+        from ..core.market_clock import shared_clock
+        clock = shared_clock()
     s = clock.session_at(now)
     if s.session == Session.CLOSED:
         nxt = s.next_regular_open_et

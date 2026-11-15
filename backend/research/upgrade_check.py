@@ -156,7 +156,8 @@ def compare(seed_path: Path, verify_path: Path, backup_dir: str | None = None) -
                 or f.replace("\\", "/") in ("backups/checks.json",) or f.replace("\\", "/").startswith("yf-cache/")}
     views_same = {k: s["view"][k] == v["view"][k] for k in s["view"]}
     changed = {t: len(set(rows) - set(a["db"].get(t, []))) for t, rows in s["db"].items() if set(rows) - set(a["db"].get(t, []))}
-    volatile = {"futures_state", "futures_decisions", "app_events"}
+    # 0.16+: the data-check evidence the app writes by itself on every start (results, outages, chart readings). Not user data.
+    volatile = {"futures_state", "futures_decisions", "app_events", "datahealth_records", "datahealth_outages", "chart_observations"}
     out = {"files_unchanged": all(ok for f, ok in files_same.items() if f not in expected), "files": files_same,
            "expected_file_changes": sorted(f for f in expected if not files_same[f]), "views_same": views_same,
            "all_views_same": all(views_same.values()), "rows_changed": changed,

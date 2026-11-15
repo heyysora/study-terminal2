@@ -194,16 +194,60 @@ class VisualMonitor:
 
     # ---------------- control ----------------
 
+    MAX_EXTRA_WINDOWS = 5
+
     def _sync_profiles(self) -> None:
         profiles = {p.id: p for p in self.store.all() if p.active}
         for pid in list(self.runtimes):
-            if pid not in profiles:
+            if pid.split("@")[0] not in profiles:        # "<profile>@<window>" entries are extra TopstepX windows (see _attach_windows)
                 del self.runtimes[pid]
         for pid, p in profiles.items():
             if pid in self.runtimes:
                 self.runtimes[pid].profile = p
             else:
                 self.runtimes[pid] = Runtime(profile=p, hwnd=p.window_hwnd, tape=self._tape(pid))
+        for key, rt in self.runtimes.items():
+            if "@" in key:
+                rt.profile = self._clone(profiles[key.split("@")[0]], key, rt.hwnd, rt.title)
+
+    @staticmethod
+    def _clone(p: ChartProfile, key: str, hwnd: int | None, title: str | None) -> ChartProfile:
+        from dataclasses import replace
+
+        from .platforms import topstepx_title
+        tab = topstepx_title(title) or {}
+        return replace(p, id=key, name=f"{p.name} · {tab.get('contract') or 'another window'}", window_hwnd=hwnd, root="auto")
+
+    def _attach_windows(self) -> None:
+        """Every open TopstepX chart window gets read, not only the first. A browser shows one tab per window, and only the tab
+        in front is drawn, so each chart you want read needs its own Edge window (drag the tab out). Extra windows reuse the
+        chart profile's settings and read their contract from the tab's name."""
+        from .platforms import topstepx_title
+        try:
+            wins = {int(t["id"]): t for t in self.list_fn() if t.get("kind") == "window"}
+        except Exception:  # noqa: BLE001
+            return
+        for key in [k for k in self.runtimes if "@" in k]:               # an extra window that closed, or isn't a chart any more
+            rt = self.runtimes[key]
+            t = wins.get(rt.hwnd or -1)
+            if t is None or not topstepx_title(t.get("title")):
+                del self.runtimes[key]
+        owned = {rt.hwnd for rt in self.runtimes.values() if rt.hwnd}
+        extra = sum(1 for k in self.runtimes if "@" in k)
+        for pid, rt in list(self.runtimes.items()):
+            p = rt.profile
+            if "@" in pid or not rt.hwnd or not any(w in (p.window_title_contains or "").lower() for w in ("topstep", "projectx")):
+                continue
+            for hwnd, t in wins.items():
+                if extra >= self.MAX_EXTRA_WINDOWS:
+                    return
+                if hwnd in owned or not topstepx_title(t.get("title")) or not p.matches(t.get("title"), t.get("process")):
+                    continue
+                key = f"{pid}@{hwnd}"
+                self.runtimes[key] = Runtime(profile=self._clone(p, key, hwnd, t.get("title")), hwnd=hwnd, title=t.get("title"),
+                                             process=t.get("process"), tape=self._tape(key), status="stale", reason="Starting…")
+                owned.add(hwnd)
+                extra += 1
 
     def _tape(self, pid: str):
         from .live_price import PriceTape
@@ -293,6 +337,9 @@ class VisualMonitor:
             self.loop_at = time.monotonic()
             if self.state != "running":
                 continue
+            if time.monotonic() - getattr(self, "_attached_at", 0.0) > 3.0:
+                self._attached_at = time.monotonic()
+                self._attach_windows()
             for rt in list(self.runtimes.values()):
                 mono = time.monotonic()
                 full = mono >= rt.next_due
@@ -335,8 +382,11 @@ class VisualMonitor:
             else:
                 rt.title = title or rt.title
                 return True
+        if "@" in p.id:                                  # an extra window is tied to that one window; _attach_windows removes it
+            return False
+        taken = {o.hwnd for o in self.runtimes.values() if o is not rt and o.hwnd}
         for t in self.list_fn():
-            if t.get("kind") == "window" and p.matches(t.get("title"), t.get("process")):
+            if t.get("kind") == "window" and int(t["id"]) not in taken and p.matches(t.get("title"), t.get("process")):
                 rt.hwnd, rt.title, rt.process = int(t["id"]), t.get("title"), t.get("process")
                 return True
         return False

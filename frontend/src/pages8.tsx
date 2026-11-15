@@ -29,6 +29,7 @@ export function TrustDashboard() {
           <h3>Still unverified before {r.next_level}</h3>
           <ul className="small" style={{ paddingLeft: 18 }}>{r.remaining_for_next_level.map((m: string, i: number) => <li key={i}>{m}</li>)}</ul>
         </>}
+        {d.automatic && <div className="note small" style={{ marginTop: 8 }}><b>This fills in by itself.</b> While your TopstepX chart is open, Study Terminal checks its own readings against reference market data and the browser tab's name. Automatic checks so far: {d.automatic.samples}. Labelled by hand: {d.automatic.by_hand}. You don't need to label anything.</div>}
         <div className="small faint">{d.excluded.note} Synthetic screenshots excluded so far: {d.excluded.synthetic_screenshots}.</div>
       </Panel>
       <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(480px, 1fr))", gap: 12 }}>

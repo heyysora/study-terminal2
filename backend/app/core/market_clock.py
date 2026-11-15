@@ -88,14 +88,16 @@ class MarketClock:
             cal = xc.get_calendar("XNYS")
             start = cal.first_session.date()  # full history: backtests need old sessions too
             end = cal.last_session.date()
+            # Whole columns at once (about 100x faster than asking the calendar for each of ~5,000 sessions one by one).
+            sessions = cal.sessions_in_range(pd.Timestamp(start), pd.Timestamp(end))
+            opens = pd.DatetimeIndex(cal.opens.loc[sessions]).tz_convert(ET).time
+            closes = pd.DatetimeIndex(cal.closes.loc[sessions]).tz_convert(ET).time
             days = {}
-            for s in cal.sessions_in_range(pd.Timestamp(start), pd.Timestamp(end)):
-                o = cal.session_open(s).tz_convert(ET).time()
-                c = cal.session_close(s).tz_convert(ET).time()
-                td = TradingDay(day=s.date(), regular_open=o, regular_close=c)
+            for s, o, c in zip(sessions.date, opens, closes, strict=True):
+                td = TradingDay(day=s, regular_open=o, regular_close=c)
                 if td.early_close:
-                    td = TradingDay(day=s.date(), regular_open=o, regular_close=c, session_close=EARLY_CLOSE_AFTER_HOURS_END)
-                days[s.date()] = td
+                    td = TradingDay(day=s, regular_open=o, regular_close=c, session_close=EARLY_CLOSE_AFTER_HOURS_END)
+                days[s] = td
             self._days, self._covered = days, (start, end)
         except Exception:  # pragma: no cover - only if the package is missing/broken
             log.exception("exchange calendar unavailable; using weekday fallback")
@@ -165,12 +167,23 @@ class MarketClock:
 _SHARED: MarketClock | None = None
 
 
-def regular_close_minute(d: date) -> int:
-    """Minutes after midnight ET when the regular session ends on `d` (960 = 16:00; 780 on early-close days)."""
+def shared_clock() -> MarketClock:
+    """One calendar for the whole app. Loading it takes a moment, so it is built once and reused."""
     global _SHARED
     if _SHARED is None:
         _SHARED = MarketClock()
-    td, _ = _SHARED.trading_day(d)
+    return _SHARED
+
+
+def set_shared_clock(clock: MarketClock) -> None:
+    global _SHARED
+    if clock.has_calendar:
+        _SHARED = clock
+
+
+def regular_close_minute(d: date) -> int:
+    """Minutes after midnight ET when the regular session ends on `d` (960 = 16:00; 780 on early-close days)."""
+    td, _ = shared_clock().trading_day(d)
     if td is None or td.regular_close is None:
         return 960
     return td.regular_close.hour * 60 + td.regular_close.minute

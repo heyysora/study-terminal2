@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.17.0 (2026-11-15)
+
+Faster start, every TopstepX window read, and "Can I trust it?" that fills in by itself. Also includes the 0.16.1 fix, which never shipped because a Windows check failed.
+
+**It couldn't find your TopstepX chart (fix from 0.16.1)**
+- The app looked for a tab with "TopstepX" in its name. The real tab is named after the contract and price, like "NQZ26 $27,927.25 ▼ -1.61%". It's now recognised when finding the window, in the window list, and by the privacy check. Bank, mail and other tabs are still refused.
+- The contract is taken from the tab name when the chart header can't be read.
+
+**Every TopstepX window**
+- If you have more than one TopstepX chart open, each one is now read, not only the first. A browser only draws the tab in front, so each chart needs its own Edge window (drag the tab out of the window). Up to six.
+
+**Faster**
+- The window opens at once with a loading screen while the engine starts behind it, instead of nothing appearing until everything was ready.
+- The first screens' data is fetched before you click, so Home and Charts open without waiting on a download.
+- Start-up no longer waits for the futures monitor to catch up on market data.
+- The market calendar loads about 100 times faster; a heavy library (scikit-learn) only loads when it's needed.
+- The background data checks start a few seconds after launch, use fewer requests, and save their results off the main path.
+- Unused fonts removed.
+
+**"Can I trust it?" fills in by itself**
+- Price, contract, timeframe and candle readings are now checked automatically while your chart is open: price against reference candles for the same minute, contract against the browser tab's name, timeframe and candles by comparing what's read from the picture with reference candles at every possible timeframe. These count the same as samples labelled by hand, so the first level (Visual validation) can be reached with no input from you.
+- What it can't do: the later levels need strategy evidence and a record of practice trades. Right now no strategy has reliable out-of-sample results, so those levels stay open however long the app runs. They aren't faked.
+
+**Windows checks**
+- The recovery drill compared times to the second and could miss a rescue that finished in the same second it was asked for; fixed in the drill.
+- The upgrade check now treats the app's own data-check records as expected changes.
+
 ## 0.16.1 (2026-11-14)
 
 Fix: Study Terminal couldn't find or read the TopstepX chart in Edge.

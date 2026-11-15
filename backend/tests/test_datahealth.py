@@ -503,3 +503,106 @@ async def test_bad_data_cannot_produce_an_idea_through_the_app(settings):
         assert pv["ok"] is True and "couldn't be confirmed" in pv["warnings"][0]
         rep = (await c.get("/api/datahealth/report")).json()
         assert "thresholds" in rep and rep["history"]["yahoo_stocks"] and (await c.get("/api/datahealth/chart")).status_code == 200
+
+
+# ------------------------------------------------------------------ automatic evidence for "Can I trust it?" (simulated screen)
+def walk_1m(t_end, minutes=900, px=20000.0, seed=5):
+    import random
+    rnd = random.Random(seed)
+    out, p = [], px
+    for i in range(minutes):
+        o = p
+        p = p + rnd.uniform(-6, 6)
+        hi, lo = max(o, p) + rnd.uniform(0, 3), min(o, p) - rnd.uniform(0, 3)
+        out.append(Bar(symbol="NQ=F", timeframe="1Min", ts=t_end - timedelta(minutes=minutes - i), open=o, high=hi, low=lo, close=p, volume=5,
+                       provider="fake", source="fake"))
+    return out
+
+
+def picture_candles(ref, t, minutes, n=12, noise=0.0):
+    """What a perfect (or slightly noisy) reader would see on a chart of `minutes`-minute candles at time t."""
+    from app.datahealth.chartwatch import _minute
+    by = {_minute(b.ts): b for b in ref}
+    tm = _minute(t)
+    start = tm - timedelta(minutes=(tm.hour * 60 + tm.minute) % minutes)
+    out = []
+    for i in range(n - 1, -1, -1):
+        a = start - timedelta(minutes=i * minutes)
+        ms = [by[a + timedelta(minutes=k)] for k in range(minutes) if a + timedelta(minutes=k) in by]
+        if ms:
+            out.append({"high": max(b.high for b in ms) + noise, "low": min(b.low for b in ms) - noise, "open": ms[0].open, "close": ms[-1].close})
+    return out
+
+
+def test_timeframe_is_worked_out_from_the_candles_not_the_label():
+    from app.datahealth.chartwatch import CANDLE_TOL, fit_timeframes
+    t = datetime(2026, 11, 12, 15, 2, 30, tzinfo=timezone.utc)
+    ref = walk_1m(t + timedelta(minutes=2))
+    for minutes, name in ((1, "1Min"), (5, "5Min"), (15, "15Min"), (60, "1Hour")):
+        fit = fit_timeframes(picture_candles(ref, t, minutes, noise=0.5), t, ref)
+        assert fit["best"] == name and fit["errors"][name] <= CANDLE_TOL, (name, fit)
+        assert fit["errors"][fit["second"]] > fit["errors"][name] * 1.5                    # a clear winner, not a coin toss
+    assert fit_timeframes(picture_candles(ref, t, 5)[:4], t, ref) is None                   # too few candles: no verdict
+    assert fit_timeframes(picture_candles(ref, t, 5), t, []) is None                        # no reference: no verdict
+    off = [{**c, "high": c["high"] + 40, "low": c["low"] + 40} for c in picture_candles(ref, t, 5)]   # a wrong price scale
+    assert fit_timeframes(off, t, ref)["errors"]["5Min"] > CANDLE_TOL
+
+
+async def test_trust_reaches_visual_validation_from_automatic_evidence_alone(db):
+    from app.validation import trust
+    vis = FakeVisual()
+    days = [datetime(2026, 11, d, 15, 0, tzinfo=timezone.utc) for d in (10, 11, 12)]
+    for label, expect_tf in (("5Min", True), ("15Min", False)):
+        with db.session() as s:
+            s.query(ChartObservation).delete()
+        mon = FakeMonitor({})
+        cw = ChartWatch(db, vis, mon, real_fn=lambda: True)
+        for d in days:
+            ref = walk_1m(d + timedelta(minutes=130), minutes=1030, seed=d.day)
+            mon.data["NQ=F"] = ref
+            for i in range(20):
+                t = d + timedelta(minutes=6 * i, seconds=20)
+                cs = picture_candles(ref, t, 5, noise=0.4)
+                vis.ch = {"status": "screen_capture", "reason": "", "capture_method": "wgc",
+                          "reading": {"instrument": {"value": "MNQZ26"}, "timeframe": {"value": label}, "price": {"value": cs[-1]["close"], "class": "DIRECTLY_READ"},
+                                      "size": [1200, 800], "confidence": 0.9, "candles": cs, "title_check": {"header": "MNQ", "title": "MNQ", "contract": "MNQZ26"}}}
+                cw._prev.clear()
+                cw.observe(t)
+            for _ in range(2):
+                await cw.settle(d + timedelta(minutes=140))
+        rows = cw.trust_rows()
+        assert len(rows) == 60 and all(r["automatic"] and not r["synthetic"] for r in rows)
+        cap = {d.date().isoformat(): {"attempts": 400, "window_found": 400, "live": 390, "methods": {"wgc": 400}} for d in days}
+        out = trust.build(cal_rows=rows, capture_days=cap, decisions=[], evidence={}, trips=[], rules={}, personal={}, rules_confirmed=False,
+                          indicators_used=False)
+        cats = {c["key"]: c["status"] for c in out["categories"]}
+        assert cats["ocr_price"] == "PASSED" and out["automatic"]["samples"] == 60 and out["automatic"]["by_hand"] == 0
+        if expect_tf:
+            assert cats == {**cats, "visual_capture": "PASSED", "instrument_timeframe": "PASSED", "candles_indicators": "PASSED"}
+            assert out["readiness"]["level"] == "VISUAL VALIDATION"                            # no sample was labelled by hand
+            assert out["readiness"]["next_level"] == "STRATEGY VALIDATION" and out["readiness"]["remaining_for_next_level"]
+        else:                                                                                  # the chart's label says 15 minutes; the candles say 5
+            assert cats["instrument_timeframe"] == "FAILED" and out["readiness"]["level"] == "EXPERIMENTAL"
+    # with indicator lines assigned, candles alone are not enough
+    out = trust.build(cal_rows=rows, capture_days=cap, decisions=[], evidence={}, trips=[], rules={}, personal={}, rules_confirmed=False,
+                      indicators_used=True)
+    assert {c["key"]: c["status"] for c in out["categories"]}["candles_indicators"] != "PASSED"
+
+
+async def test_test_sources_never_become_trust_evidence(db):
+    vis = FakeVisual()
+    t0 = datetime(2026, 11, 12, 15, 0, tzinfo=timezone.utc)
+    cw = ChartWatch(db, vis, FakeMonitor({"NQ=F": ref_bars(t0)}), real_fn=lambda: False)
+    cw.observe(t0)
+    await cw.settle(t0 + timedelta(minutes=25))
+    assert cw.trust_rows() == []
+
+
+def test_a_contract_the_picture_reader_missed_counts_against_it(db):
+    cw = ChartWatch(db, FakeVisual(), FakeMonitor({}), real_fn=lambda: True)
+    with db.session() as s:
+        for hdr in ("NQ", None, "ES"):
+            s.add(ChartObservation(ts=datetime(2026, 11, 12, 15, 0, tzinfo=timezone.utc), status="screen_capture", symbol="NQZ26", timeframe="5Min",
+                                   price=1.0, outcome="match", real_capture=1, detail=json.dumps({"title_check": {"header": hdr, "title": "NQ"}})))
+    oks = sorted(r["result"]["ticker"]["ok"] for r in cw.trust_rows())
+    assert oks == [False, False, True]

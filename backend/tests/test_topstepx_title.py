@@ -83,3 +83,30 @@ def test_the_contract_is_taken_from_the_tab_title_when_the_picture_cannot_supply
     assert seen.instrument.value == "MNQ" and seen.instrument.cls == "DIRECTLY_READ" and "tab title" in seen.instrument.source
     clash = read_chart(img, prof(root="auto"), now, tokens=list(toks), title="ESH27 $7,512.50 ▼ -0.2% - Microsoft Edge")
     assert any("Instrument conflict" in x for x in clash.problems) and clash.instrument.confidence <= 0.2
+
+
+async def test_every_topstepx_window_is_read_not_only_the_first(fut):  # noqa: F811
+    from .test_visual_monitor import T_RTH, Clock, fixture, make_monitor
+    img, _, _ = fixture("mnq_5m_basic")
+    wins = [{"kind": "window", "id": 41, "title": "MNQZ26 $27,927.25 ▼ -1.61% - Personal - Microsoft Edge", "process": "msedge.exe"},
+            {"kind": "window", "id": 42, "title": "MESZ26 $7,512.50 ▲ +0.20% - Personal - Microsoft Edge", "process": "msedge.exe"},
+            {"kind": "window", "id": 43, "title": "Inbox - Personal - Microsoft Edge", "process": "msedge.exe"}]
+    m, rt, win = make_monitor(fut, lambda t: (img, "wgc"), wins, Clock(T_RTH))
+    await m.tick(rt)
+    m._attach_windows()
+    assert set(m.runtimes) == {"p1", "p1@42"} and m.runtimes["p1"].hwnd == 41                 # the mail window is never attached
+    extra = m.runtimes["p1@42"]
+    assert extra.profile.root == "auto" and "MESZ26" in extra.profile.name and extra.hwnd == 42
+    assert set(m.status()["charts"]) == {"p1", "p1@42"}
+    m._attach_windows()
+    assert len(m.runtimes) == 2                                                               # asking again adds nothing
+    wins[1]["title"] = "Chase Online - Personal - Microsoft Edge"                             # that window switched to another tab
+    m._attach_windows()
+    assert set(m.runtimes) == {"p1"}
+    wins[1]["title"] = "NQZ26 $27,900.00 ▼ -1.70% - Personal - Microsoft Edge"
+    m._attach_windows()
+    m._sync_profiles()
+    assert set(m.runtimes) == {"p1", "p1@42"} and "NQZ26" in m.runtimes["p1@42"].profile.name
+    del wins[1]
+    m._attach_windows()
+    assert set(m.runtimes) == {"p1"}

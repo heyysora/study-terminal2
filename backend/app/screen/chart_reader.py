@@ -79,6 +79,7 @@ class ChartReading:
     confidence: float = 0.0
     calibration_valid: bool = True
     signature: dict = field(default_factory=dict)
+    title_check: dict | None = None                        # {"header": root read from the picture or None, "title": root in the tab name}
     thumb: object = None                                   # small grayscale image for change detection (not serialized)
 
     def to_dict(self, candles: int = 300) -> dict:
@@ -87,6 +88,7 @@ class ChartReading:
              "bid": self.bid.to_dict(), "ask": self.ask.to_dict(), "axis": self.axis, "volume": self.volume.to_dict(),
              "candle_confidence": round(self.candle_confidence, 2), "levels": self.levels, "plot": self.plot, "colors": self.colors,
              "confidence": round(self.confidence, 2), "signature": self.signature, "calibration_valid": self.calibration_valid,
+             "title_check": self.title_check,
              "indicators": {k: v for k, v in self.indicators.items()},
              "candles": [{**{k: v for k, v in asdict(c).items()}, "class": ESTIMATED} for c in self.candles[-candles:]]}
         return d
@@ -442,6 +444,9 @@ def read_chart(img: np.ndarray, profile: ChartProfile, captured_at: datetime, to
     r.instrument, p1 = read_instrument(tokens, h, profile)
     from .platforms import topstepx_title
     tab = topstepx_title(title)                # TopstepX names its browser tab after the contract: exact text, no picture-reading needed
+    if tab:                                    # kept for automatic validation: did the picture-reading agree with the exact tab text?
+        header = r.instrument.value if str(r.instrument.source).startswith("chart text") else None
+        r.title_check = {"header": header, "title": tab["root"], "contract": tab["contract"]}
     if tab and tab["root"] in ROOTS:
         weak = r.instrument.value is None or r.instrument.cls != TEXT or r.instrument.confidence < 0.6
         if weak and (profile.root == "auto" or profile.root == tab["root"]):

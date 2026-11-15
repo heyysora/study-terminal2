@@ -8,8 +8,8 @@ those candles' range (plus a small allowance). That compares the same instrument
 What this can and can't establish:
   price extraction      independently checkable (against delayed reference candles)
   symbol                independently checkable in part: an NQ chart read as ES would be thousands of points off the reference
-  timeframe             read from the chart's own label only; no independent source, so it stays unverified
-  candles               estimated from the picture; not validated here
+  timeframe             checkable: candles read from the picture are compared with reference candles at each possible timeframe
+  candles               checkable the same way (highs and lows against the reference at the chart's timeframe)
 Results from test or demo capture sources are stored but never counted as evidence.
 """
 from __future__ import annotations
@@ -30,6 +30,44 @@ COMPARE_AFTER = timedelta(minutes=20)       # free futures data runs roughly 10-
 GIVE_UP_AFTER = timedelta(hours=6)
 TOLERANCE = 0.0006                          # 0.06% either side of the reference candles (bid/ask, tick rounding, clock skew)
 NEED_MATCHES, NEED_DAYS, NEED_RATE = 30, 2, 0.95
+CANDLE_EVERY = timedelta(minutes=5)         # how often a chart's candles are saved for the timeframe/candle check
+CANDLES_KEPT = 12
+TF_MINUTES = {"1Min": 1, "2Min": 2, "3Min": 3, "5Min": 5, "10Min": 10, "15Min": 15, "30Min": 30, "1Hour": 60}
+CANDLE_TOL = 0.00012                        # 0.012% of price (about 3 points on NQ): the estimate is "about 1-3 ticks" per the reader
+TF_MARGIN = 1.5                             # the best-fitting timeframe must beat the next best by this factor to count
+
+
+def _minute(ts: datetime) -> datetime:
+    return ts.replace(second=0, microsecond=0)
+
+
+def fit_timeframes(candles: list[dict], captured_at: datetime, ref_1m: list) -> dict | None:
+    """Which timeframe do the candles read from the picture belong to? The right-most candle is the one still forming; the ones
+    before it are compared, high and low, with reference candles built at each possible timeframe. Returns
+    {"errors": {tf: mean error as a fraction of price}, "best", "second", "n"} or None when there isn't enough to compare."""
+    done = [c for c in candles[:-1] if c.get("high") and c.get("low")][-(CANDLES_KEPT - 1):]
+    if len(done) < 6 or not ref_1m:
+        return None
+    by_min = {_minute(b.ts): b for b in ref_1m}
+    errors: dict[str, float] = {}
+    used: dict[str, int] = {}
+    for name, m in TF_MINUTES.items():
+        t = _minute(captured_at)
+        start = t - timedelta(minutes=(t.hour * 60 + t.minute) % m)      # start of the candle still forming
+        errs = []
+        for i, c in enumerate(reversed(done), start=1):
+            a = start - timedelta(minutes=i * m)
+            mins = [by_min[a + timedelta(minutes=k)] for k in range(m) if a + timedelta(minutes=k) in by_min]
+            if len(mins) < max(1, m // 2):
+                continue
+            hi, lo = max(b.high for b in mins), min(b.low for b in mins)
+            errs.append((abs(c["high"] - hi) + abs(c["low"] - lo)) / 2 / hi)
+        if len(errs) >= 5:
+            errors[name], used[name] = sum(errs) / len(errs), len(errs)
+    if len(errors) < 2:
+        return None
+    order = sorted(errors, key=errors.get)
+    return {"errors": {k: round(v, 6) for k, v in errors.items()}, "best": order[0], "second": order[1], "n": used[order[0]]}
 SCENARIOS = {"normal": "Normal visible chart", "minimized_restored": "Minimized, then restored", "hidden_recovered": "Covered or another tab, then back",
              "frozen": "Frozen chart detected", "resized": "Window resized", "symbol_changed": "Contract changed", "timeframe_changed": "Timeframe changed",
              "restart": "Kept working after Study Terminal restarted", "window_gone": "Edge or the TopstepX tab closed"}
@@ -117,13 +155,26 @@ class ChartWatch:
             last_at = (prev or {}).get("saved_at")
             if prev and prev["status"] == status and last_at and (now - last_at).total_seconds() < 60:
                 cur["saved_at"] = last_at
+                if prev.get("candles_at"):
+                    cur["candles_at"] = prev["candles_at"]
                 continue
             cur["saved_at"] = now
+            extra = {}
+            tc = rd.get("title_check")
+            if good and tc:
+                extra["title_check"] = tc
+            last_c = (prev or {}).get("candles_at")
+            if good and tf and (last_c is None or now - last_c >= CANDLE_EVERY):
+                cs = [{"high": c.get("high"), "low": c.get("low"), "open": c.get("open"), "close": c.get("close")} for c in (rd.get("candles") or [])[-CANDLES_KEPT:]]
+                if len(cs) >= 7:
+                    extra["candles"], cur["candles_at"] = cs, now
+            if "candles_at" not in cur and last_c is not None:
+                cur["candles_at"] = last_c
             row = ChartObservation(ts=now, status=status, symbol=str(sym)[:24], timeframe=str(tf)[:12], price=float(px) if good else None,
                                    price_class=str(cls)[:32], ref_symbol=data_symbol(str(sym)) if sym else "",
                                    outcome="pending" if good and sym else "not_readable", real_capture=int(real), app_version=VERSION,
                                    os_version=self.os, detail=json.dumps({"profile": pid, "reason": reason, "confidence": rd.get("confidence"),
-                                                                          "capture_method": ch.get("capture_method")}))
+                                                                          "capture_method": ch.get("capture_method"), **extra}))
             with self.db.session() as s:
                 s.add(row)
             out.append({"profile": pid, "status": status, "symbol": sym, "price": px})
@@ -162,10 +213,51 @@ class ChartWatch:
                 note = f"Reference data couldn't be fetched: {type(e).__name__}"
             with self.db.session() as s:
                 o = s.get(ChartObservation, oid)
+                det = json.loads(o.detail or "{}")
                 o.outcome, o.ref_low, o.ref_high, o.diff_pct, o.tolerance_pct = outcome, lo, hi, diff, TOLERANCE * 100
-                o.detail = json.dumps({**json.loads(o.detail or "{}"), "comparison": note, "reference": "Yahoo 1-minute candles (delayed)"})
+                if det.get("candles") and outcome in ("match", "mismatch") and o.timeframe in TF_MINUTES:
+                    try:
+                        long_key = ref + "|long"
+                        if long_key not in cache:
+                            cache[long_key], _n = await self.monitor.provider.get_bars(ref, Timeframe.M1, ts - timedelta(hours=13), now)
+                        fit = fit_timeframes(det["candles"], ts, cache[long_key])
+                    except Exception:  # noqa: BLE001 - the price comparison still stands
+                        fit = None
+                    if fit:
+                        clear = fit["errors"][fit["second"]] >= fit["errors"][fit["best"]] * TF_MARGIN
+                        det["tf_fit"] = {**fit, "read": o.timeframe, "clear": clear,
+                                         "tf_ok": (fit["best"] == o.timeframe) if clear else None,
+                                         "candle_ok": fit["errors"].get(o.timeframe) is not None and fit["errors"][o.timeframe] <= CANDLE_TOL}
+                o.detail = json.dumps({**det, "comparison": note, "reference": "Yahoo 1-minute candles (delayed)"})
             done += 1
         return done
+
+    # ---------------- evidence for "Can I trust it?" ----------------
+    def trust_rows(self) -> list[dict]:
+        """Automatic checks in the same shape as the samples you would otherwise label by hand. Real screen captures only.
+        price       the price read from the screen was inside the reference candles for that minute
+        ticker      the contract read from the picture equals the contract in the browser tab's name (exact text from the page)
+        timeframe   the candles read from the picture fit reference candles best at the timeframe the chart says, by a clear margin
+        last_candle / price_axis   those candles' highs and lows are within tolerance of the reference at that timeframe"""
+        out = []
+        with self.db.session() as s:
+            rows = s.scalars(select(ChartObservation).where(ChartObservation.real_capture == 1, ChartObservation.outcome.in_(("match", "mismatch")))
+                             .order_by(ChartObservation.id.desc()).limit(4000)).all()
+            rows = [(o.id, o.ts, o.price, o.outcome, o.ref_low, o.ref_high, o.timeframe, o.detail) for o in rows]
+        for oid, ts, price, outcome, lo, hi, tf, detail in rows:
+            d = json.loads(detail or "{}")
+            res = {"price": {"ok": outcome == "match", "read": price, "truth": f"{lo}-{hi} (reference candles)"}}
+            tc = d.get("title_check")
+            if tc and tc.get("title"):
+                res["ticker"] = {"ok": tc.get("header") == tc["title"], "read": tc.get("header"), "truth": f"{tc['title']} (browser tab)"}
+            fit = d.get("tf_fit")
+            if fit:
+                if fit.get("tf_ok") is not None:
+                    res["timeframe"] = {"ok": bool(fit["tf_ok"]), "read": tf, "truth": f"{fit['best']} (best fit to reference candles)"}
+                res["last_candle"] = {"ok": bool(fit["candle_ok"]), "read": f"mean error {fit['errors'].get(tf)}", "truth": f"within {CANDLE_TOL:.3%}"}
+                res["price_axis"] = dict(res["last_candle"])
+            out.append({"id": f"auto-{oid}", "at": ts.isoformat(), "synthetic": False, "platform": "topstepx-visual-auto", "automatic": True, "result": res})
+        return out
 
     # ---------------- reporting ----------------
     def summary(self) -> dict:
@@ -198,14 +290,33 @@ class ChartWatch:
         st, det = f["price extraction"]
         f["symbol detection"] = (st, ("The contract read from the chart is consistent with the reference prices for that contract." if st == "pass"
                                       else "Follows price extraction: a wrong contract would put the price far outside the reference range. " + det))
-        f["timeframe detection"] = ("unknown", "Read from the chart's own label. No independent source can confirm a chart's timeframe, so it stays unverified.")
-        f["candle values"] = ("unknown", "Candles are estimated from the picture and aren't validated automatically.")
+        fits = [json.loads(r[10] or "{}").get("tf_fit") for r in real]
+        fits = [x for x in fits if x]
+        tf_n = [x for x in fits if x.get("tf_ok") is not None]
+        tf_k, c_k = sum(1 for x in tf_n if x["tf_ok"]), sum(1 for x in fits if x.get("candle_ok"))
+        if not tf_n:
+            f["timeframe detection"] = ("unknown", "Not checked yet. Every 5 minutes the candles read from your chart are saved, and later compared with "
+                                                   "reference candles at each possible timeframe; the chart's label has to be the clear best fit.")
+        elif len(tf_n) >= 20 and tf_k / len(tf_n) >= NEED_RATE:
+            f["timeframe detection"] = ("pass", f"{tf_k} of {len(tf_n)} checks: the candles fit reference candles best at the timeframe the chart shows.")
+        elif len(tf_n) >= 10 and tf_k / len(tf_n) < 0.8:
+            f["timeframe detection"] = ("fail", f"Only {tf_k} of {len(tf_n)} checks agreed with the timeframe the chart shows.")
+        else:
+            f["timeframe detection"] = ("unknown", f"{tf_k} of {len(tf_n)} checks agree so far; needs 20 at {NEED_RATE:.0%}.")
+        if not fits:
+            f["candle values"] = ("unknown", "Not checked yet (same check as the timeframe).")
+        elif len(fits) >= 20 and c_k / len(fits) >= 0.8:
+            f["candle values"] = ("pass", f"{c_k} of {len(fits)} checks: candle highs and lows read from the picture were within {CANDLE_TOL:.3%} of the reference.")
+        elif len(fits) >= 10 and c_k / len(fits) < 0.6:
+            f["candle values"] = ("fail", f"Only {c_k} of {len(fits)} checks had candle highs and lows within {CANDLE_TOL:.3%} of the reference.")
+        else:
+            f["candle values"] = ("unknown", f"{c_k} of {len(fits)} checks within tolerance so far; needs 20.")
         f["frozen-chart detection"] = (("pass", f"Detected {self.scenarios['frozen']['count']} time(s) on this PC.") if self.scenarios.get("frozen")
                                        else ("unknown", "Not seen on this PC yet. Tested with simulated charts only."))
         f["recovery after minimize / hidden tab"] = (("pass", "Seen recovering on this PC.") if (self.scenarios.get("minimized_restored") or self.scenarios.get("hidden_recovered"))
                                                      else ("unknown", "Not seen on this PC yet. Tested with simulated charts only."))
         last = rows[0] if rows else None
-        return {"features": {k: {"state": v[0], "detail": v[1], "independent": k in ("price extraction", "symbol detection") and v[0] == "pass"} for k, v in f.items()},
+        return {"features": {k: {"state": v[0], "detail": v[1], "independent": k in ("price extraction", "symbol detection", "timeframe detection", "candle values") and v[0] == "pass"} for k, v in f.items()},
                 "counts": {"real_readings": len(real), "compared": len(cmp), "matched": len(match), "mismatched": len(cmp) - len(match),
                            "waiting": sum(1 for r in real if r[5] == "pending"), "days_with_matches": len(days), "test_source_readings": len(rows) - len(real)},
                 "last": last and {"at": last[0].isoformat(), "status": last[1], "symbol": last[2], "timeframe": last[3], "price": last[4], "outcome": last[5]},

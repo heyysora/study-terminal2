@@ -174,9 +174,21 @@ def tray_image(color: str, screen_on: bool):
     return img
 
 
+SPLASH = """<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{height:100%;margin:0;background:#0b0d0c;color:#f3f5f4;font:500 17px 'Segoe UI',system-ui,sans-serif}
+.w{height:100%;display:grid;place-items:center;text-align:center}
+.d{width:38px;height:38px;border-radius:50%;border:3px solid rgba(47,214,130,.25);border-top-color:#2fd682;margin:0 auto 18px;animation:s 0.9s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}} small{display:block;margin-top:8px;color:#9aa3a0;font-weight:400;font-size:14px}
+</style></head><body><div class="w"><div><div class="d"></div>Study Terminal is starting<small>Practice mode. Getting your data ready.</small></div></div></body></html>"""
+
+
 class App:
-    def __init__(self, minimized: bool = False):
-        self.backend = Backend()
+    def __init__(self, minimized: bool = False, lazy_backend: bool = False):
+        # lazy_backend: the window opens first with a loading screen and the engine is loaded behind it (see run()).
+        self.backend = None if lazy_backend else Backend()
+        self.failed = False
+        self.ready = not lazy_backend
+        self.window_test: dict | None = None
         self.window = None
         self.icon = None
         self.quitting = False
@@ -205,6 +217,8 @@ class App:
     def on_closing(self):
         if self.quitting:
             return True
+        if not self.ready:           # still on the loading screen: there's no tray icon yet to bring the window back from
+            return False
         self.window.hide()
         self.notify("Study Terminal is still running", "Monitoring continues in the system tray. Ctrl+Alt+S to reopen.")
         return False  # cancel the close: hide to tray instead
@@ -275,7 +289,8 @@ class App:
         self.quitting = True
         log.info("quit requested")
         keep_awake(False)
-        self.backend.stop()          # waits for a clean shutdown
+        if self.backend:
+            self.backend.stop()      # waits for a clean shutdown
         if self.icon:
             self.icon.stop()
         if self.window:
@@ -323,41 +338,95 @@ class App:
                 self.show()
 
     # ---------------- run ----------------
-    def run(self):
-        log.info("Study Terminal %s starting (frozen=%s, data=%s)", VERSION, getattr(sys, "frozen", False), S.data_dir)
-        if not self.backend.start():
-            why = self.backend.error or "it didn't answer within 90 seconds"
-            helpf = save_help_file()
+    def _start_engine(self) -> bool:
+        """Load and start the backend. Returns False (after telling the user) if it couldn't start."""
+        try:
+            if self.backend is None:
+                self.backend = Backend()
+            ok = self.backend.start()
+        except Exception as e:  # noqa: BLE001
+            log.exception("backend could not be loaded")
+            ok = False
+            if self.backend is not None:
+                self.backend.error = self.backend.error or f"{type(e).__name__}: {e}"
+        if ok:
+            return True
+        why = (self.backend.error if self.backend else None) or "it didn't answer within 90 seconds"
+        helpf = save_help_file()
+        if self.window_test is None:
             message_box("Study Terminal couldn't start",
                         "Study Terminal couldn't start. Your data hasn't been changed.\n\n"
                         "Try opening it again. If it still won't start, restart your computer and try once more.\n\n"
                         + (f"A help file was saved so you can send it:\n{helpf}\n\n" if helpf else "")
                         + f"(Technical reason: {why})")
+        if self.backend:
             self.backend.stop(5)
-            sys.exit(1)
+        return False
+
+    def _after_engine(self):
         try:
             self.build_tray()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"System tray unavailable: {e}")
         threading.Thread(target=self.status_loop, daemon=True).start()
         threading.Thread(target=self.hotkey_loop, daemon=True).start()
+
+    def _boot(self):
+        """Runs behind the window, which is already showing the loading screen."""
+        t0 = time.time()
+        if not self._start_engine():
+            self.failed = True
+            self.quitting = True
+            if self.window:
+                self.window.destroy()
+            return
+        log.info("engine ready %.1f s after the window opened", time.time() - t0)
+        self._after_engine()
+        self.ready = True
+        self.window.load_url(URL)
+        if self.window_test is not None:                    # automated check of this exact start-up path, then close
+            ok, seen = False, None
+            for _ in range(120):
+                try:
+                    seen = self.window.get_current_url()
+                except Exception as e:  # noqa: BLE001
+                    seen = f"error: {e}"
+                if isinstance(seen, str) and seen.startswith(URL):
+                    ok = True
+                    break
+                time.sleep(0.5)
+            self.window_test.update(ok=ok, url=seen, seconds=round(time.time() - t0, 1))
+            self.quit()
+
+    def run(self):
+        log.info("Study Terminal %s starting (frozen=%s, data=%s)", VERSION, getattr(sys, "frozen", False), S.data_dir)
         try:
             import webview
-
-            self.window = webview.create_window(f"Study Terminal {VERSION}", URL, width=1560, height=980, min_size=(1100, 700),
-                                                background_color="#0b0e14", hidden=self.minimized)
-            self.window.events.closing += self.on_closing
-            webview.start(gui="edgechromium" if IS_WIN else None)
         except ImportError:
+            webview = None
+        if webview is None:                                  # no window library: start the engine, then use the browser
+            if not self._start_engine():
+                sys.exit(1)
+            self._after_engine()
             print("pywebview not installed - opening in your browser instead. Close the console to quit.")
             webbrowser.open(URL)
             while not self.quitting:
                 time.sleep(1)
+            self.backend.stop()
+            return
+        # The window opens straight away with a loading screen; the engine (the slow part) loads behind it.
+        self.window = webview.create_window(f"Study Terminal {VERSION}", html=SPLASH, width=1560, height=980, min_size=(1100, 700),
+                                            background_color="#0b0d0c", hidden=self.minimized)
+        self.window.events.closing += self.on_closing
+        webview.start(self._boot, gui="edgechromium" if IS_WIN else None)
+        if self.failed:
+            sys.exit(1)
         # window loop ended via Quit
         if not self.quitting:
             self.quit()
-        else:
+        elif self.backend:
             self.backend.stop()
+
 
 
 def self_test() -> int:
@@ -419,11 +488,32 @@ def headless(stop_file: str) -> int:
     return 0 if ok else 1
 
 
+def window_test() -> int:
+    """Open the real window exactly as a normal start does (loading screen first, then the app), confirm the app's page
+    loaded in it, and close. Used by the automated Windows checks. Exit 0 = the page loaded; 1 = it didn't."""
+    choose_port()
+    app = App(lazy_backend=True)
+    app.window_test = {"ok": False}
+    try:
+        app.run()
+    except SystemExit:
+        pass
+    except Exception as e:  # noqa: BLE001
+        app.window_test["error"] = f"{type(e).__name__}: {e}"
+    r = app.window_test
+    print(f"window-test: {'app page loaded in the window' if r.get('ok') else 'FAILED'}; {r.get('seconds')} s after the window opened; "
+          f"url {r.get('url')}; {r.get('error', '')}; version {VERSION}", flush=True)
+    log.info("window-test result: %s", r)
+    return 0 if r.get("ok") else 1
+
+
 def main():
     if "--self-test" in sys.argv:
         sys.exit(self_test())
     if "--headless" in sys.argv and "--stop-file" in sys.argv:
         sys.exit(headless(sys.argv[sys.argv.index("--stop-file") + 1]))
+    if "--window-test" in sys.argv:
+        sys.exit(window_test())
     inst = SingleInstance()
     if inst.already_running:
         try:
@@ -433,7 +523,7 @@ def main():
         return
     choose_port()
     try:
-        App(minimized="--minimized" in sys.argv).run()
+        App(minimized="--minimized" in sys.argv, lazy_backend=True).run()
     except Exception:  # noqa: BLE001
         helpf = save_help_file()
         message_box("Study Terminal error", "Study Terminal hit an unexpected error and closed. Your data hasn't been changed; "

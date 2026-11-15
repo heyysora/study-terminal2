@@ -15,16 +15,11 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
-from sklearn.inspection import permutation_importance
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import brier_score_loss, precision_score, recall_score, roc_auc_score
-from sklearn.pipeline import make_pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
+
+# scikit-learn takes close to a second to import and is only needed when a model is trained or a saved one is loaded,
+# so it is imported at that moment instead of every time the app starts.
 
 from ..backtest.engine import ML_FEATURES
 
@@ -51,6 +46,11 @@ def to_xy(trades: list[dict]) -> tuple[pd.DataFrame, np.ndarray, pd.Series]:
 
 
 def _models() -> dict:
+    from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
     out = {
         "logistic_baseline": make_pipeline(SimpleImputer(keep_empty_features=True), StandardScaler(), LogisticRegression(max_iter=500)),
         "random_forest": make_pipeline(SimpleImputer(keep_empty_features=True), RandomForestClassifier(n_estimators=300, min_samples_leaf=10, random_state=0)),
@@ -107,6 +107,9 @@ def _skill_ci(y, p, base: float, ts, n_boot: int = 1000, seed: int = 3) -> list[
 
 
 def train(trades: list[dict], model_dir: Path, test_frac: float = 0.3) -> dict:
+    import joblib
+    from sklearn.inspection import permutation_importance
+    from sklearn.metrics import brier_score_loss, precision_score, recall_score, roc_auc_score
     model_dir.mkdir(parents=True, exist_ok=True)
     if len(trades) < 60:
         return {"deployed": False, "reason": f"Only {len(trades)} trades; need at least 60 to train and test honestly.", "n": len(trades)}
@@ -189,6 +192,7 @@ class ModelRegistry:
             return None
         v = json.loads(latest.read_text())["version"]
         self._meta = json.loads((self.dir / f"model-{v}.json").read_text())
+        import joblib
         self._model = joblib.load(self.dir / f"model-{v}.joblib") if self._meta.get("deployed") else None
         return self._meta
 

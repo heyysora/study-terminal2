@@ -104,14 +104,24 @@ def wait_up(timeout: float) -> bool:
     return False
 
 
-def wait_restarted(after: str, timeout: float = 120) -> tuple[bool, float, dict]:
-    """After a fix is chosen the app restarts itself; wait until it's back with a result newer than `after`."""
+def last_done() -> str | None:
+    """When the most recent recovery action finished, as the app reports it (before a new one is asked for)."""
+    try:
+        return (http("GET", "/data/status", timeout=5)[1].get("last_recovery") or {}).get("done_at")
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def wait_restarted(after: str, timeout: float = 120, prev: str | None = None) -> tuple[bool, float, dict]:
+    """After a fix is chosen the app restarts itself; wait until it's back with a NEW result from `after` or later.
+    Times have one-second resolution, so a fast action can finish in the same second it was asked for: that counts, as long as
+    it isn't the result that was already there (`prev`)."""
     t0 = time.time()
     while time.time() - t0 < timeout:
         try:
             code, st = http("GET", "/data/status", timeout=3)
             last = st.get("last_recovery") or {}
-            if code == 200 and not st.get("restart_requested") and not st.get("pending") and last.get("done_at", "") > after:
+            if code == 200 and not st.get("restart_requested") and not st.get("pending") and last.get("done_at", "") >= after and last.get("done_at") != prev:
                 return True, round(time.time() - t0, 1), st
         except (urllib.error.URLError, OSError, ValueError):
             pass
@@ -191,9 +201,10 @@ def main() -> int:
 
     # 2. restore + automatic restart
     http("PUT", "/settings", {"risk.max_per_trade_pct": 0.41})
+    prev_done = last_done()
     t = now_iso()
     code, _ = http("POST", "/data/schedule", {"action": "restore", "backup": bname, "confirm": True})
-    back, secs, st = wait_restarted(t)
+    back, secs, st = wait_restarted(t, prev=prev_done)
     _, sv = http("GET", "/settings")
     reverted = (sv.get("values") or {}).get("risk.max_per_trade_pct") != 0.41
     safety = [x for x in http("GET", "/data/backups")[1].get("backups", []) if x["kind"] == "before restore" and x["usable"]]
@@ -212,9 +223,10 @@ def main() -> int:
     _, h = http("GET", "/health")
     in_rec = (h.get("recovery") or {}).get("kind") == "database"
     untouched = hashlib.sha256(db.read_bytes()).hexdigest() == bad_hash
+    prev_done = last_done()
     t = now_iso()
     code, _ = http("POST", "/data/schedule", {"action": "restore", "backup": bname, "confirm": True})
-    back, secs, st = wait_restarted(t)
+    back, secs, st = wait_restarted(t, prev=prev_done)
     _, h2 = http("GET", "/health")
     kept = any(hashlib.sha256(p.read_bytes()).hexdigest() == bad_hash for p in (WORK / "damaged").rglob(DB))
     record("Recovery from corrupted data", in_rec and untouched and back and (st.get("last_recovery") or {}).get("ok") and kept,
@@ -230,9 +242,10 @@ def main() -> int:
     app.start()
     _, h = http("GET", "/health")
     in_rec = bool(h.get("recovery"))
+    prev_done = last_done()
     t = now_iso()
     http("POST", "/data/schedule", {"action": "rescue", "confirm": True})
-    back, secs, st = wait_restarted(t)
+    back, secs, st = wait_restarted(t, prev=prev_done)
     last = st.get("last_recovery") or {}
     lost = (last.get("rescued") or {}).get("lost", [])
     saved = (last.get("rescued") or {}).get("saved", {})

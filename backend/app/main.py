@@ -24,7 +24,7 @@ from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
 from .core.events import Broadcaster
-from .core.market_clock import MarketClock
+from .core.market_clock import MarketClock, shared_clock
 from .db.session import Database
 from .education.service import EducationService
 from .futures.service import FuturesService
@@ -90,7 +90,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         db.seed_default_watchlist(settings.default_watchlist)
         broadcaster = Broadcaster()
         prov = provider or create_provider(settings)
-        monitor = MarketMonitor(settings=settings, db=db, provider=prov, broadcaster=broadcaster, clock=clock or MarketClock())
+        monitor = MarketMonitor(settings=settings, db=db, provider=prov, broadcaster=broadcaster, clock=clock or shared_clock())
         paper = PaperService(settings, db, monitor, broadcaster)
         store = SettingsStore(db)
         analysis = AnalysisService(prov)
@@ -240,9 +240,9 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             return out
 
         datahealth = DataHealth(db, [
-            dhp.YahooProbe("yahoo_stocks", "Stock prices (Yahoo Finance)", "stocks", monitor, ["SPY", "QQQ"], max_age_s=1200),
-            dhp.YahooProbe("yahoo_futures", "Futures prices (Yahoo Finance, delayed)", "futures", monitor, ["NQ=F", "ES=F", "MNQ=F", "MES=F"],
-                           max_age_s=1800, pairs=[("NQ=F", "MNQ=F"), ("ES=F", "MES=F")], delayed="10 to 15 minutes"),
+            dhp.YahooProbe("yahoo_stocks", "Stock prices (Yahoo Finance)", "stocks", monitor, ["SPY"], max_age_s=1200),
+            dhp.YahooProbe("yahoo_futures", "Futures prices (Yahoo Finance, delayed)", "futures", monitor, ["NQ=F", "MNQ=F", "ES=F"],
+                           max_age_s=1800, pairs=[("NQ=F", "MNQ=F")], delayed="10 to 15 minutes"),
             dhp.CryptoProbe(s.crypto), dhp.MemecoinProbe(meme.data, lambda: [p["token"] for p in meme.practice.positions()]),
             dhp.SolanaRpcProbe(meme.data), dhp.pumpfun_probe(), dhp.fomo_probe(),
         ], chartwatch=ChartWatch(db, visual, monitor, real_fn=lambda: getattr(visual, "capture_fn", None) is None), positions_fn=_open_positions)
@@ -302,6 +302,51 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await visual.autostart()
             await meme.start()
             await datahealth.start()
+
+            async def warm():
+                """Fetch what the first screens need before anyone clicks, so they open at once instead of waiting on a download.
+                Uses the app's own API in-process; nothing here is shown or stored beyond the normal short-lived caches."""
+                await asyncio.sleep(0.5)
+                try:
+                    wl = [w.symbol for w in (db_first_watchlist() or [])][:4]
+                except Exception:  # noqa: BLE001
+                    wl = []
+                paths = ["/api/home", "/api/crypto/markets", "/api/trust", "/api/meme/feed?kind=profiles"]
+                for sym in (wl[:2] or ["SPY"]):
+                    paths += [f"/api/analysis/{sym}?timeframes=5Min&chart=5Min&extended=false", f"/api/signals/{sym}?timeframe=5Min",
+                              f"/api/packet/{sym}", f"/api/ai/explain/{sym}?timeframe=5Min"]
+                for pth in paths:
+                    try:
+                        await asyncio.wait_for(_call_self(pth), timeout=40)
+                    except Exception:  # noqa: BLE001 - warming is best effort
+                        log.debug("warm-up of %s skipped", pth, exc_info=True)
+
+            async def _call_self(path: str) -> int:
+                """Ask this app for one of its own pages, in memory. No socket, no network: the request never leaves the process."""
+                p_, _, q = path.partition("?")
+                scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET", "scheme": "http",
+                         "path": p_, "raw_path": p_.encode(), "query_string": q.encode(), "root_path": "",
+                         "headers": [(b"host", b"127.0.0.1"), (b"x-study-terminal", b"1")], "client": ("127.0.0.1", 0),
+                         "server": ("127.0.0.1", settings.port)}
+                status = {"code": 0}
+
+                async def receive():
+                    return {"type": "http.request", "body": b"", "more_body": False}
+
+                async def send(msg):
+                    if msg["type"] == "http.response.start":
+                        status["code"] = msg["status"]
+                await app(scope, receive, send)
+                return status["code"]
+
+            def db_first_watchlist():
+                from sqlalchemy import select
+
+                from .db.models import Watchlist
+                with db.session() as sess:
+                    w = sess.scalars(select(Watchlist).limit(1)).first()
+                    return list(w.symbols) if w else []
+            s.warm_task = asyncio.create_task(warm())
 
             async def watch():
                 n = 0
