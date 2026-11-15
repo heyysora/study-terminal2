@@ -1,4 +1,4 @@
-# Features and limitations (0.14.1)
+# Features and limitations (0.15.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
@@ -12,6 +12,9 @@
 | | Feed-health alerts (stream down > 60 s, provider failing, stale price on an open position) and recovery alerts; automatic reconnect with backoff | ✅ |
 | | Rate limiting (60/min, back-off on 429), exchange calendar incl. holidays and **early closes** everywhere | ✅ |
 | | Provider research and how to add one ([docs/DATA_PROVIDERS.md](docs/DATA_PROVIDERS.md)) | ✅ |
+| | Live crypto prices (8 coins) from public exchange data via ccxt, locked to read-only; Markets column on Charts | ✅ here · 🟡 Windows self-test only |
+| | Memecoin practice: sell-part-at-target exit plan, trailing stop, practice journal (your words only), hide amounts, pump.fun stage and links checks | ✅ |
+| | Dark exchange look (default), aurora look as the light theme | ✅ |
 | | US stocks streamed during market hours | 🟡 never observed from the build environment (weekend); crypto streaming verified |
 | Signals | 10 setups, full plans, lifecycle, position sizing | ✅ |
 | | Evidence tiers from out-of-sample results with day-clustered 95% intervals; BUY/SHORT only on "reliable" evidence; clearly losing setups = NO TRADE; STRONG needs regime record too | ✅ |

@@ -1,4 +1,4 @@
-# Known limitations (0.14.1)
+# Known limitations (0.15.0)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -91,3 +91,11 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 
 ## AI
 - Claude and Ollama wording were not tested (no key or local model in the build environment). The built-in mentor works offline.
+
+## Crypto exchange prices (0.15.0)
+
+- Eight coins only, US-dollar pairs, from Kraken (fallback Coinbase, then Bitstamp). Other coins use Yahoo Finance as before.
+- The 24-hour change is worked out from hourly candles, so it can differ by a fraction of a percent from an exchange's own figure.
+- If your network or region blocks all three exchanges, the cards say they couldn't be reached and the charts fall back to Yahoo Finance.
+- ccxt is bundled locked to public prices. This was tested here and is checked by the installer's self-test; it has not been tested on your PC.
+- Memecoin stage (starting curve or graduated) comes from which exchange DexScreener lists the token on. There is no "percent to graduation" figure because public sources disagree on the threshold.

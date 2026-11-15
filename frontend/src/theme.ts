@@ -1,9 +1,9 @@
-// Light / dark theme. "auto" follows the Windows setting. Applied before the first render so there's no flash.
+// Light / dark theme. Dark (the exchange look) is the default; "auto" follows the Windows setting. Applied before the first render so there's no flash.
 import { useEffect, useSyncExternalStore } from "react";
 
 export type ThemePref = "auto" | "light" | "dark";
 const mq = typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-let pref: ThemePref = (() => { try { const v = localStorage.getItem("st.theme"); return v === "light" || v === "dark" ? v : "auto"; } catch { return "auto"; } })();
+let pref: ThemePref = (() => { try { const v = localStorage.getItem("st.theme"); return v === "light" || v === "auto" ? v : "dark"; } catch { return "dark"; } })();
 const subs = new Set<() => void>();
 export const resolvedTheme = () => (pref === "auto" ? (mq?.matches ? "dark" : "light") : pref);
 function apply() { document.documentElement.dataset.theme = resolvedTheme(); subs.forEach((f) => f()); }

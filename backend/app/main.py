@@ -19,7 +19,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_meme, routes_odds, routes_system, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
+from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_crypto, routes_meme, routes_odds, routes_system, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -226,6 +226,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                                         network_fee_usd=float(store.get("memecoins.network_fee_usd", 0.05) or 0.05),
                                         max_trade_pct=float(store.get("memecoins.max_trade_pct", 10.0) or 10.0))
         s.meme = meme
+        from .market_data.exchanges import CryptoMarkets
+        s.crypto = CryptoMarkets()
 
         def apply(changes: dict | None = None):
             v = store.all()
@@ -305,6 +307,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                 visual._task.cancel()
             await health.stop()
             await meme.stop()
+            await s.crypto.stop()
             await futures.stop()
             await news.stop()
             await scanner.stop()
@@ -353,6 +356,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_system.router)
     app.include_router(routes_odds.router)
     app.include_router(routes_meme.router)
+    app.include_router(routes_crypto.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")

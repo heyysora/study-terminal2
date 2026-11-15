@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.15.0 (2026-11-14)
+
+New dark look, live crypto prices from exchanges, and more memecoin practice tools.
+
+**Look**
+- The app now opens in a dark exchange style: near-black background with a green glow, charcoal cards, one green accent, green pills for the active tab and the main button. The lavender aurora design is still there as the light theme (the sun/moon button at the top switches).
+- Charts has a Markets column on the left: a card per coin with price, 24-hour change, a small trend line and the 24-hour high and low. Your stock list sits under it.
+
+**Live crypto prices (ccxt)**
+- Bitcoin, Ethereum, Solana, XRP, Dogecoin, Cardano, Chainlink and Litecoin prices now come from public exchange data (Kraken first, then Coinbase, then Bitstamp), a few seconds old instead of about a minute. Free, no account.
+- The library used for this (ccxt) can place orders when it's given exchange keys. Study Terminal gives it none, has no setting that could, and switches off every order and account function. Health shows "Crypto prices: Read-only", and the installer's self-test fails if that lock is ever missing.
+- Crypto is still watch only. If no exchange answers, the cards say so instead of showing old numbers as live.
+
+**Memecoin practice**
+- Exit plan: at your target you can sell only part (a quarter, half, three quarters) and keep the rest. The stop for the rest moves up to your buy price. An optional trailing stop follows the price up and never moves down.
+- Sell half button on open positions.
+- Practice journal: every finished memecoin practice trade with what it made or lost, how long you held it and how it ended. "Why I bought" and "What I learned" are only ever what you type; the app doesn't guess them.
+- Hide amounts: hides dollar figures and keeps percentages, for sharing your screen.
+- Rug-risk check has two new lines: whether the token lists any website or social links, and (for pump.fun tokens) whether it's still on pump.fun's starting curve or has graduated to a trading pool.
+
+**Looked at and left out**
+- Buying or selling real memecoins, wallets, token launches (pumpfun-agent-skill): real money and private keys, which stay outside the app. See docs/MEMECOIN_REAL_TRADING.md.
+- Reading a real wallet's positions (pumpfun-utilities): the app's practice account has no wallet. Its journal idea and hide-amounts idea are what was used.
+- From claude-trading-skills: exit strategies and pump.fun stages were used. Paid data services (Birdeye, Helius and others), prediction markets, tax tools and execution skills were not.
+
 ## 0.14.1 (2026-11-14)
 
 New look, nothing else changed.

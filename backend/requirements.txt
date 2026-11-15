@@ -23,3 +23,4 @@ pywebview>=5; sys_platform == "win32"
 pystray>=0.19; sys_platform == "win32"
 win11toast>=0.35; sys_platform == "win32"
 windows-capture>=2.0,<3; sys_platform == "win32"   # Windows Graphics Capture (MIT): reads GPU-rendered Edge windows
+ccxt>=4.5,<5                  # public crypto exchange prices, READ-ONLY (locked in app/market_data/exchanges.py); tested with 4.5.92

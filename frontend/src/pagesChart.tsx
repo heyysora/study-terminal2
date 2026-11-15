@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { OrderTicket } from "./components";
 import { LineChart } from "./livechart";
 import { api, money, num, useLive, usePoll } from "./lib";
-import { Countdown, OpenNowChips, useMarketState, useNow } from "./markethours";
+import { Countdown, useMarketState, useNow } from "./markethours";
 import { Catalysts } from "./pages3";
 import { actionWord, explain, statusWord } from "./plain";
 import { ActionWord, Term, WhyBlock } from "./simple";
 import { OddsCheck } from "./odds";
 import { CandleRead } from "./packet";
+import { MarketCards, useCryptoPrice } from "./markets";
 
 const RANGES: Record<string, { tf: string; days?: number; bars?: number; label: string }> = {
   "1D": { tf: "5Min", days: 1, label: "Today" }, "5D": { tf: "15Min", days: 5, label: "5 days" }, "1M": { tf: "1Hour", days: 22, label: "1 month" },
@@ -61,6 +62,8 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
   const snap5 = (R.tf === "5Min" ? an.data : day5.data)?.snapshots?.["5Min"];
   const prevClose: number | null = snap5?.session?.pdc ?? null;
   const live = L.symbols[sym];
+  const exch = useCryptoPrice(sym, crypto);            // public exchange price (seconds old) for the listed coins; null otherwise
+  const exchFresh = !!(exch && !exch.stale);
   const lastBar = bars[bars.length - 1];
   const closedNow = !!(st && st.open === false);
   // official daily closes (the closing auction can differ a little from the last 5-minute bar)
@@ -70,9 +73,10 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
   const officialPrev: number | null = dBars.length > 1 ? dBars[dBars.length - 2].close : null;
   // When the market is closed the big price is the last real close of the session; a later after-hours trade is shown on its own line.
   const closeNow: number | null = officialClose ?? lastBar?.close ?? null;
-  const price: number | null = closedNow && !crypto && closeNow != null ? closeNow : live?.last?.price ?? lastBar?.close ?? null;
+  const price: number | null = closedNow && !crypto && closeNow != null ? closeNow : (exchFresh ? exch.price : null) ?? live?.last?.price ?? lastBar?.close ?? null;
   const afterHours: number | null = closedNow && !crypto && closeNow != null && live?.last?.price != null && Math.abs(live.last.price - closeNow) > 0.005 ? live.last.price : null;
-  const ref: number | null = range === "1D" && !crypto ? ((closedNow ? officialPrev : null) ?? prevClose ?? bars[0]?.open ?? null) : bars[0]?.open ?? null;
+  const exchRef: number | null = exchFresh && exch.change_24h_pct != null ? exch.price / (1 + exch.change_24h_pct / 100) : null;   // same 24-hour change as the market card
+  const ref: number | null = range === "1D" && crypto && exchRef != null ? exchRef : range === "1D" && !crypto ? ((closedNow ? officialPrev : null) ?? prevClose ?? bars[0]?.open ?? null) : bars[0]?.open ?? null;
   const closed = st && !st.open;
   const lastDay = lastBar ? new Date(lastBar.time * 1000).toLocaleDateString([], { weekday: "long" }) : "";
   const shown = hover ? hover.price : price;
@@ -80,8 +84,8 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
   const chPct = ch != null && ref ? (ch / ref) * 100 : null;
   const trend: "up" | "down" | "flat" = ch == null ? "flat" : ch > 0 ? "up" : ch < 0 ? "down" : "flat";
   useEffect(() => { document.documentElement.dataset.trend = trend === "down" ? "down" : "up"; return () => { delete document.documentElement.dataset.trend; }; }, [trend]);
-  const livePx: number | null = live?.last?.price ?? null;
-  const liveT: number | null = live?.last?.ts ? Math.floor(new Date(live.last.ts).getTime() / 1000) : null;
+  const livePx: number | null = (exchFresh ? exch.price : null) ?? live?.last?.price ?? null;
+  const liveT: number | null = exchFresh ? Math.floor(now / 1000) : live?.last?.ts ? Math.floor(new Date(live.last.ts).getTime() / 1000) : null;
   const series = useMemo(() => {
     const out = bars.map((b) => [b.time, b.close] as [number, number]);
     // the newest live price extends the line between chart refreshes (only while the market is open and on the short ranges)
@@ -101,11 +105,11 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
   const se = snap5?.session || {};
 
   return (
-    <div className="page stock">
+    <div className="page stock with-markets">
+      <MarketCards current={sym} stocks={watch} />
+      <div className="stock-main">
       <form className="symbar" onSubmit={(e) => { e.preventDefault(); const s = input.trim().toUpperCase(); if (s) location.hash = `#/chart/${s}`; }}>
         <input aria-label="Look up a stock" placeholder="Look up a stock (AAPL) or crypto (BTC-USD)" value={input} onChange={(e) => setInput(e.target.value)} />
-        <div className="pills">{watch.map((w) => <a key={w} className={`chip${w === sym ? " on" : ""}`} href={`#/chart/${w}`}>{w}</a>)}</div>
-        <OpenNowChips current={sym} />
       </form>
 
       <section className={`hero${sw && sw.level !== "ok" ? " not-live" : ""}`} aria-label={`${sym} price`}>
@@ -126,9 +130,10 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
                   <div className="small">{st.opens_text} · <Countdown to={st.next_open} /></div>
                   <div className="small muted">Showing the last real price{lastBar ? ` (${lastDay})` : ""}. It starts moving again when the market opens.</div></>
               : <>{sw && <span className={`pill-status ${sw.level === "ok" ? "on" : "off"}`}><i />{sw.level === "ok" ? "Updating" : sw.word}</span>}
+                  {exchFresh ? <div className="small muted">Trades 24/7 · live from {exch.source}, {Math.round(exch.age_seconds)} s old · chart from Yahoo Finance</div> :
                   <div className="small muted">{crypto ? "Trades 24/7. " : ""}Free prices from Yahoo Finance{live?.last?.received_at
                     ? `, last update ${Math.max(0, Math.round((now - new Date(live.last.received_at).getTime()) / 1000))} s ago`
-                    : age != null ? `, ${age < 90 ? "about a minute" : `${Math.round(age / 60)} min`} behind` : ", can be a little behind"}</div></>}
+                    : age != null ? `, ${age < 90 ? "about a minute" : `${Math.round(age / 60)} min`} behind` : ", can be a little behind"}</div>}</>}
           </div>
         </div>
         {an.error ? <div className="hero-warn">{an.error}</div> : !bars.length ? <div className="live-chart empty muted">Loading the chart…</div> :
@@ -190,6 +195,7 @@ export function SimpleStockChart({ symbol: routeSym }: { symbol?: string }) {
       </section>
       <Catalysts symbol={sym} />
       <p className="small muted">Want every indicator, setup and timeframe? Switch to Advanced at the top.</p>
+      </div>
     </div>
   );
 }

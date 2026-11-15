@@ -36,6 +36,7 @@ function SelfCheck({ last, onDone }: { last: any; onDone: () => void }) {
 
 export function SystemHealth() {
   const h = usePoll("/system/health", 15000);
+  const lock = usePoll("/crypto/lock-check", 600000);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
   const [askRestart, setAskRestart] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -87,6 +88,10 @@ export function SystemHealth() {
           {cm.reason && <div>{cm.reason}</div>}{cm.do && <div className="muted">{cm.do}</div>}
           {d.chart_loop_restarts > 0 && <div className="muted">The chart-reading loop restarted itself {d.chart_loop_restarts} time(s) since the app started.</div>}
           <div className="row"><a className="btn ghost" href="#/visual">My chart</a><a className="btn ghost" href="#/check">Chart check</a></div>
+        </Row>
+        <Row label="Crypto prices" word={!lock.data ? "Checking…" : lock.data.locked ? "Read-only" : "Problem"} level={!lock.data ? "idle" : lock.data.locked ? "ok" : "bad"}>
+          <div>{lock.data?.detail || "Checking that the exchange price library can only read public prices."}</div>
+          <div className="muted">Live crypto prices come from public exchange data (Kraken, Coinbase or Bitstamp). No account, no keys, and every order function is switched off.</div>
         </Row>
         <Row label="Chrome extension" word={ext.word} level={ext.level}>
           {ext.do && <div>{ext.do}</div>}

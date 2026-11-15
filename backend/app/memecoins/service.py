@@ -29,6 +29,18 @@ def offensive(*texts: str | None) -> bool:
     return bool(_LONG.search(re.sub(r"[^a-z]", "", raw)))          # also catches spaced-out spellings
 
 
+def stage(p: dict | None) -> dict | None:
+    """Where a pump.fun token is in its life, from the exchange DexScreener lists it on."""
+    dex = (p or {}).get("dexId")
+    if dex == "pumpfun":
+        return {"key": "curve", "label": "On pump.fun's starting curve",
+                "text": "Still on pump.fun's starting price curve. It hasn't moved to a normal trading pool yet, and most tokens never do."}
+    if dex == "pumpswap":
+        return {"key": "graduated", "label": "Graduated to PumpSwap",
+                "text": "Filled pump.fun's starting curve and moved to a PumpSwap trading pool. That says people bought it, not that it's safe."}
+    return None
+
+
 def row(p: dict, now_ms: float | None = None) -> dict:
     """One line for a list: what a beginner needs to see first."""
     now_ms = now_ms or time.time() * 1000
@@ -49,7 +61,8 @@ def row(p: dict, now_ms: float | None = None) -> dict:
             "name": "Name hidden: offensive" if bad else bt.get("name"), "hidden": bad, "price_usd": float(p["priceUsd"]) if p.get("priceUsd") else None,
             "change": p.get("priceChange") or {}, "liquidity_usd": liq, "volume_h1": (p.get("volume") or {}).get("h1"),
             "market_cap": p.get("marketCap") or p.get("fdv"), "age_hours": round(hours, 1) if hours is not None else None,
-            "buys_h1": tx.get("buys"), "sells_h1": tx.get("sells"), "dex": p.get("dexId"), "url": p.get("url"), "flags": flags}
+            "buys_h1": tx.get("buys"), "sells_h1": tx.get("sells"), "dex": p.get("dexId"), "url": p.get("url"), "flags": flags,
+            "stage": stage(p), "links": len(((p.get("info") or {}).get("websites") or [])) + len(((p.get("info") or {}).get("socials") or []))}
 
 
 class MemeService:
@@ -114,10 +127,11 @@ class MemeService:
         done = self.practice.check_exits(pairs)
         for d in done:
             if self.alerts and d.get("ok"):
-                word = "stop" if d["reason"] == "stop" else "target"
-                self.alerts.emit("position", "high" if word == "stop" else "medium", f"Memecoin practice {word} hit - {d['symbol']}",
+                word = d["reason"]
+                kept = f" Kept {d['kept_fraction'] * 100:g}% with the stop moved up to your buy price." if d.get("kept_fraction") else ""
+                self.alerts.emit("position", "high" if "stop" in word else "medium", f"Memecoin practice {word} hit - {d['symbol']}",
                                  f"Sold in practice for ${d['received_usd']:,.2f} ({'+' if d['pnl_usd'] >= 0 else ''}${d['pnl_usd']:,.2f}). "
-                                 f"Price impact about {d['impact_pct']}%.", key=f"meme|{d['symbol']}|{word}")
+                                 f"Price impact about {d['impact_pct']}%.{kept}", key=f"meme|{d['symbol']}|{word}")
         return done
 
     async def start(self):

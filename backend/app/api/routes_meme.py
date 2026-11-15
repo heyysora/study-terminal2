@@ -66,6 +66,8 @@ class BuyIn(BaseModel):
     usd: float
     stop_pct: float
     target_pct: float | None = None
+    take_fraction: float = 1.0          # share sold at the target (1 = all)
+    trail_pct: float | None = None      # trailing stop, % under the highest price
     confirm: bool = False
 
 
@@ -82,7 +84,7 @@ async def _pair(request: Request, token: str) -> dict:
 @router.post("/practice/preview")
 async def preview(body: BuyIn, request: Request):
     pair = await _pair(request, _addr(body.token))
-    return _m(request).practice.preview_buy(pair, body.usd, body.stop_pct, body.target_pct)
+    return _m(request).practice.preview_buy(pair, body.usd, body.stop_pct, body.target_pct, body.take_fraction, body.trail_pct)
 
 
 @router.post("/practice/buy")
@@ -90,7 +92,7 @@ async def buy(body: BuyIn, request: Request):
     if not body.confirm:
         raise HTTPException(400, "Please confirm first.")
     pair = await _pair(request, _addr(body.token))
-    r = _m(request).practice.buy(pair, body.usd, body.stop_pct, body.target_pct)
+    r = _m(request).practice.buy(pair, body.usd, body.stop_pct, body.target_pct, take_fraction=body.take_fraction, trail_pct=body.trail_pct)
     if not r.get("ok"):
         raise HTTPException(409, " ".join(r.get("errors") or ["Not allowed."]))
     return r
@@ -108,3 +110,19 @@ async def sell(body: SellIn, request: Request):
     if not r.get("ok"):
         raise HTTPException(409, " ".join(r.get("errors") or ["Not allowed."]))
     return r
+
+
+@router.get("/journal")
+async def journal(request: Request):
+    return _m(request).practice.journal()
+
+
+class NoteIn(BaseModel):
+    token: str
+    why: str | None = None
+    lesson: str | None = None
+
+
+@router.post("/journal/note")
+async def note(body: NoteIn, request: Request):
+    return _m(request).practice.set_note(_addr(body.token), body.why, body.lesson)

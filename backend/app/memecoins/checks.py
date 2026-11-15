@@ -9,6 +9,8 @@ the best result is "fewer red flags", because most new memecoins still lose most
   Age                          under 1 hour -> danger, under 24 hours -> caution
   Biggest holders              top 10 (pool left out where it can be identified) over 50% -> danger, over 30% -> caution
   Selling vs buying (1 hour)   sells more than 2x buys -> caution
+  Website and social links     none listed on DexScreener -> caution
+  pump.fun stage               still on the starting curve -> caution (shown only for pump.fun tokens)
 """
 from __future__ import annotations
 
@@ -65,6 +67,17 @@ def checks(pair: dict | None, mint: dict | None, holders: list[dict] | None = No
             lvl = "caution" if s > 2 * b else "ok"
             out.append(_item("flow", "Selling vs buying (last hour)", lvl, f"{b} buys, {s} sells in the last hour."
                              + (" Many more people are selling." if lvl != "ok" else "")))
+    if pair:
+        info = pair.get("info") or {}
+        n = len(info.get("websites") or []) + len(info.get("socials") or [])
+        out.append(_item("links", "Website and social links", "ok" if n else "caution",
+                         f"{n} link{'s' if n != 1 else ''} listed. Links are easy to fake, so this only rules out the laziest tokens." if n
+                         else "No website or social account is listed. Tokens with nothing behind them are common throwaways."))
+        if pair.get("dexId") == "pumpfun":
+            out.append(_item("stage", "pump.fun stage", "caution",
+                             "Still on pump.fun's starting curve. Most tokens never leave it, and there's no normal trading pool yet."))
+        elif pair.get("dexId") == "pumpswap":
+            out.append(_item("stage", "pump.fun stage", "ok", "Moved from pump.fun's starting curve to a PumpSwap trading pool."))
     if holders:
         pool = (pair or {}).get("pairAddress")
         rest = [h for h in holders if h.get("owner") != pool and h.get("account") != pool]

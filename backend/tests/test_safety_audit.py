@@ -67,9 +67,49 @@ def test_no_code_can_send_an_order_to_a_broker():
                 continue
             line = text[: m.start()].count("\n") + 1
             raise AssertionError(f"order-routing text in {rel}:{line}: {m.group(0)}")
-    for lib in ("alpaca", "ib_insync", "ibapi", "ccxt", "tradovate", "rithmic", "ninjatrader"):
+    for lib in ("alpaca", "ib_insync", "ibapi", "tradovate", "rithmic", "ninjatrader"):
         for path, text in _src().items():
             assert not re.search(rf"^\s*(import|from)\s+{lib}\b", text, re.M), f"broker library {lib} imported in {path}"
+    # ccxt (crypto exchange library) was allowed on 2026-11-14 at the owner's request, for public prices only, and only inside the
+    # one file that locks it to read-only. Anywhere else it is still banned. See test_exchanges.py for the lock itself.
+    for path, text in _src().items():
+        rel = str(path.relative_to(APP)).replace("\\", "/")
+        if rel != CCXT_FILE:
+            assert not re.search(r"^\s*(import|from)\s+ccxt\b", text, re.M), f"ccxt imported outside the locked file: {rel}"
+
+
+CCXT_FILE = "market_data/exchanges.py"
+
+
+def test_the_exchange_library_is_locked_to_public_prices():
+    from app.market_data import exchanges as X
+    text = (APP / CCXT_FILE).read_text(encoding="utf-8")
+    body = re.sub(r'"""[\s\S]*?"""', "", "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#")))
+    # the file never passes credentials to an exchange and never reads them from settings or the environment
+    assert not re.search(r"""["\']apiKey["\']\s*:|["\']secret["\']\s*:|settings|store\.get|getenv|environ\[""", body)
+    assert re.findall(r"environ\.get\(([^)]*)\)", body) == ['"HTTPS_PROXY"', '"https_proxy"']      # the only environment reads: the network proxy
+    r = X.lock_check()
+    assert r == {**r, "library": True, "locked": True} and r["checked"] >= 12
+    for eid, _ in X.EXCHANGES:
+        ex = X.make(eid)
+        assert ex.apiKey is None and ex.secret is None
+        for name in X.BLOCKED:
+            with pytest.raises(X.ReadOnly):
+                getattr(ex, name)()
+        with pytest.raises(X.ReadOnly):
+            ex.sign("AddOrder", "private", "POST", {})
+        raw = [n for n in dir(ex) if n.startswith("private") and callable(getattr(ex, n))]
+        assert raw, "expected raw private endpoints to exist (and be blocked)"
+        for n in raw:
+            with pytest.raises(X.ReadOnly):
+                getattr(ex, n)()
+
+
+def test_no_setting_can_hold_exchange_keys():
+    from app.settings import store
+    text = Path(store.__file__).read_text(encoding="utf-8").lower()
+    for word in ("kraken", "coinbase", "bitstamp", "exchange_key", "exchange_secret", "ccxt"):
+        assert word not in text, f"settings mention {word}"
 
 
 def test_only_known_files_reach_the_network():

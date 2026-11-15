@@ -57,3 +57,10 @@ one place you'll need a terminal.
 - No buying in the first hour of a token's life.
 - Never "export" your wallet unless you're moving it, and never send the export file anywhere.
 - If you're chasing losses, stop for the day. Practise in Study Terminal instead.
+
+
+## Other tools looked at (0.15.0)
+
+- **pumpfun-agent-skill** is a set of instructions for an AI agent to drive pumpfun-cli (the tool in this guide). Its safety rules match this guide: keys never leave your machine, dry run first, a separate wallet. Its buy, sell, launch and wallet commands were not built into Study Terminal.
+- **pumpfun-utilities** shows a real wallet's open positions and keeps a trade journal, read-only, inside Claude Code. Study Terminal's practice journal borrows its main rule: your reasons are never filled in for you.
+- **ccxt** is used inside Study Terminal for public crypto prices only, with every order and account function switched off.

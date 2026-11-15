@@ -296,6 +296,29 @@ class MemePosition(Base):
     url: Mapped[str] = mapped_column(String(256), default="")
 
 
+class MemePlan(Base):
+    """Exit plan for a memecoin PRACTICE position: take part of the profit at the target, then trail a stop under the highest price."""
+
+    __tablename__ = "meme_plans"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    take_fraction: Mapped[float] = mapped_column(Float, default=1.0)      # share sold when the target is reached
+    trail_pct: Mapped[float | None] = mapped_column(Float, nullable=True)  # stop follows this far under the highest price seen
+    high_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    took_profit: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class MemeNote(Base):
+    """What YOU wrote about a memecoin practice trade. The app never fills these in for you."""
+
+    __tablename__ = "meme_notes"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    why: Mapped[str] = mapped_column(String(600), default="")             # why you bought
+    lesson: Mapped[str] = mapped_column(String(600), default="")          # what you learned
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
 class MemeFill(Base):
     """Every memecoin practice buy and sell, with the modelled fee and price impact."""
 

@@ -150,6 +150,20 @@ would fetch if sold now. Settings > Memecoins changes the starting amount and th
 Solana RPC address that makes the "biggest holders" check work. Real memecoin trading is done outside the app; see
 `docs/MEMECOIN_REAL_TRADING.md`.
 
+## Live crypto prices and the Markets column (0.15.0)
+
+On Charts, the left column shows a card for each of eight coins: price, how much it moved in the last 24 hours, and the 24-hour high and low. Click a card to open its chart. Prices come from public exchange data (Kraken, or Coinbase or Bitstamp if Kraken doesn't answer) and are a few seconds old. The chart line itself still comes from Yahoo Finance.
+
+Crypto is to watch, not to practise. Study Terminal has no exchange account and no place to enter exchange keys. Health has a line, "Crypto prices: Read-only", that checks this each time.
+
+## Memecoin exit plans and journal (0.15.0)
+
+When you practise a memecoin buy you can now choose what happens at your target: sell all of it, or sell part and keep the rest. If you keep some, the stop for the rest moves up to your buy price. You can also add a trailing stop, which follows the price up and never moves down.
+
+The practice journal lists every finished memecoin practice trade. Two lines are yours to write: why you bought, and what you learned. They stay "not written" until you type something.
+
+Hide amounts (top of the practice account) hides dollar figures and keeps percentages.
+
 ## Check the odds and the last candle (0.14.0)
 
 On any practice plan, **Check the odds** shows how often that exact stop and target worked out recently (past days and 10,000
