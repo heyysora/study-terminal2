@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.1 (2026-11-14)
+
+New look, nothing else changed.
+
+- Lavender background with a soft aurora glow at the top, white cards that float on a light shadow instead of borders, rounded pill buttons.
+- One main button per screen in dark navy; active tabs and chips in a soft magenta. Font is now Inter.
+- Green and red are only used for price moves, gains/losses and danger (darker shades so they're easy to read). The accent no longer flips colour with the market.
+- Practice badge and Stop everything stay easy to spot. Dark mode follows the same style.
+- No changes to trading rules, risk limits, data or safety checks.
+
 ## 0.14.0 (2026-11-14)
 
 New: memecoin practice, an odds check for any plan, and a plain read of the last candle. Still practice only; real orders remain

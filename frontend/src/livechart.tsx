@@ -89,9 +89,9 @@ export function LineChart({ series, reference, trend, candles, mode, onHover, da
     if (!ch) return;
     if (line.current) { ch.removeSeries(line.current); line.current = null; }
     if (cs.current) { ch.removeSeries(cs.current); cs.current = null; }
-    const color = trend === "down" ? css("--down") : css("--up");
+    const color = trend === "down" ? (css("--chart-down") || css("--down")) : (css("--chart-up") || css("--up"));
     if (mode === "candles") {
-      const up = css("--up"), dn = css("--down");
+      const up = css("--chart-up") || css("--up"), dn = css("--chart-down") || css("--down");
       const c = ch.addSeries(CandlestickSeries, { upColor: up, downColor: dn, borderVisible: false, wickUpColor: up, wickDownColor: dn, priceLineVisible: false });
       c.setData(candles.map((b) => ({ time: b.time as any, open: b.open, high: b.high, low: b.low, close: b.close })));
       cs.current = c;

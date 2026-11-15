@@ -1,4 +1,4 @@
-# Known limitations (0.14.0)
+# Known limitations (0.14.1)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
