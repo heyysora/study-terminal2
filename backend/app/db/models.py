@@ -335,3 +335,57 @@ class MemeFill(Base):
     fee_usd: Mapped[float] = mapped_column(Float)
     impact_pct: Mapped[float] = mapped_column(Float)
     reason: Mapped[str] = mapped_column(String(16), default="you")   # you | stop | target
+
+
+class DataHealthRecord(Base):
+    """One validation result for one data source: what was checked, what it found, with which software and test version."""
+
+    __tablename__ = "datahealth_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    source: Mapped[str] = mapped_column(String(48), index=True)
+    status: Mapped[str] = mapped_column(String(16))
+    signals_permitted: Mapped[int] = mapped_column(Integer, default=0)
+    kind: Mapped[str] = mapped_column(String(12), default="live")          # live | simulated (tests only; never shown as evidence)
+    app_version: Mapped[str] = mapped_column(String(24), default="")
+    test_version: Mapped[str] = mapped_column(String(16), default="")
+    detail: Mapped[str] = mapped_column(Text, default="{}")                # JSON: features, findings, comparisons, normalized values
+
+
+class DataHealthOutage(Base):
+    """A period when a source was offline or degraded, and when it recovered."""
+
+    __tablename__ = "datahealth_outages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(48), index=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(String(400), default="")
+
+
+class ChartObservation(Base):
+    """One automatic observation of your TopstepX chart, and (later) how its price compared with independent reference data."""
+
+    __tablename__ = "chart_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+    status: Mapped[str] = mapped_column(String(24))
+    symbol: Mapped[str] = mapped_column(String(24), default="")
+    timeframe: Mapped[str] = mapped_column(String(12), default="")
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_class: Mapped[str] = mapped_column(String(32), default="")       # read directly / worked out / estimated / unavailable
+    ref_symbol: Mapped[str] = mapped_column(String(24), default="")
+    ref_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ref_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    diff_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tolerance_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(16), default="pending")    # pending | match | mismatch | no_reference | not_readable
+    real_capture: Mapped[int] = mapped_column(Integer, default=0)          # 1 only for real screen capture on this PC
+    app_version: Mapped[str] = mapped_column(String(24), default="")
+    os_version: Mapped[str] = mapped_column(String(80), default="")
+    detail: Mapped[str] = mapped_column(Text, default="{}")
+

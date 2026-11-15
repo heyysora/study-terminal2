@@ -79,6 +79,11 @@ class SignalService:
         gate = self.monitor.signals_allowed(symbol) if tick else (True, "using last closed bar (symbol not monitored live)", tf.value)
         if ff.served_from_cache:
             gate = (False, f"chart data could not be refreshed ({ff.refresh_error}); an older cached copy is shown", None)
+        safety = getattr(self, "safety", None)             # the global safety controller: data health, Stop everything, recovery mode
+        if safety is not None:
+            ok, why = safety.permit_symbol(symbol)
+            if not ok:
+                gate = (False, f"Data check: {why}", None)
         eq = self.paper.engine.equity()
         ev = evaluate(symbol, ff, live_price=live, params=self.params, market=mc, mtf=mtf, equity=eq,
                       risk_pct=self.paper.risk.max_per_trade_pct, min_rr=self.paper.risk.min_reward_risk, data_gate=gate,

@@ -355,6 +355,16 @@ class FuturesService:
                             flat_by_min_from_rth=self.flat_minutes(clk), minutes_to_flat=st["official"].get("minutes_to_flat"),
                             events=self.events(), F15=F15, current_price=cur if _lab1.get("status") in ("realtime", "near_realtime", "polling") else None,
                             validated=self.validated_strategies(contract.root), prev_plan=self.last_plan(contract.code), mode=mode)
+        safety = getattr(self, "safety", None)             # the global safety controller can only turn an idea into NO TRADE
+        if safety is not None:
+            ok, why = safety.permit("futures", f"{contract.spec.root}=F")
+            sig["data_health"] = {"allowed": ok, "reason": why}
+            if not ok and sig.get("action") not in ("NO TRADE", "WAIT"):
+                sig["suppressed_action"] = sig.get("action")
+                sig["action"], sig["signal"] = "NO TRADE", None
+                sig["reasons"] = [f"Data check: {why}"] + list(sig.get("reasons") or [])
+                if isinstance(sig.get("decision"), dict) and "action" in sig["decision"]:
+                    sig["decision"] = {**sig["decision"], "action": "NO TRADE", "suppressed_by": "data_health", "suppressed_reason": why}
         if record and sig.get("decision"):
             self.record_decision(sig["decision"])
         return sig, F, label, notes, clk

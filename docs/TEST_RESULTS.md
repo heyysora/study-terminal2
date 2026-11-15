@@ -1,4 +1,4 @@
-# Test results (0.15.0, 2026-11-14)
+# Test results (0.16.0, 2026-11-14)
 
 ## 0.15.0 (dark look, crypto exchange prices, memecoin exit plans and journal)
 

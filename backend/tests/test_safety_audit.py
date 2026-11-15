@@ -265,5 +265,5 @@ def test_memecoin_code_cannot_sign_or_send_transactions():
         hits = [m.group(0) for m in banned.finditer(code)]
         assert not hits, f"{f.name} mentions {hits}"
     rpc_methods = set(re.findall(r'_rpc\("([A-Za-z]+)"', (root / "memecoins" / "sources.py").read_text(encoding="utf-8")))
-    assert rpc_methods <= {"getAccountInfo", "getTokenLargestAccounts", "getMultipleAccounts"}, rpc_methods     # read-only calls
+    assert rpc_methods <= {"getAccountInfo", "getTokenLargestAccounts", "getMultipleAccounts", "getSlot"}, rpc_methods     # read-only calls
 

@@ -26,16 +26,17 @@ const VisualMonitor = screen(() => import("./pages7"), "VisualMonitor");
 const TrustDashboard = screen(() => import("./pages8"), "TrustDashboard");
 const ChartCheck = screen(() => import("./pagesCheck"), "ChartCheck");
 const SystemHealth = screen(() => import("./pagesHealth"), "SystemHealth");
+const DataHealth = screen(() => import("./pagesDataHealth"), "DataHealth");
 const Memecoins = screen(() => import("./pagesMeme"), "Memecoins");
 
 const NAV: [string, string, string?][] = [
   ["home", "Home"], ["dashboard", "Stock overview"], ["chart", "Chart"], ["copilot", "Live copilot"], ["scanner", "Scanner"],
-  ["paper", "Practice trading (stocks)"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["check", "Chart check"], ["meme", "Memecoins (practice)"], ["health", "System health"], ["alerts", "Alerts"], ["settings", "Settings"],
+  ["paper", "Practice trading (stocks)"], ["automation", "Automation Center"], ["live", "Live Market"], ["visual", "Live Visual Monitor"], ["futures", "Futures (TopstepX)"], ["journal", "Journal"], ["backtest", "Backtest", "Research"], ["learn", "Learn"], ["trust", "Trust & Validation", "System"], ["check", "Chart check"], ["meme", "Memecoins (practice)"], ["data", "Data health"], ["health", "System health"], ["alerts", "Alerts"], ["settings", "Settings"],
 ];
 // Simple mode: the few places a beginner needs. Every other screen is one click away under "All tools".
 const NAV_SIMPLE: Record<string, [string, string][]> = {
-  futures: [["home", "Home"], ["visual", "My chart"], ["futures", "Practice"], ["check", "Chart check"], ["trust", "Can I trust it?"], ["meme", "Memecoins"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
-  equities: [["home", "Home"], ["chart", "Charts"], ["paper", "Practice"], ["journal", "My trades"], ["trust", "Can I trust it?"], ["meme", "Memecoins"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
+  futures: [["home", "Home"], ["visual", "My chart"], ["futures", "Practice"], ["check", "Chart check"], ["trust", "Can I trust it?"], ["data", "Data check"], ["meme", "Memecoins"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
+  equities: [["home", "Home"], ["chart", "Charts"], ["paper", "Practice"], ["journal", "My trades"], ["trust", "Can I trust it?"], ["data", "Data check"], ["meme", "Memecoins"], ["learn", "Learn"], ["alerts", "Messages"], ["health", "Health"], ["settings", "Settings"]],
 };
 
 function ModeSwitch({ mode, onChange }: { mode: string; onChange: (m: string) => void }) {
@@ -100,6 +101,7 @@ export default function App() {
   const unread = L.alerts.length;
   const settings = usePoll("/settings");
   const dataStatus = usePoll("/data/status", 15000);
+  const dataHealth = usePoll("/datahealth", 30000);
   const [mode, setMode] = useState<string | null>(null);
   const curMode = mode ?? (H.data ? (H.data.trades === "futures" ? "futures" : "equities") : settings.data?.values?.["app.market_mode"] ?? "equities");
   const switchMode = async (m: string) => {
@@ -117,6 +119,7 @@ export default function App() {
       case "trust": return <TrustDashboard />;
       case "check": return <ChartCheck />;
       case "health": return <SystemHealth />;
+      case "data": return <DataHealth />;
       case "meme": return <Memecoins />;
       case "chart": return <ChartPage symbol={route[1]} />;
       case "copilot": return <Copilot />;
@@ -157,6 +160,7 @@ export default function App() {
           {lastRec.ok && lastRec.moved_to ? " Your old data file was kept, not deleted." : ""} <span className="small muted">({when(lastRec.done_at)})</span>{" "}
           <button className="ghost" onClick={async () => { try { await api("/data/dismiss-last", { method: "POST" }); } catch { /* shown again next time */ } dataStatus.reload(); }}>OK</button></div>}
         {dataStatus.data?.backup_summary?.warning && <div className="note bad" style={{ margin: "6px 0" }}>You have no usable backup. <a href="#/settings">Back up now</a> (Settings &gt; Your data).</div>}
+        {dataHealth.data?.tone === "bad" && route[0] !== "data" && <div className="note bad" style={{ margin: "6px 0" }}>Data problem: {dataHealth.data.overall} <a href="#/data">See the data check</a></div>}
         {disk?.low_space && <div className="note bad" style={{ margin: "6px 0" }}>Your disk is almost full ({disk.free_mb} MB free). Study Terminal may stop saving. Free up some space.</div>}
         {ui === "simple" ? <SimpleStrip trades={curMode} onTrades={switchMode} />
           : curMode === "futures" || page === "futures" ? <FuturesStrip mode="futures" onMode={switchMode} /> : <StatusStrip mode={curMode} onMode={switchMode} />}

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.16.0 (2026-11-14)
+
+Study Terminal now checks its own data, by itself, all the time, and stops trade ideas when the data can't be trusted.
+
+**Data check (new screen)**
+- Every data source is checked in the background from the moment the app starts: is it reachable, fresh, still updating, the right symbol and timeframe, well-formed, and has its reply format changed.
+- Where a second independent source exists, prices are compared. Crypto is compared across Kraken, Coinbase and Bitstamp. Solana token prices from DexScreener are compared with Jupiter and GeckoTerminal, and token identity with the Solana chain itself. Prices are never averaged: if two sources disagree, neither is trusted.
+- Each source gets a status: Verified, Healthy, Delayed, Degraded, Stale, Conflicting, Unverified, Offline or Not supported. "Answering" is not the same as "right". Stock and futures prices can only reach Healthy or Delayed because no free second source exists for them.
+- Results, outages and recoveries are saved on your PC for 45 days, with the app and check versions.
+- A red banner appears on every screen when a source has a real problem.
+
+**One safety check in front of every market**
+- Stock ideas, futures ideas and memecoin practice buys all pass through one controller. It pauses a market when its data isn't Verified, Healthy or Delayed, when Stop everything is on, or in recovery mode. It can only pause; it can't place or change anything. One bad market doesn't pause a healthy one.
+- After a restart, ideas wait for a fresh check instead of trusting the last result.
+- Before a memecoin practice buy, that token's price is cross-checked. A conflict blocks the buy and says why.
+- Open practice trades whose data has gone bad are flagged.
+
+**TopstepX chart: automatic validation**
+- Once your chart is connected, every reading is saved and later compared with reference candles for the same minute. No screenshots or manual comparing. Price reading counts as verified after 30 matches on two different days.
+- Minimise/restore, covered tab, resize, frozen chart, contract or timeframe changes and restarts are recorded when they happen. Study Terminal still never clicks or types in TopstepX.
+- Until your PC has real readings it shows as Unverified.
+
+**FOMO and pump.fun**
+- FOMO (fomo.family) has no developer API, and its Terms of Service forbid bots, scrapers and third-party tools from collecting its data. Nothing was connected. It shows as Not supported, with the reason. Tokens you find there can be pasted into Memecoins.
+- pump.fun direct access shows as Not supported for the same kind of reason; its tokens are still covered through DexScreener and the chain.
+
+**Not in this release**
+- The iPhone app, crypto paper trading, the unified opportunity feed and background start with Windows. See docs/RELEASE_CANDIDATE_STATUS.md for the full plan and the release gates.
+
 ## 0.15.0 (2026-11-14)
 
 New dark look, live crypto prices from exchanges, and more memecoin practice tools.

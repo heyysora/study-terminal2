@@ -150,6 +150,18 @@ would fetch if sold now. Settings > Memecoins changes the starting amount and th
 Solana RPC address that makes the "biggest holders" check work. Real memecoin trading is done outside the app; see
 `docs/MEMECOIN_REAL_TRADING.md`.
 
+## Data check (0.16.0)
+
+Data check in the menu answers one question: can the data be trusted right now? You don't have to run anything; it checks by itself from the moment Study Terminal starts.
+
+- The top card gives the answer in a sentence.
+- The next card shows which markets may give trade ideas. "Paused" means the data for that market failed a check, and it says which one.
+- Each source has a word: Verified (a second independent source agrees), Healthy (passes its checks, nothing to compare with), Delayed (fine but behind), or a problem word (Degraded, Stale, Conflicting, Unverified, Offline). Not supported means there is no allowed way to connect, as with FOMO.
+- "What was checked" lists every check. "Not confirmed" means it couldn't be judged, and is never counted as a pass.
+- Outages and recoveries are listed at the bottom.
+
+Your TopstepX chart validates itself once it's connected under My chart. Leave it open during market hours; matches against reference prices build up on their own.
+
 ## Live crypto prices and the Markets column (0.15.0)
 
 On Charts, the left column shows a card for each of eight coins: price, how much it moved in the last 24 hours, and the 24-hour high and low. Click a card to open its chart. Prices come from public exchange data (Kraken, or Coinbase or Bitstamp if Kraken doesn't answer) and are a few seconds old. The chart line itself still comes from Yahoo Finance.

@@ -81,10 +81,32 @@ async def _pair(request: Request, token: str) -> dict:
     return pair
 
 
+async def _data_gate(request: Request, token: str) -> tuple[bool, str, dict | None]:
+    """The global safety controller plus a fresh cross-check of this token's price against independent sources."""
+    safety = getattr(request.app.state, "safety", None)
+    if safety is None or not safety.status()["enforcing"]:
+        return True, "", None
+    ok, why = safety.permit("memecoins")
+    if not ok:
+        return False, why, None
+    chk = await request.app.state.datahealth.check_token(token)
+    if chk.get("ok") is False:
+        return False, f"Two price sources disagree about this token, or its data is malformed. {chk.get('why', '')}", chk
+    return True, ("" if chk.get("ok") else "This token's price couldn't be confirmed by a second source. " + str(chk.get("why", ""))), chk
+
+
 @router.post("/practice/preview")
 async def preview(body: BuyIn, request: Request):
     pair = await _pair(request, _addr(body.token))
-    return _m(request).practice.preview_buy(pair, body.usd, body.stop_pct, body.target_pct, body.take_fraction, body.trail_pct)
+    pv = _m(request).practice.preview_buy(pair, body.usd, body.stop_pct, body.target_pct, body.take_fraction, body.trail_pct)
+    ok, why, chk = await _data_gate(request, body.token)
+    pv["data_check"] = chk
+    if not ok:
+        pv["ok"] = False
+        pv["errors"] = [f"Practice buys are paused for this token: {why}"] + pv["errors"]
+    elif why:
+        pv["warnings"] = [why] + pv["warnings"]
+    return pv
 
 
 @router.post("/practice/buy")
@@ -92,6 +114,9 @@ async def buy(body: BuyIn, request: Request):
     if not body.confirm:
         raise HTTPException(400, "Please confirm first.")
     pair = await _pair(request, _addr(body.token))
+    ok, why, _chk = await _data_gate(request, body.token)
+    if not ok:
+        raise HTTPException(409, f"Practice buys are paused for this token: {why}")
     r = _m(request).practice.buy(pair, body.usd, body.stop_pct, body.target_pct, take_fraction=body.take_fraction, trail_pct=body.trail_pct)
     if not r.get("ok"):
         raise HTTPException(409, " ".join(r.get("errors") or ["Not allowed."]))

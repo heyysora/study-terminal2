@@ -1,4 +1,4 @@
-# Features and limitations (0.15.0)
+# Features and limitations (0.16.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
@@ -15,6 +15,10 @@
 | | Live crypto prices (8 coins) from public exchange data via ccxt, locked to read-only; Markets column on Charts | ✅ here · 🟡 Windows self-test only |
 | | Memecoin practice: sell-part-at-target exit plan, trailing stop, practice journal (your words only), hide amounts, pump.fun stage and links checks | ✅ |
 | | Dark exchange look (default), aurora look as the light theme | ✅ |
+| Data health | Background checks of every source, nine statuses, independent comparison (crypto across 3 exchanges; Solana prices vs Jupiter and GeckoTerminal), evidence and outage history | ✅ here and on GitHub Windows, with live sources |
+| | Global safety controller in front of stock ideas, futures ideas and memecoin practice buys | ✅ (simulated failures) |
+| | Automatic TopstepX chart validation against reference candles | 🟡 logic tested with simulated screens; no real readings until it runs on your PC |
+| | FOMO (fomo.family), pump.fun direct | ⬜ not supported: no permitted way to connect |
 | | US stocks streamed during market hours | 🟡 never observed from the build environment (weekend); crypto streaming verified |
 | Signals | 10 setups, full plans, lifecycle, position sizing | ✅ |
 | | Evidence tiers from out-of-sample results with day-clustered 95% intervals; BUY/SHORT only on "reliable" evidence; clearly losing setups = NO TRADE; STRONG needs regime record too | ✅ |

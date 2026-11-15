@@ -185,6 +185,29 @@ class CryptoMarkets:
                 "error": self.last_error and "Showing the last prices received; the exchange didn't answer just now.",
                 "note": f"Live public prices from {t['source']} (free, no account). Watch only: crypto can't be practised here."}
 
+    def _fetch_each(self, symbols: list[str]) -> dict:
+        """One public ticker per symbol from EVERY exchange separately (no fallback), for cross-checking. Blocking."""
+        out: dict[str, dict] = {}
+        for eid, label in EXCHANGES:
+            try:
+                raw = self._exchange(eid).fetch_tickers(symbols)
+                rows = {}
+                for sym in symbols:
+                    t = raw.get(sym)
+                    if t and t.get("last") is not None:
+                        rows[sym] = {"last": float(t["last"]), "bid": t.get("bid"), "ask": t.get("ask"), "ts": t.get("timestamp"),
+                                     "returned_symbol": t.get("symbol")}
+                out[label] = {"ok": bool(rows), "rows": rows, "error": None if rows else "no prices in the reply"}
+            except (ReadOnly, ImportError):
+                raise
+            except Exception as e:  # noqa: BLE001 - one exchange being down is a finding, not a crash
+                msg = str(e)
+                out[label] = {"ok": False, "rows": {}, "error": f"{type(e).__name__}: {msg[:120]}", "rate_limited": "429" in msg or "RateLimit" in type(e).__name__}
+        return out
+
+    async def each_exchange(self, symbols: list[str] | None = None) -> dict:
+        return await asyncio.to_thread(self._fetch_each, symbols or ["BTC/USD", "ETH/USD", "SOL/USD"])
+
     async def price(self, symbol: str) -> dict | None:
         p = pair(symbol)
         if not p:

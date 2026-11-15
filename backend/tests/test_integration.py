@@ -161,3 +161,19 @@ async def test_mentor_answers_from_journal_signals_and_evidence(client):
         r = (await c.post("/api/ai/ask", json={"question": q, "symbol": "TSLA"})).json()
         assert r["answer"] and all(p["label"] for p in r["sections"]), q
         assert "journal" in r["grounded_in"] or "calibration" in r["grounded_in"] or "analysis" in r["grounded_in"]
+
+
+async def test_stock_ideas_stop_when_the_data_check_fails_and_return_when_it_recovers(client):
+    """Simulated data source failure: the signal engine must be handed a closed gate, and reopen only after a passing check."""
+    from .test_datahealth import DOWN_RES, GOOD_RES, Scripted
+    c, app, _ = client
+    dh = app.state.datahealth
+    dh.kind, dh.enforcing = "simulated", True
+    dh.probes = [Scripted("yahoo_stocks", "stocks", [DOWN_RES, GOOD_RES])]
+    await dh.run_all()
+    sig = (await c.get("/api/signals/TSLA", params={"timeframe": "5Min"})).json()
+    assert sig["action"] == "NO TRADE" and any("Data check" in r for r in sig["reasons"])
+    assert not any(x["action"] not in ("NO TRADE", "WAIT") and x.get("tradeable") for x in sig["signals"])
+    await dh.run_all()
+    sig = (await c.get("/api/signals/TSLA", params={"timeframe": "5Min"})).json()
+    assert not any("Data check" in r for r in sig["reasons"])

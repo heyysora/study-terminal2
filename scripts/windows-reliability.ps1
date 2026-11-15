@@ -222,6 +222,21 @@ if (Test-Path $up) {
     Copy-Item (Join-Path $env:TEMP "app-st-rel-drill.log") (Join-Path $Out "recovery-drill-app.log") -ErrorAction SilentlyContinue
 }
 
+# ---------------------------------------------------------------- 10. data-health drill: the installed app checking the real sources
+# from this Windows machine. Honest classification, the safety controller, stored evidence, and survival across a restart.
+if (Test-Path $up) {
+    $dhOut = Join-Path $Out "datahealth-drill.json"
+    $dhWork = Join-Path $env:TEMP "st-rel-datahealth"
+    $lines = & $py (Join-Path $Root "backend\research\datahealth_drill.py") $Exe --data $up --work $dhWork --port 8841 --out $dhOut 2>&1 | ForEach-Object { "$_" }
+    $lines | Set-Content (Join-Path $Out "datahealth-drill.txt")
+    $n = 0
+    foreach ($l in $lines) {
+        if ($l -match '^RESULT\|([^|]+)\|(pass|fail)\|(.*)$') { Record $Matches[1] $Matches[2] $Matches[3]; $n++ }
+    }
+    if ($n -lt 15) { Record "Data checks: completed" "fail" "Only $n of 15 data-health checks reported. See datahealth-drill.txt." }
+    Copy-Item (Join-Path $env:TEMP "app-st-rel-datahealth.log") (Join-Path $Out "datahealth-drill-app.log") -ErrorAction SilentlyContinue
+}
+
 # ---------------------------------------------------------------- summary
 $json = $Results | ConvertTo-Json -Depth 4
 $json | Set-Content (Join-Path $Out "results.json")

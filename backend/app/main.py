@@ -19,7 +19,7 @@ from .ai.assistant import Assistant
 from .ai.providers import choose
 from .alerts.service import AlertService, Notifier
 from .analysis.service import AnalysisService
-from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_crypto, routes_meme, routes_odds, routes_system, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
+from .api import routes, routes2, routes_extension, routes_chart_check, routes_data, routes_crypto, routes_datahealth, routes_meme, routes_odds, routes_system, routes_futures, routes_home, routes_journal, routes_mobile, routes_news, routes_trust, routes_visual, ws
 from .api.security import LocalOnlyMiddleware
 from .backtest.service import BacktestService
 from .config import REPO_ROOT, VERSION, Settings, get_settings
@@ -228,6 +228,29 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         s.meme = meme
         from .market_data.exchanges import CryptoMarkets
         s.crypto = CryptoMarkets()
+        from .datahealth import probes as dhp
+        from .datahealth.chartwatch import ChartWatch
+        from .datahealth.engine import DataHealth
+        from .safety import SafetyController
+
+        def _open_positions():
+            out = [{"market": "futures" if "=" in p["symbol"] or p["symbol"][-1:].isdigit() else SafetyController.market_of(p["symbol"]),
+                    "symbol": p["symbol"], "account": "stock practice"} for p in paper.positions()]
+            out += [{"market": "memecoins", "symbol": p["token"], "name": p["symbol"], "account": "memecoin practice"} for p in meme.practice.positions()]
+            return out
+
+        datahealth = DataHealth(db, [
+            dhp.YahooProbe("yahoo_stocks", "Stock prices (Yahoo Finance)", "stocks", monitor, ["SPY", "QQQ"], max_age_s=1200),
+            dhp.YahooProbe("yahoo_futures", "Futures prices (Yahoo Finance, delayed)", "futures", monitor, ["NQ=F", "ES=F", "MNQ=F", "MES=F"],
+                           max_age_s=1800, pairs=[("NQ=F", "MNQ=F"), ("ES=F", "MES=F")], delayed="10 to 15 minutes"),
+            dhp.CryptoProbe(s.crypto), dhp.MemecoinProbe(meme.data, lambda: [p["token"] for p in meme.practice.positions()]),
+            dhp.SolanaRpcProbe(meme.data), dhp.pumpfun_probe(), dhp.fomo_probe(),
+        ], chartwatch=ChartWatch(db, visual, monitor, real_fn=lambda: getattr(visual, "capture_fn", None) is None), positions_fn=_open_positions)
+        s.datahealth = datahealth
+        safety = SafetyController(datahealth, stopped_fn=lambda: futures.automation.state.status == "emergency_stopped",
+                                  recovery_fn=lambda: bool(getattr(app.state, "recovery", None)))
+        s.safety = safety
+        monitor.safety = signals.safety = futures.safety = meme.safety = safety
 
         def apply(changes: dict | None = None):
             v = store.all()
@@ -278,6 +301,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await futures.start()
             await visual.autostart()
             await meme.start()
+            await datahealth.start()
 
             async def watch():
                 n = 0
@@ -307,6 +331,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                 visual._task.cancel()
             await health.stop()
             await meme.stop()
+            await datahealth.stop()
             await s.crypto.stop()
             await futures.stop()
             await news.stop()
@@ -356,6 +381,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app.include_router(routes_system.router)
     app.include_router(routes_odds.router)
     app.include_router(routes_meme.router)
+    app.include_router(routes_datahealth.router)
     app.include_router(routes_crypto.router)
     app.include_router(ws.router)
     if FRONTEND_DIST.exists():
