@@ -81,6 +81,8 @@ class FuturesService:
                 log.exception("sandbox state unreadable; starting fresh")
         from .automation import AutomationEngine, AutomationState
         self.automation = AutomationEngine(self, AutomationState.from_dict(self._load(AUTOMATION_ID)))
+        from .autoresearch import AutoResearch
+        self.autoresearch = AutoResearch(self, store)
         from .replay import Replayer
         self.replayer = Replayer(self)
         self.replayer.restore(self._load(REPLAY_ID))
@@ -613,6 +615,7 @@ class FuturesService:
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._loop())
+        await self.autoresearch.start()
         try:
             await self.sync_stream()
         except Exception:  # noqa: BLE001
@@ -678,6 +681,7 @@ class FuturesService:
         return None
 
     async def stop(self) -> None:
+        await self.autoresearch.stop()
         if self.stream is not None:
             await self.stream.stop()
         if self.automation._task:

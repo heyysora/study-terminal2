@@ -150,6 +150,14 @@ would fetch if sold now. Settings > Memecoins changes the starting amount and th
 Solana RPC address that makes the "biggest holders" check work. Real memecoin trading is done outside the app; see
 `docs/MEMECOIN_REAL_TRADING.md`.
 
+## Automatic practice trades and weekly testing (0.18.0)
+
+Study Terminal now places practice trades by itself, but only for a strategy that has passed its testing. None has yet, so nothing is placed automatically at the moment. When one passes you get an alert and it starts; if it later stops passing, it stops trading and you get an alert for that too. To do it yourself instead, open the Automation Center and choose "I place practice trades myself".
+
+Every contract is re-tested a week after its last test, while that market is closed. The Automation Center shows when each was last tested, what passed, and every test ever run. Nothing is ever deleted from that list, so a bad result can't disappear later.
+
+All of this uses pretend money. Study Terminal has no way to send a real order.
+
 ## Data check (0.16.0)
 
 Data check in the menu answers one question: can the data be trusted right now? You don't have to run anything; it checks by itself from the moment Study Terminal starts.

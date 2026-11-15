@@ -1,4 +1,4 @@
-# Features and limitations (0.17.0)
+# Features and limitations (0.18.0)
 
 ✅ built and tested here · 🟡 built, not yet verified where it matters (Windows, market hours, your platform) · ⬜ not built
 
@@ -19,6 +19,7 @@
 | | Global safety controller in front of stock ideas, futures ideas and memecoin practice buys | ✅ (simulated failures) |
 | | Automatic TopstepX chart validation against reference candles | 🟡 logic tested with simulated screens; no real readings until it runs on your PC |
 | | FOMO (fomo.family), pump.fun direct | ⬜ not supported: no permitted way to connect |
+| | Automated practice trading (validated strategies only) on by default; weekly strategy re-testing with a permanent run history | ✅ (simulated results; one real research run) |
 | | US stocks streamed during market hours | 🟡 never observed from the build environment (weekend); crypto streaming verified |
 | Signals | 10 setups, full plans, lifecycle, position sizing | ✅ |
 | | Evidence tiers from out-of-sample results with day-clustered 95% intervals; BUY/SHORT only on "reliable" evidence; clearly losing setups = NO TRADE; STRONG needs regime record too | ✅ |

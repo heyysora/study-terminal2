@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.18.0 (2026-11-15)
+
+The two things you said yes to: the app places practice trades by itself, and it re-tests its strategies every week.
+
+**Practice trades without being asked**
+- Automated practice trading (mode B) is now the default. When a strategy has passed testing, Study Terminal starts and manages its practice trades on its own, inside your risk limits, with pretend money. It was already built; it just had to be switched on by hand.
+- If you had never picked a mode yourself, your app switches to it on this update. If you had picked one, your choice is kept. You can switch back any time in the Automation Center, and that choice then sticks.
+- Nothing changes about real money. There is no order-routing code in Study Terminal and no setting that adds any.
+- **Today this does nothing visible**, because no strategy has passed testing yet (NQ and MNQ inconclusive, ES and MES losing out of sample). The app will say so on screen, and will start trading by itself the day a strategy passes.
+
+**Weekly strategy testing**
+- Every contract is re-tested 7 days after its last test, with the same documented procedure on newer market data. It waits for that market to be closed so it stays out of the way, and runs anyway if it falls more than 11 days behind. One contract at a time; each takes a few minutes of your PC's time.
+- It never changes a strategy, a parameter or a threshold. A strategy that stops meeting the bar stops trading on the next cycle; one that starts meeting it starts trading. Both are written to the automation log and sent as an alert.
+- Every run is kept for good, so a later test can't hide an earlier poor result. The Automation Center has a new "Weekly strategy testing" panel with the schedule, the history and a "Test now" button.
+- Switch it off with research.weekly in Settings.
+
+**"Can I trust it?"**
+- A new box at the top lists what fills in without you: chart checks, weekly strategy testing, and automatic practice trades, each with its current state.
+
 ## 0.17.0 (2026-11-15)
 
 Faster start, every TopstepX window read, and "Can I trust it?" that fills in by itself. Also includes the 0.16.1 fix, which never shipped because a Windows check failed.

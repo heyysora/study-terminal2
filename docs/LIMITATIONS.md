@@ -1,4 +1,4 @@
-# Known limitations (0.17.0)
+# Known limitations (0.18.0)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -92,7 +92,7 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 ## AI
 - Claude and Ollama wording were not tested (no key or local model in the build environment). The built-in mentor works offline.
 
-## Crypto exchange prices (0.17.0)
+## Crypto exchange prices (0.18.0)
 
 - Eight coins only, US-dollar pairs, from Kraken (fallback Coinbase, then Bitstamp). Other coins use Yahoo Finance as before.
 - The 24-hour change is worked out from hourly candles, so it can differ by a fraction of a percent from an exchange's own figure.
@@ -100,7 +100,7 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - ccxt is bundled locked to public prices. This was tested here and is checked by the installer's self-test; it has not been tested on your PC.
 - Memecoin stage (starting curve or graduated) comes from which exchange DexScreener lists the token on. There is no "percent to graduation" figure because public sources disagree on the threshold.
 
-## Data validation (0.17.0)
+## Data validation (0.18.0)
 
 - Stock and futures prices come from one free source. They can pass every check and still be wrong in a way only a second source would show. They are labelled Healthy or Delayed, never Verified.
 - Free futures data runs 10 to 15 minutes behind. TopstepX readings are compared against it about 20 minutes later, for the same minute.
@@ -112,7 +112,7 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - The cross-check sources (Jupiter, GeckoTerminal) are free and rate-limited. When both are silent, memecoin prices show as not confirmed and practice buys carry a warning.
 - All of this was verified with live sources from the build machine and from GitHub's Windows machine. It has not been run on your PC.
 
-## Automatic trust evidence and multiple charts (0.17.0)
+## Automatic trust evidence and multiple charts (0.18.0)
 
 - The timeframe and candle checks are tested with simulated charts only. They have never run against a real TopstepX chart, and they assume the chart is scrolled to the present (the right-most candle is the one forming).
 - Timeframes above one hour aren't checked automatically.
@@ -120,3 +120,11 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - "Can I trust it?" can reach Visual validation by itself. Strategy validation needs research results that currently don't meet the bar (NQ and MNQ inconclusive, ES and MES losing out of sample). Paper trading validation needs 50 completed practice trades over 20 days, and the last level 100 over 40, plus your one-time confirmation of your prop-firm rules. None of these are skipped.
 - Only the tab in front of each Edge window can be read. Background tabs aren't drawn by the browser.
 - Start-up speed was measured on the build machine and on GitHub's Windows machine, not on your PC. Antivirus scanning the app's files at launch is outside the app's control.
+
+## Automatic practice trading and weekly testing (0.18.0)
+
+- Automated practice trading only acts on decisions the pipeline marks APPROVED, which needs a validated strategy. No strategy is validated today, so nothing is placed automatically yet.
+- Weekly testing re-runs the same procedure on newer data. It cannot make a losing strategy pass, and it is not a prediction that one will.
+- Each run takes a few minutes of CPU (about 4 minutes per contract on the build machine) and downloads about 59 days of 5-minute bars per contract from Yahoo. Rate limits can make a run fail; it is logged and retried later.
+- The holdout period moves forward as new data arrives, so later runs are not strictly independent of earlier ones; each run records its own dates.
+- Weekly runs were tested here and in the Windows checks with scripted results. Only one real run (MES, about 4 minutes, inconclusive) was performed end to end on the build machine.

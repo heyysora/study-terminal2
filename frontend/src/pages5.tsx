@@ -16,6 +16,46 @@ function ago(iso?: string | null) {
 
 function usd(x: any) { return typeof x === "number" ? money(x) : "-"; }
 
+function WeeklyResearch() {
+  const r = usePoll("/futures/research/schedule", 120000);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const d = r.data;
+  if (!d) return null;
+  const run = async (root: string) => {
+    setBusy(root); setMsg(null);
+    try { await api(`/futures/research/run-now?root=${root}`, { method: "POST" }); r.reload(); setMsg(`${root} tested.`); }
+    catch (e: any) { setMsg(e.message); } finally { setBusy(null); }
+  };
+  const tradable = Object.entries(d.validated_now || {}).filter(([, v]: any) => v.length);
+  return (
+    <Panel title="Weekly strategy testing" sub={d.enabled ? `runs by itself every ${d.every_days} days` : "switched off in Settings"}>
+      <div className="stack">
+        <div className="small">{tradable.length
+          ? <>Strategies allowed to trade practice money now: {tradable.map(([k, v]: any) => `${k}: ${v.join(", ")}`).join(" · ")}.</>
+          : <>No strategy has passed testing, so <b>nothing is being traded automatically</b>. The app keeps watching and testing; if a strategy starts passing, it begins practice trading by itself and tells you.</>}</div>
+        <table className="small"><thead><tr><th>Contract</th><th>Last tested</th><th>Next</th><th>Status</th><th /></tr></thead>
+          <tbody>{(d.products || []).map((p: any) => <tr key={p.root}>
+            <td>{p.root}</td><td>{p.days_since == null ? "never" : `${p.days_since} days ago`}</td>
+            <td className="faint">{p.due ? "now" : (p.next_due || "").slice(0, 10)}</td>
+            <td className={p.ready ? "warn-link" : ""}>{d.running === p.root ? "testing now…" : p.why}</td>
+            <td><button className="small" disabled={!!busy || !!d.running} onClick={() => run(p.root)}>{busy === p.root ? "Testing…" : "Test now"}</button></td></tr>)}</tbody></table>
+        {d.last_error && <div className="note small">Last attempt failed: {d.last_error} It will try again.</div>}
+        {msg && <div className="note small">{msg}</div>}
+        {!!(d.history || []).length && <details><summary className="small">Every test ever run ({d.history.length})</summary>
+          <table className="small"><thead><tr><th>When</th><th>Contract</th><th>Out-of-sample</th><th>Holdout</th><th>Passed</th></tr></thead>
+            <tbody>{d.history.map((h: any, i: number) => <tr key={i}>
+              <td>{(h.at || "").slice(0, 10)}</td><td>{h.product}</td>
+              <td className={(h.oos?.avg_r ?? 0) > 0 ? "pos" : "neg"}>{h.oos?.trades} trades, {h.oos?.avg_r}R avg · {h.oos?.tier}</td>
+              <td>{h.holdout?.trades} trades, {h.holdout?.avg_r}R</td>
+              <td>{h.validated?.length ? h.validated.join(", ") : "none"}{h.changed?.length ? <div className="faint">changed: {h.changed.join(", ")}</div> : null}</td></tr>)}</tbody></table>
+          <div className="small faint">Kept for good: a later test can't hide an earlier poor result.</div></details>}
+        <div className="small faint">{d.note}</div>
+      </div>
+    </Panel>
+  );
+}
+
 export function AutomationCenter() {
   const simple = useUiMode() === "simple";
   const a = usePoll("/futures/automation", 5000);
@@ -88,6 +128,8 @@ export function AutomationCenter() {
               </div>
             </div>
           </Panel>
+
+          <WeeklyResearch />
 
           <Panel title="Contracts" sub="latest evaluation per contract" flush>
             <table><thead><tr><th>Contract</th><th>Data</th><th>Regime</th><th>Decision</th><th>Reason</th><th>Checked</th></tr></thead>

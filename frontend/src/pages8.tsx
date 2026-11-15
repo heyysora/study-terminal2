@@ -29,6 +29,12 @@ export function TrustDashboard() {
           <h3>Still unverified before {r.next_level}</h3>
           <ul className="small" style={{ paddingLeft: 18 }}>{r.remaining_for_next_level.map((m: string, i: number) => <li key={i}>{m}</li>)}</ul>
         </>}
+        {d.unattended && <div className="note small" style={{ marginTop: 8 }}>
+          <b>What fills in without you:</b>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+            <li>{d.unattended.chart_checks}</li><li>{d.unattended.strategy_testing}</li><li>{d.unattended.practice_trades}</li>
+          </ul>
+          <div className="faint" style={{ marginTop: 4 }}>{d.unattended.note}</div></div>}
         {d.automatic && <div className="note small" style={{ marginTop: 8 }}><b>This fills in by itself.</b> While your TopstepX chart is open, Study Terminal checks its own readings against reference market data and the browser tab's name. Automatic checks so far: {d.automatic.samples}. Labelled by hand: {d.automatic.by_hand}. You don't need to label anything.</div>}
         <div className="small faint">{d.excluded.note} Synthetic screenshots excluded so far: {d.excluded.synthetic_screenshots}.</div>
       </Panel>

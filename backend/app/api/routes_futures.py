@@ -410,6 +410,21 @@ def sandbox_reset(body: ResetIn, request: Request):
     return request.app.state.futures.reset_sandbox()
 
 
+@router.get("/research/schedule")
+def research_schedule(request: Request):
+    """The weekly research schedule: when each product was last tested, what it validated, and every past run."""
+    return _f(request).autoresearch.status()
+
+
+@router.post("/research/run-now")
+async def research_run_now(request: Request, root: str):
+    """Research one product now (the weekly schedule does this by itself; this is for when you don't want to wait)."""
+    try:
+        return await _f(request).autoresearch.run_root(root.upper(), reason="you asked")
+    except Exception as e:
+        raise HTTPException(409, f"{type(e).__name__}: {str(e)[:200]}") from None
+
+
 @router.post("/research")
 async def research(body: BacktestIn, request: Request):
     """Walk-forward + holdout research; the only way a strategy becomes validated (eligible for automated paper trading)."""

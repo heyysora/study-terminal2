@@ -1,4 +1,4 @@
-# Test results (0.17.0, 2026-11-15)
+# Test results (0.18.0, 2026-11-15)
 
 ## 0.17.0 (TopstepX tab fix, every TopstepX window, faster start, automatic trust evidence)
 

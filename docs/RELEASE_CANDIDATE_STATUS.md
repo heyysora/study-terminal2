@@ -1,6 +1,6 @@
 # Release-candidate operation: audit, status and continuation report
 
-Last updated 2026-11-15, at Study Terminal 0.17.0. This is the working document for the whole operation. It is updated at every checkpoint so work can resume from it in a new session.
+Last updated 2026-11-15, at Study Terminal 0.18.0. This is the working document for the whole operation. It is updated at every checkpoint so work can resume from it in a new session.
 
 **Release-readiness decision today: not release-ready.** Five of ten gates are open (section 6). The Windows app is installable and tested on GitHub's Windows machine; the iPhone app doesn't exist yet; no strategy has enough evidence to be called profitable.
 
@@ -70,6 +70,7 @@ Most important architectural weaknesses, in order: (1) no unified signal/opportu
 | Version | What | Verified |
 |---|---|---|
 | 0.15.0 | Dark exchange look; live crypto prices through ccxt locked to public data; memecoin exit plans, journal, hide amounts, stage and links checks | 552 tests on Linux (3.11, 3.13); Windows tests + 39 reliability checks on GitHub |
+| 0.18.0 | Automated practice trading on by default (validated strategies only); weekly strategy re-testing with permanent history, alerts when the validated set changes; trust page shows what fills in by itself | 621 tests on Linux (3.11, 3.13); Windows checks |
 | 0.17.0 | Real TopstepX tab title recognised; every TopstepX window read; window opens at once, first screens warmed, lighter start-up; automatic trust evidence (price, contract, timeframe, candles) | 611 tests on Linux (3.11, 3.13); 55 of 55 Windows checks on GitHub |
 | 0.16.0 | Data-health engine, nine statuses, independent comparison, evidence store, outage history, Global Trading Safety Controller wired to stocks, futures and memecoins, per-token cross-check before practice buys, automatic TopstepX chart validator, FOMO and pump.fun classified, Data check screen, Windows data-health drill | See `docs/TEST_RESULTS.md` and `docs/DATA_VALIDATION_REPORT.md` |
 
@@ -165,7 +166,7 @@ Order follows brief 5 §19, with two moves: the unified record comes before scan
 | 7 | Unified opportunity record + lifecycle; monitor supervisor (one run state, heartbeat, sleep/gap report) | New tables; adapters from the three engines; nothing rewritten | Every idea from every market appears as one record with history |
 | 8 | Scanner and signals | Crypto setups; exit signals; SELL vs SHORT rules; five separate confidence measures; ranking and categories | Tests; SHORT impossible where the venue has none |
 | 9 | Memecoin engine | Own scanner, snapshots, five-level risk, liquidity-withdrawal watch | Tests on recorded real replies; a week of observations |
-| 10 | Strategy evidence | Maturity labels, preserved results, tracking of every signal, drift rules | Gate E has data to show, whatever it says |
+| 10 | Strategy evidence | Maturity labels, tracking of every signal, drift rules. Done in 0.18.0: results preserved run by run, automatic re-testing, automatic enable/disable of a strategy | Gate E has data to show, whatever it says |
 | 11 | Background Windows operation | Start with Windows (opt-in), sleep/wake detection, task watchdog with crash-loop limit | Windows drill covers each |
 | 12 | Security, database, performance | Threat model, dependency scan, uninstall test, profiling, long runs (1 h, 6 h, 24 h) | Reports with measured numbers |
 | 13 | Notification hub + companion API + pairing | Categories, quiet hours, cooldowns, delivery log; encrypted LAN listener; QR pairing; revoke | Tests for every unauthenticated and revoked case |

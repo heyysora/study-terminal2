@@ -37,7 +37,7 @@ async def test_off_by_default_and_token_required(mclient):
     assert (await phone.get("/api/mobile/status", headers={"Authorization": "Bearer wrong"})).status_code == 401
     r = await phone.get("/api/mobile/status", headers={"Authorization": f"Bearer {tok}"})
     j = r.json()
-    assert r.status_code == 200 and j["simulated"] and j["automation"]["mode"] == "assisted" and "can't see or change" in j["note"]
+    assert r.status_code == 200 and j["simulated"] and j["automation"]["mode"] == "paper_auto" and "can't see or change" in j["note"]
 
 
 async def test_token_stored_only_as_hash_and_hidden_from_settings(mclient):

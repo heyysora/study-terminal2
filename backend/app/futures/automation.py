@@ -68,7 +68,8 @@ class ManagementRules:
 
 @dataclass
 class AutomationState:
-    mode: str = "assisted"
+    mode: str = "paper_auto"                 # B by default: a validated strategy's practice trades are placed automatically
+    mode_chosen: bool = False                # True once you pick a mode yourself; then the default never overrides it
     status: str = "stopped"                  # stopped | running | paused | emergency_stopped
     roots: list[str] = field(default_factory=lambda: ["NQ", "MNQ", "ES", "MES"])
     interval_seconds: float = 60.0
@@ -89,7 +90,10 @@ class AutomationState:
     @classmethod
     def from_dict(cls, d: dict | None) -> "AutomationState":
         names = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in (d or {}).items() if k in names})
+        st = cls(**{k: v for k, v in (d or {}).items() if k in names})
+        if d and not st.mode_chosen and st.mode == "assisted":
+            st.mode = cls.mode              # saved before 0.18, with no mode picked by hand: follow the new default (B)
+        return st
 
 
 class AutomationEngine:
@@ -118,8 +122,9 @@ class AutomationEngine:
             raise PermissionError("Live execution is locked. Study Terminal has no order-routing code; see the checklist.")
         if mode not in MODES:
             raise ValueError(f"Unknown mode {mode}")
-        self.state.mode = mode
-        self._log("info", f"Mode set to {MODES[mode]}.")
+        self.state.mode, self.state.mode_chosen = mode, True
+        self._log("info", f"Mode set to {MODES[mode]}." + (" Practice trades are no longer placed automatically."
+                                                           if mode == "assisted" else ""))
         self.save()
         return self.status()
 
