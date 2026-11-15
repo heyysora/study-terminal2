@@ -1,5 +1,13 @@
 # Test results (0.17.0, 2026-11-15)
 
+## 0.17.0 (TopstepX tab fix, every TopstepX window, faster start, automatic trust evidence)
+
+- SIMULATED TEST ONLY, Linux, Python 3.11 and 3.13: 611 passed, 0 failed on each. New: the exact tab title reported from a real PC ("NQZ26 $27,927.25 ▼ -1.61%") through the window finder, window list, privacy check and monitor; several TopstepX windows attaching and detaching; timeframe worked out from candles at 1, 5, 15 and 60 minutes; trust reaching Visual validation from automatic samples only, and failing when the chart's label and its candles disagree.
+- VERIFIED ON WINDOWS (GitHub Windows Server 2025, run 43718274246, installed app): full Windows test suite passed; 55 of 55 reliability checks passed, including the rescue drill that failed for 0.16.1, the upgrade from 0.16.0, the data-check drill with live sources, and a new check that starts the real window: loading screen first, engine ready 6.9 s after the window opened, the app's page loaded at 7.6 s.
+- Measured on the Linux build machine: engine answering 2.0 s after launch; four seconds after start, Home answers in 5 ms and the other first screens in under 160 ms (they were 0.4 to 1.4 s before the warm-up).
+- UNVERIFIED: all of it on your PC. In particular the TopstepX fix was built from the tab title you reported and has not been seen working against your Edge window; the timeframe and candle checks have never run on a real chart.
+- 0.16.1 was built but not published: 51 of 54 Windows checks passed. The three failures were in the test scripts (a same-second time comparison in the recovery drill, and the upgrade check not expecting the app's own data-check records), not in the app.
+
 ## 0.16.0 (data validation, safety controller, TopstepX automatic validation)
 
 Each line says where it ran and whether the data was real or simulated.

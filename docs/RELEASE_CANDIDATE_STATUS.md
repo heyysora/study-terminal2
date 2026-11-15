@@ -1,6 +1,6 @@
 # Release-candidate operation: audit, status and continuation report
 
-Last updated 2026-11-14, at Study Terminal 0.16.0. This is the working document for the whole operation. It is updated at every checkpoint so work can resume from it in a new session.
+Last updated 2026-11-15, at Study Terminal 0.17.0. This is the working document for the whole operation. It is updated at every checkpoint so work can resume from it in a new session.
 
 **Release-readiness decision today: not release-ready.** Five of ten gates are open (section 6). The Windows app is installable and tested on GitHub's Windows machine; the iPhone app doesn't exist yet; no strategy has enough evidence to be called profitable.
 
@@ -70,6 +70,7 @@ Most important architectural weaknesses, in order: (1) no unified signal/opportu
 | Version | What | Verified |
 |---|---|---|
 | 0.15.0 | Dark exchange look; live crypto prices through ccxt locked to public data; memecoin exit plans, journal, hide amounts, stage and links checks | 552 tests on Linux (3.11, 3.13); Windows tests + 39 reliability checks on GitHub |
+| 0.17.0 | Real TopstepX tab title recognised; every TopstepX window read; window opens at once, first screens warmed, lighter start-up; automatic trust evidence (price, contract, timeframe, candles) | 611 tests on Linux (3.11, 3.13); 55 of 55 Windows checks on GitHub |
 | 0.16.0 | Data-health engine, nine statuses, independent comparison, evidence store, outage history, Global Trading Safety Controller wired to stocks, futures and memecoins, per-token cross-check before practice buys, automatic TopstepX chart validator, FOMO and pump.fun classified, Data check screen, Windows data-health drill | See `docs/TEST_RESULTS.md` and `docs/DATA_VALIDATION_REPORT.md` |
 
 ## 4. Status against the A+ specification
@@ -144,7 +145,7 @@ From the investigate list: natural-language summaries and daily/weekly reports b
 | C Data integrity | **PASS for classification** | Every source has a status from real checks (`DATA_VALIDATION_REPORT.md`) | Stocks and futures prices have no independent confirmation; TopstepX chart has no real readings yet |
 | D Trading safety | **PASS** | Controller tests; bad data → NO TRADE through the running app (simulated sources) | Not yet exercised by a real outage on Windows |
 | E Strategy evidence | **FAIL** | Research and evidence tiers exist | No strategy has forward paper evidence in sufficient quantity; maturity labels and drift rules not built |
-| F Windows reliability | **PARTIAL** | 54 of 54 checks on GitHub Windows for 0.16.0 (39 install/upgrade/recovery + 15 data-check drill) | Start with Windows, sleep/wake, long-duration runs, uninstall test; nothing verified on your PC |
+| F Windows reliability | **PARTIAL** | 55 of 55 checks on GitHub Windows for 0.17.0 (install, upgrade, recovery, data-check drill, real window start) | Start with Windows, sleep/wake, long-duration runs, uninstall test; nothing verified on your PC |
 | G iPhone functionality | **FAIL** | – | Not started; needs the notification decision |
 | H Security | **PARTIAL** | Safety audit tests, ccxt lock, no secrets in help files | Threat model, dependency scan, unsigned installer |
 | I Recovery | **PASS on GitHub Windows** | Backup, restore, rescue, rollback drill | Not run on your PC |
