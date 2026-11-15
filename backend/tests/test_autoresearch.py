@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.futures import contracts as fc
+
 from app.futures.autoresearch import FORCE_AFTER, AutoResearch
 from app.futures.automation import AutomationEngine, AutomationState
 from app.futures.service import FuturesService
@@ -174,7 +174,7 @@ async def test_it_can_be_switched_off_and_never_runs_two_at_once(svc):
     assert (await ar.tick()) is not None
 
 
-async def test_the_schedule_is_visible_over_the_api(client):
+async def test_the_schedule_is_visible_over_the_api(client):  # noqa: F811
         c, _app = client
         r = (await c.get("/api/futures/research/schedule")).json()
         assert r["enabled"] and r["every_days"] == 7 and r["products"] and "validated_now" in r
