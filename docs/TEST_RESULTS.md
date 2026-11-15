@@ -1,5 +1,11 @@
 # Test results (0.14.1, 2026-11-14)
 
+## 0.14.1 (design-only release)
+
+- Here (Linux, Python 3.11): 538 passed, 0 failed.
+- GitHub Windows Server 2025, run 43658335608: full test suite passed (publish only runs when it does); reliability 39/39 checks passed, including install, upgrade from 0.14.0 and the recovery drill.
+- Your PC: not tested yet. Passing on GitHub's Windows machine is not the same as passing on yours.
+
 ## Automated tests
 
 | Run | Result |
