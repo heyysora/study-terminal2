@@ -1,5 +1,12 @@
 # Test results (0.18.0, 2026-11-15)
 
+## 0.18.0 (automated practice trading on by default, weekly strategy re-testing)
+
+- SIMULATED TEST ONLY, Linux, Python 3.11 and 3.13: 621 passed, 0 failed on each. New: mode B as the default and the migration of an older saved state, an explicit choice being kept, a validated strategy traded in practice without being asked, the weekly schedule (never tested, 7 days, waiting for a closed market, forced after 11 days, oldest first, one per tick), a permanent run history that survives a restart, a strategy losing its validation and stopping, a failed run being reported, and the switch-off.
+- VERIFIED WITH LIVE DATA, Linux build machine: one real research run end to end on MES through the installed code path. It took 231 seconds, used 59 days of real 5-minute bars, returned 57 out-of-sample trades averaging 0.185R, tier "inconclusive", and therefore validated nothing. The schedule, the history and the trust page all updated from that run.
+- VERIFIED ON WINDOWS (GitHub Windows Server 2025, run 43752542117, installed app): full Windows test suite passed; 55 of 55 reliability checks passed, including the upgrade from 0.17.0 with journals, practice accounts and settings unchanged, and the real window start (app page loaded 8.3 s after the window opened).
+- UNVERIFIED: a weekly run firing on its own schedule (only forced runs and scripted ones were exercised); automatic entry of a validated strategy with real market data, because no strategy is validated; everything on your PC.
+
 ## 0.17.0 (TopstepX tab fix, every TopstepX window, faster start, automatic trust evidence)
 
 - SIMULATED TEST ONLY, Linux, Python 3.11 and 3.13: 611 passed, 0 failed on each. New: the exact tab title reported from a real PC ("NQZ26 $27,927.25 ▼ -1.61%") through the window finder, window list, privacy check and monitor; several TopstepX windows attaching and detaching; timeframe worked out from candles at 1, 5, 15 and 60 minutes; trust reaching Visual validation from automatic samples only, and failing when the chart's label and its candles disagree.
