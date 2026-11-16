@@ -10,7 +10,8 @@ The screen-text reader has never worked in any installed copy of Study Terminal.
 - Your second error -- `Unexpected token ',', "Internal S"... is not valid JSON` on the chart setup screen -- was the same fault. Test read called the dead reader, the engine answered with the plain words "Internal Server Error", and the page tried to read those words as data.
 
 **The fix**
-- Moved to a version of the reader that imports its parts normally, and pinned it so a future install can't quietly drop back to one that doesn't. The packaging list now also carries the reader's own code, so even a version that brings the trick back would find something real to load.
+- Moved to a version of the reader that imports its parts normally, and pinned it. There is a catch, and it turned out to be the reason this happened at all: that version is only published for Python 3.12 and below, while the build was using Python 3.13 -- even though the build was written to ask for 3.12. It picked whichever Python it found first. So on 3.13 the only installable version of the reader was the one with the problem, and nothing ever said so. The build now uses the Python it asks for, and the pin follows the interpreter.
+- The packaging list now also carries the reader's own code, so the version with the problem works too -- which matters if you run Study Terminal from source on Python 3.13.
 - A failure of the reader is now its own thing, with its own words. It used to be reported as "I can't read your chart right now -- make sure nothing is covering the chart", which was useless advice for a problem that has nothing to do with your screen.
 
 **The app now checks itself, inside the copy you installed**

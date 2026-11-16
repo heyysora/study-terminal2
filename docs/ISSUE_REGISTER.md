@@ -33,9 +33,11 @@ Every unit test and every CI run passed while the installed application could no
 of defect is structurally invisible to tests that run against the source tree.
 
 **Fix**
-1. `backend/requirements.txt` — pinned `rapidocr_onnxruntime==1.4.4`. 1.4.x imports those modules normally (relative
-   imports, no `sys.path` manipulation, no `module_name` in config), which removes the mechanism rather than working
-   around it. The pin stops a resolver dropping back to an affected version.
+1. `backend/requirements.txt` — pinned per interpreter: `==1.4.4` below Python 3.13, `==1.2.3` on 3.13 and above.
+   1.4.x imports those modules normally (relative imports, no `sys.path` manipulation, no `module_name` in config),
+   which removes the mechanism rather than working around it — but it is only published for Python below 3.13, and
+   on 3.13 the newest installable release is the affected one. A single hard pin would have made the file
+   uninstallable on one interpreter or the other; see ST-008 for why the build was on 3.13 at all.
 2. `installer/StudyTerminal.spec` — `collect_submodules("rapidocr_onnxruntime")` added to hidden imports (so the
    packaging tool analyses each worker module and pulls in pyclipper, shapely and yaml), and `collect_data_files(...,
    include_py_files=True)` so the on-disk copy carries real code if a future version brings the trick back.
@@ -109,6 +111,21 @@ from the same commit could differ in which modules exist.
 **Root cause** My error: the notes said 657 tests; the suite at that commit held 629.
 **Fix** Corrected in place, with the correction marked rather than quietly overwritten. Counts are now taken from
 `pytest --collect-only` rather than written from memory.
+**Status** FIXED
+
+### ST-008 · HIGH · The build used a different Python from the one it asked for
+
+**Component** scripts/setup.ps1, .github/workflows/build-windows.yml
+**Found by** the new pin failing to install in CI — the first thing this cycle's changes caught.
+**Root cause** The workflow sets up Python 3.12, but `setup.ps1` builds the virtual environment from the first
+interpreter it finds and its list started with `py -3.13`. GitHub's Windows image ships 3.13, so every release was
+built on 3.13 while the workflow said 3.12. That is what selected the affected OCR version: 1.4.x is not published
+for 3.13, so pip quietly resolved down to 1.2.3 — the one with the run-time-name import trick — and nothing said so.
+A silent interpreter substitution changes which wheels an entire release is built from.
+
+**Fix** `setup.ps1` tries 3.12 first, so the build uses the interpreter the workflow asks for and the OCR version
+where the problem cannot arise. 3.13 remains supported for running from source: the packaging fix and the self-test
+cover the affected version.
 **Status** FIXED
 
 ---

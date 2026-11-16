@@ -6,7 +6,12 @@ function Find-Python {
     # Windows PowerShell 5.1 turns redirected stderr into terminating errors under "Stop",
     # and `py -3.13` writes to stderr when 3.13 isn't installed. Probe with "Continue".
     $ErrorActionPreference = "Continue"
-    $candidates = @(@("py", "-3.13"), @("py", "-3.12"), @("py", "-3.11"), @("python"))
+    # 3.12 FIRST, deliberately. The OCR library only publishes a version free of the run-time-name import trick for
+    # Python below 3.13 (see the pin and its comment in backend/requirements.txt); on 3.13 the newest installable
+    # release is the one whose modules a packaging tool cannot see. 3.13 still works -- the packaging spec and the
+    # self-test cover it -- but the build should use the Python where the problem cannot arise in the first place.
+    # This also matches what .github/workflows/build-windows.yml has always asked for and silently not got.
+    $candidates = @(@("py", "-3.12"), @("py", "-3.13"), @("py", "-3.11"), @("python"))
     foreach ($cand in $candidates) {
         $exe = $cand[0]
         $rest = @($cand | Select-Object -Skip 1)
