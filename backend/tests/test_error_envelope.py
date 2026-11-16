@@ -49,3 +49,36 @@ async def test_an_unknown_api_path_is_refused(crashy):
     page files it is JSON. The browser helper has to cope with either, which is why it checks before it parses."""
     r = await crashy.get("/api/_no_such_endpoint")
     assert r.status_code == 404
+
+
+async def test_a_dead_text_reader_is_reported_as_itself_not_as_a_parse_error(crashy, monkeypatch):
+    """The 0.18.1 chart-setup error. Reading a chart hit the dead text reader, the backend answered with the plain
+    words "Internal Server Error", and the setup page showed "Unexpected token 'I', "Internal S"... is not valid
+    JSON". The answer must be JSON, must say the reader is the problem, and must carry the repair."""
+    import cv2
+    import numpy as np
+
+    from app.screen import vision
+
+    def dead():
+        raise vision.OcrUnavailable("AttributeError: module 'ch_ppocr_v3_det' has no attribute 'TextDetector'",
+                                    "Reinstalling the latest version fixes it.")
+    monkeypatch.setattr(vision, "_start_engine", dead)
+    monkeypatch.setattr(vision, "_OCR", None)
+    monkeypatch.setattr(vision, "_OCR_FAILED", None)
+
+    # Big enough, and not a flat colour: both are checked before the reader is ever asked for text.
+    img = np.full((400, 700, 3), 20, dtype=np.uint8)
+    cv2.putText(img, "NQZ26 27686.00", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (235, 235, 235), 2)
+    for i in range(12):
+        cv2.rectangle(img, (40 + i * 50, 120 + i * 8), (60 + i * 50, 300 - i * 5), (90, 200, 120), -1)
+    png = cv2.imencode(".png", img)[1].tobytes()
+    r = await crashy.post("/api/visual/upload-read", files={"file": ("chart.png", png, "image/png")},
+                          data={"profile": '{"name": "x"}'})
+    assert r.headers["content-type"].startswith("application/json"), "plain text here is the bug the user hit"
+    assert "Unexpected token" not in r.text
+    assert r.status_code == 503, r.text[:200]
+    d = r.json()["detail"]
+    assert d["kind"] == "ocr_unavailable"
+    assert "reads text off your screen" in d["message"] and "Reinstalling" in d["message"]
+    assert "ch_ppocr_v3_det" in d["error"], "the technical cause is kept for support, just not as the headline"

@@ -176,3 +176,28 @@ def test_the_sample_image_is_actually_readable():
     assert img.mean() < 60, "dark like a trading chart, which is the case the reader has to handle"
     toks = vision.ocr(img)
     assert "27686" in "".join(t.text for t in toks).replace(",", "").replace(" ", "")
+
+
+# ---------------------------------------------------------------- the whole build, not just the reader
+
+def test_every_subsystem_does_real_work_here():
+    """Each check must actually exercise its subsystem. If one of these ever becomes an import-and-hope, the packaged
+    build can break again without anyone noticing -- which is exactly how 0.18.1 shipped."""
+    from app import diagnostics
+    r = diagnostics.subsystems()
+    assert r["ok"], [c for c in r["checks"] if c["status"] == "fail"]
+    ids = {c["id"] for c in r["checks"]}
+    assert {"ocr", "cv2", "sklearn", "database", "calendars", "onnx", "exchanges", "timezones"} <= ids
+    assert all(c["detail"] for c in r["checks"]), "every check reports what it found"
+
+
+def test_a_broken_subsystem_is_reported_not_raised(monkeypatch):
+    from app import diagnostics
+
+    def boom():
+        raise ImportError("No module named 'ch_ppocr_v3_det'")
+    monkeypatch.setattr(diagnostics, "CHECKS", [("x", "Something", boom)])
+    r = diagnostics.subsystems()
+    assert r["ok"] is False and r["failed"] == ["x"]
+    assert "ImportError" in r["checks"][0]["detail"]
+    assert "don't work in this build" in r["headline"]

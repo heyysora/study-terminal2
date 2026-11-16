@@ -273,6 +273,23 @@ $ocline = (Get-Content $so -ErrorAction SilentlyContinue | Select-String 'ocr-ch
 $ocfails = (Get-Content $so -ErrorAction SilentlyContinue | Select-String '\[fail' ) -join ' '
 Record "Screen-text reader works in the packaged app" $(if ($occode -eq 0) { "pass" } else { "fail" }) "Exit $occode in $([math]::Round($sw.Elapsed.TotalSeconds,1)) s. $ocline $ocfails"
 
+# ---------------------------------------------------------------- 13. every other part, inside the packaged app
+# The general form of check 12. Each one does a small piece of real work (fits a model, opens a database, builds a
+# calendar, constructs an exchange client) so that anything missing from the build fails here rather than in use.
+$dc = Join-Path $env:TEMP "st-rel-deps"
+Remove-Item -Recurse -Force $dc -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $dc | Out-Null
+$so = Join-Path $Out "deps-check.out.txt"; $se = Join-Path $Out "deps-check.err.txt"
+$env:STUDY_TERMINAL_DATA_DIR = $dc; $env:STUDY_TERMINAL_NO_ENV_FILE = "1"
+$sw = [Diagnostics.Stopwatch]::StartNew()
+$p = Start-Process -FilePath $Exe -ArgumentList "--deps-check" -PassThru -NoNewWindow -RedirectStandardOutput $so -RedirectStandardError $se
+if (-not $p.WaitForExit(240000)) { try { $p.Kill() } catch {}; $dccode = -1 } else { $dccode = $p.ExitCode }
+$sw.Stop()
+Remove-Item Env:STUDY_TERMINAL_DATA_DIR, Env:STUDY_TERMINAL_NO_ENV_FILE -ErrorAction SilentlyContinue
+$dcline = (Get-Content $so -ErrorAction SilentlyContinue | Select-String 'deps-check:') -join ' '
+$dcfails = (Get-Content $so -ErrorAction SilentlyContinue | Select-String '\[fail') -join ' '
+Record "Every subsystem works in the packaged app" $(if ($dccode -eq 0) { "pass" } else { "fail" }) "Exit $dccode in $([math]::Round($sw.Elapsed.TotalSeconds,1)) s. $dcline $dcfails"
+
 # ---------------------------------------------------------------- summary
 $json = $Results | ConvertTo-Json -Depth 4
 $json | Set-Content (Join-Path $Out "results.json")

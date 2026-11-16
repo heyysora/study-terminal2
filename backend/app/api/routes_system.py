@@ -60,6 +60,17 @@ def _port(st) -> int | None:
     return getattr(s, "port", None)
 
 
+@router.get("/subsystems")
+async def subsystems():
+    """Does every part of the app work in THIS build? Each check does a small piece of real work rather than importing
+    a name, because 0.18.1 shipped with the screen-text reader missing from the packaged app while every name still
+    imported. No user data, no network, no account is touched."""
+    import asyncio
+
+    from .. import diagnostics
+    return await asyncio.to_thread(diagnostics.subsystems)
+
+
 @router.get("/health")
 def health(request: Request):
     st, s = request.app.state, _settings(request)

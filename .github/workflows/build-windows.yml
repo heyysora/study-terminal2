@@ -77,7 +77,7 @@ jobs:
     timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
-      PREVIOUS: v0.18.0
+      PREVIOUS: v0.18.1
     steps:
       - uses: actions/checkout@v4
         with:

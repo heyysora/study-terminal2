@@ -530,11 +530,32 @@ def ocr_check() -> int:
     return 0 if r["ok"] else 1
 
 
+def deps_check() -> int:
+    """`StudyTerminal.exe --deps-check` -- does every part of the app work in THIS build?
+
+    Same lesson as --ocr-check, generalised. A packaging tool decides what to include by reading source code, so any
+    library that builds a module name at run time can go missing from the .exe while every test on the source tree
+    passes. Rather than guess which libraries do that, each check here does a small piece of real work -- fits a
+    model, opens a database, builds a calendar, decodes an image -- so a gap shows up here instead of on the user's
+    screen. Exit code 0 = every part works."""
+    import json as _json
+    from app import diagnostics
+    r = diagnostics.subsystems()
+    for c in r["checks"]:
+        print(f"  [{c['status']:4}] {c['name']}: {c['detail']} ({c['ms']} ms)", flush=True)
+    print(f"deps-check: {'PASS' if r['ok'] else 'FAIL'}; {r['headline']} version {VERSION}; frozen={bool(getattr(sys, 'frozen', False))}", flush=True)
+    print("deps-check-json: " + _json.dumps(r), flush=True)
+    log.info("deps-check result: ok=%s failed=%s", r["ok"], r["failed"])
+    return 0 if r["ok"] else 1
+
+
 def main():
     if "--self-test" in sys.argv:
         sys.exit(self_test())
     if "--ocr-check" in sys.argv:
         sys.exit(ocr_check())
+    if "--deps-check" in sys.argv:
+        sys.exit(deps_check())
     if "--headless" in sys.argv and "--stop-file" in sys.argv:
         sys.exit(headless(sys.argv[sys.argv.index("--stop-file") + 1]))
     if "--window-test" in sys.argv:

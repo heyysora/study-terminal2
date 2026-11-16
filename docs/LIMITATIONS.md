@@ -1,4 +1,4 @@
-# Known limitations (0.18.1)
+# Known limitations (0.18.2)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -135,3 +135,16 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - A timeframe you set by hand is not verified against the chart. If you change the chart to another timeframe and forget to change the setting, the app notices only once the label is visible again. While the label is visible, the chart always wins and trade ideas stop.
 - Only the full label shape is accepted (contract, exchange, timeframe). A timeframe shown anywhere else on your screen, or in a layout that writes it differently, is not read.
 - A chart with no readable timeframe still shows its price and candles, and still records them. It produces no trade ideas.
+
+## The screen-text reader (0.18.2)
+
+- Reading your chart means reading text off a picture of it. That reader is a local, offline library; it is good at
+  clear printed text on a plain background and worse at small, thin, overlapped or anti-aliased text.
+- It was missing from every packaged build up to and including 0.18.1, so no installed copy of Study Terminal has
+  ever read a chart. Fixed in 0.18.2, with checks inside the packaged app that now block a release if it breaks again.
+- **Health > Screen text reader** and **Health > This build** check the copy on your PC. If either fails, the app
+  tells you so plainly; reinstalling is the repair, and your settings and history are kept.
+- A reader failure is reported as itself. It is not "something is covering your chart", and nothing about your screen,
+  your window or your chart settings will fix it.
+- The checks prove the reader can read a test picture. They do not prove it can read *your* chart: that depends on
+  your layout, theme, zoom and the region you captured.

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.18.2 (2026-11-16)
+
+The screen-text reader has never worked in any installed copy of Study Terminal. It does now.
+
+**What was wrong**
+- The reader loads three of its own parts by a name it reads out of a settings file while running. The tool that packages Study Terminal into an .exe works out what to include by reading the source code, so a name that only exists while the program is running is invisible to it, and those three parts were never put in the installer. The folders were there -- their settings files had been copied -- but with no code inside, so Python imported empty folders and the first thing asked of them failed: `AttributeError: module 'ch_ppocr_v3_det' has no attribute 'TextDetector'`.
+- This could only ever happen in the installed app. In the source code every file is present, so all 629 tests passed and every build went out green while the installed app could not read a single character off your chart.
+- Your second error -- `Unexpected token ',', "Internal S"... is not valid JSON` on the chart setup screen -- was the same fault. Test read called the dead reader, the engine answered with the plain words "Internal Server Error", and the page tried to read those words as data.
+
+**The fix**
+- Moved to a version of the reader that imports its parts normally, and pinned it so a future install can't quietly drop back to one that doesn't. The packaging list now also carries the reader's own code, so even a version that brings the trick back would find something real to load.
+- A failure of the reader is now its own thing, with its own words. It used to be reported as "I can't read your chart right now -- make sure nothing is covering the chart", which was useless advice for a problem that has nothing to do with your screen.
+
+**The app now checks itself, inside the copy you installed**
+- **Health > Screen text reader** runs the real thing on demand: the library, the parts it loads by name, the model files, starting the engine, and reading known text out of a picture. It prints every step and tells you the fix.
+- **Health > This build** does the same for ten parts of the app -- fitting a model, opening a database, building a market calendar, decoding an image, constructing the crypto price client -- each doing a small piece of real work rather than just importing a name.
+- Both run inside the packaged .exe during the release checks, and a release is now blocked if any of them fail. That gate is the thing that was missing: it is the only kind of test that could have caught this.
+
+**Errors you can act on**
+- A crash inside the engine now answers in a form the page can read, naming the fault and the line it came from, with the full detail in the log file. The page no longer turns a backend fault into a parsing error.
+- The page tells apart: the engine not answering, a request taking too long, a crash, a refused request, and an answer it couldn't read.
+
 ## 0.18.1 (2026-11-16)
 
 Your TopstepX chart reads now. Three separate faults were stopping it, and the app was telling you almost nothing about any of them.

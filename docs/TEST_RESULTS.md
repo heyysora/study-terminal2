@@ -1,4 +1,35 @@
-# Test results (0.18.1, 2026-11-16)
+# Test results (0.18.2, 2026-11-16)
+
+## 0.18.2 — the screen-text reader, and the gate that was missing (2026-11-16)
+
+**Root cause reproduced before any change was made.** A folder holding only `config.yaml` with its parent on the
+import path, imported by name:
+
+```
+imported    : <module 'ch_ppocr_v3_det' (NamespaceLoader)>
+is namespace: True
+REPRODUCED  : AttributeError: module 'ch_ppocr_v3_det' has no attribute 'TextDetector'
+```
+
+| Test category | Result |
+|---|---|
+| Unit and integration (this machine) | **646 pass**, 0 fail, on Python 3.11 (rapidocr 1.4.4) and Python 3.13 (rapidocr 1.2.3) — 17 new |
+| Reader check against a deliberately broken bundle | **PASS** — caught, with the correct repair advice |
+| Reader check against the real library, both layouts | **PASS** — engine starts, reads known text from a dark image |
+| Ten subsystem checks (source tree) | **PASS** — imports, image handling, maths, model fitting, database, calendars, time zones, model runtime, reader, crypto client (read-only) |
+| Windows CI, packaged app | see the run for this version: checks 12 and 13 are new and gate the release |
+| **Real PC (the user's Windows 11, Edge, TopstepX)** | **NOT TESTED** — no access; the first run of this installer is what settles it |
+
+New tests (17): an empty folder masquerading as a module; a module present but lacking its class; a missing model
+file; the library absent entirely; the check never raising; a broken reader being its own error type; a dead reader
+not being restarted on every capture; the plain words for it not blaming the chart; the test image being genuinely
+readable; the reader working here, quick and deep; every subsystem doing real work; a broken subsystem reported not
+raised; a crashing endpoint answering in JSON; an unknown path refused; a refused request still explaining itself;
+a dead reader reached through a real request answering 503 with the repair.
+
+Correction: the 0.18.1 note said 657 tests. The suite at that commit held 629. Counts here come from
+`pytest --collect-only`.
+
 
 ## 0.18.1 — reading your TopstepX chart (2026-11-16)
 
@@ -14,7 +45,7 @@ Run against the actual screenshot of your Edge window (1920x1074, whole window c
 | Overall confidence | **0.00** | **0.51** |
 | Status | UNREADABLE | readable |
 
-- 657 tests pass on Python 3.11 and 3.13. 6 new tests cover the glued timeframe, the label shape, a stray number not being mistaken for a timeframe, a hand-set timeframe clearing the gate, a missing label not blacking out the chart, and the error text naming its own line.
+- 629 tests pass on Python 3.11 and 3.13 (an earlier draft of this line said 657; that number was wrong and is corrected here). 6 new tests cover the glued timeframe, the label shape, a stray number not being mistaken for a timeframe, a hand-set timeframe clearing the gate, a missing label not blacking out the chart, and the error text naming its own line.
 - Two existing tests were corrected, not removed: one asserted the old "set but never counted" timeframe behaviour; the other compared two whole API payloads including a timestamp computed as "now + minutes to close", so it failed on any run within an hour of the daily futures break (it fired for the first time today). Both now test the same thing without the clock race.
 
 

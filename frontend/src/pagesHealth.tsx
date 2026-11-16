@@ -64,6 +64,31 @@ function TextReader() {
   );
 }
 
+function BuildCheck() {
+  /** Every part of the app, each doing a small piece of real work, in the copy you actually installed. */
+  const [r, setR] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true); setErr(null);
+    try { setR(await api("/system/subsystems", { timeoutMs: 180_000 })); } catch (e: any) { setErr(e.message); }
+    setBusy(false);
+  };
+  return (
+    <Row label="This build" word={!r ? (busy ? "Checking…" : "Not checked yet") : r.ok ? "All parts work" : `${r.failed.length} part(s) broken`}
+      level={!r ? "idle" : r.ok ? "ok" : "bad"}>
+      <div>Checks every part of Study Terminal by making it do something real — fit a model, open a database, build a
+        market calendar, read text off a picture — in the copy on this PC, not in a test.</div>
+      {r && <ul className="small" style={{ margin: "4px 0" }}>
+        {r.checks.map((c: any) => <li key={c.id} className={c.status === "fail" ? "down" : ""}>
+          {c.status === "pass" ? "✓" : "✗"} {c.name}: {c.detail}</li>)}
+      </ul>}
+      <div className="row"><button onClick={run} disabled={busy}>{busy ? "Checking…" : r ? "Check again" : "Check every part"}</button></div>
+      {err && <div className="note bad">{err}</div>}
+    </Row>
+  );
+}
+
 export function SystemHealth() {
   const h = usePoll("/system/health", 15000);
   const lock = usePoll("/crypto/lock-check", 600000);
@@ -120,6 +145,7 @@ export function SystemHealth() {
           <div className="row"><a className="btn ghost" href="#/visual">My chart</a><a className="btn ghost" href="#/check">Chart check</a></div>
         </Row>
         <TextReader />
+        <BuildCheck />
         <Row label="Crypto prices" word={!lock.data ? "Checking…" : lock.data.locked ? "Read-only" : "Problem"} level={!lock.data ? "idle" : lock.data.locked ? "ok" : "bad"}>
           <div>{lock.data?.detail || "Checking that the exchange price library can only read public prices."}</div>
           <div className="muted">Live crypto prices come from public exchange data (Kraken, Coinbase or Bitstamp). No account, no keys, and every order function is switched off.</div>
