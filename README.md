@@ -1,4 +1,4 @@
-# Study Terminal 0.18.2
+# Study Terminal 0.18.3
 
 A trading research and paper-trading environment for Windows that you use alongside your charts. It watches
 the market, reads your chart window (with your permission), finds setups, tells you honestly how those setups
@@ -84,7 +84,7 @@ cd C:\Users\<you>\dev\study-terminal
 powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1            # Python environment (once)
 winget install JRSoftware.InnoSetup                                    # free installer compiler (once)
 powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1  # ~5 minutes
-.\dist-installer\StudyTerminal-Setup-0.18.2.exe
+.\dist-installer\StudyTerminal-Setup-0.18.3.exe
 ```
 
 The installer:

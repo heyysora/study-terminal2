@@ -47,6 +47,30 @@ def _fail_detail(e: BaseException) -> str:
     return f"{type(e).__name__}: {str(e).strip().splitlines()[0][:200]}" if str(e).strip() else type(e).__name__
 
 
+def _pkg_version(pkg) -> str:
+    """The installed version, or failing that something more useful than "unknown". Inside a packaged .exe there may
+    be no metadata to read, and the whole point of reporting a version here is to tell apart the release whose
+    modules are loaded by a run-time name from the one that imports them normally -- which the folder layout says
+    plainly even when nothing else does."""
+    try:
+        from importlib.metadata import version as _v
+        return _v("rapidocr_onnxruntime")
+    except Exception:  # noqa: BLE001
+        pass
+    v = getattr(pkg, "__version__", None)
+    if v:
+        return str(v)
+    try:
+        names = {d.name for d in Path(pkg.__file__).resolve().parent.iterdir() if d.is_dir()}
+    except Exception:  # noqa: BLE001
+        return "unknown"
+    if "ch_ppocr_v3_det" in names:
+        return "unknown (1.2/1.3 layout: modules loaded by name at run time)"
+    if "ch_ppocr_det" in names:
+        return "unknown (1.4 layout: modules imported normally)"
+    return "unknown"
+
+
 def _sample_image():
     """A picture of SAMPLE_TEXT: dark background, light text, the same way a trading chart draws it."""
     import cv2
@@ -77,11 +101,7 @@ def check(deep: bool = True) -> dict:
     # 1. the library imports at all
     try:
         pkg = importlib.import_module("rapidocr_onnxruntime")
-        try:
-            from importlib.metadata import version as _v
-            versions["rapidocr_onnxruntime"] = _v("rapidocr_onnxruntime")
-        except Exception:  # noqa: BLE001
-            versions["rapidocr_onnxruntime"] = "unknown"
+        versions["rapidocr_onnxruntime"] = _pkg_version(pkg)
         steps.append(Step("import", "Text reader installed", PASS, f"rapidocr_onnxruntime {versions['rapidocr_onnxruntime']}"))
     except Exception as e:  # noqa: BLE001
         steps.append(Step("import", "Text reader installed", FAIL, _fail_detail(e)))

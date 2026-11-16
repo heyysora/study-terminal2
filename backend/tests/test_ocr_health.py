@@ -201,3 +201,21 @@ def test_a_broken_subsystem_is_reported_not_raised(monkeypatch):
     assert r["ok"] is False and r["failed"] == ["x"]
     assert "ImportError" in r["checks"][0]["detail"]
     assert "don't work in this build" in r["headline"]
+
+
+def test_the_version_is_still_useful_when_there_is_no_metadata(monkeypatch, tmp_path):
+    """Inside the .exe there may be no package metadata to read. "unknown" is useless when the one thing you need to
+    know is which layout you have, so the folder names answer it."""
+    import importlib.metadata as md
+
+    import rapidocr_onnxruntime as pkg
+    monkeypatch.setattr(md, "version", lambda n: (_ for _ in ()).throw(md.PackageNotFoundError(n)))
+    monkeypatch.delattr(pkg, "__version__", raising=False)
+    got = ocr_health._pkg_version(pkg)
+    assert got.startswith("unknown (1."), got
+    assert "layout" in got
+
+    fake = types.ModuleType("f")
+    (tmp_path / "ch_ppocr_v3_det").mkdir()
+    fake.__file__ = str(tmp_path / "__init__.py")
+    assert "loaded by name at run time" in ocr_health._pkg_version(fake)

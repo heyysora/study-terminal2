@@ -18,8 +18,8 @@ from typing import Annotated, Literal
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-VERSION = "0.18.2"
-BUILD = "0.18.2"   # shown in About; each delivered build gets its own backup
+VERSION = "0.18.3"
+BUILD = "0.18.3"   # shown in About; each delivered build gets its own backup
 FROZEN = bool(getattr(sys, "frozen", False))      # running from the installed app (PyInstaller bundle)
 # Where the code and bundled files live: the repo when run from source, the bundle's folder when installed.
 REPO_ROOT = Path(getattr(sys, "_MEIPASS", "")) if FROZEN else Path(__file__).resolve().parents[2]

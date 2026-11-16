@@ -1,4 +1,4 @@
-# Test results (0.18.2, 2026-11-16)
+# Test results (0.18.3, 2026-11-16)
 
 ## 0.18.2 — the screen-text reader, and the gate that was missing (2026-11-16)
 

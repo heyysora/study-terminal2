@@ -1,7 +1,7 @@
 # PyInstaller build spec for the Windows desktop app.  Built by scripts\build-installer.ps1 (run from the repo root).
 from pathlib import Path
 # One-folder build: faster start-up than one-file, and Inno Setup compresses it anyway.
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).parent  # noqa: F821 - SPECPATH is provided by PyInstaller
 BACKEND = ROOT / "backend"
@@ -22,6 +22,14 @@ for pkg in ("exchange_calendars", "tzdata", "yfinance", "certifi", "win11toast")
 # real source next to the data means that dynamic import finds actual code even if a future version brings the trick
 # back. requirements.txt pins a version that imports normally, and this is the belt to that pair of braces.
 datas += collect_data_files("rapidocr_onnxruntime", include_py_files=True)
+# Version records for the libraries the Health page and the packaged self-check report on. Without these,
+# importlib.metadata finds nothing inside the .exe and every version reads "unknown" -- which is no use at all when
+# the thing you are trying to work out is which version of a library the user actually has.
+for pkg in ("rapidocr_onnxruntime", "onnxruntime", "opencv-python-headless", "scikit-learn", "ccxt"):
+    try:
+        datas += copy_metadata(pkg)
+    except Exception:                                 # noqa: BLE001 - a package that isn't installed is not fatal
+        pass
 
 hidden = collect_submodules("app") + [
     "uvicorn.logging", "uvicorn.loops.auto", "uvicorn.protocols.http.auto", "uvicorn.protocols.http.h11_impl",

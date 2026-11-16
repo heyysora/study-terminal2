@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.18.3 (2026-11-16)
+
+Small follow-up to 0.18.2, from watching its own release checks.
+
+- The packaged app reported every library version as "unknown", because the records those versions are read from weren't being included in the build. They are now. When there is still nothing to read, the check names the layout it found instead, which is the thing actually worth knowing: whether you have the version of the text reader that loads its parts by a name made up while running, or the one that doesn't.
+- Nothing else changed. If 0.18.2 is working for you, this only makes Health more informative.
+
 ## 0.18.2 (2026-11-16)
 
 The screen-text reader has never worked in any installed copy of Study Terminal. It does now.
