@@ -628,7 +628,55 @@ class VisualMonitor:
             return False                                  # an unconfirmed jump: let a full read decide
         rt.tape.note_ok(tr.residual)
         rt.last_good_at = now
+        self._fast_decide(rt, now, tr.value)
         return True
+
+    def _fast_decide(self, rt: Runtime, now: datetime, price: float) -> None:
+        """Re-check, on a fresh price alone, the only things a fresh price can decide.
+
+        The fast path reads the price box roughly every half second; a full read of the whole chart happens every
+        couple of seconds. Until now a price update changed the number on screen and nothing else, so a stop being
+        hit could sit unannounced until the next full read. For an exit, seconds are the whole point.
+
+        What this is allowed to conclude is deliberately narrow, and it is the same arithmetic the full path does:
+        price has crossed the stop or the final target of a trade already being tracked, or it has moved through the
+        invalidation point of a setup that was only ever "potential". Both are comparisons against levels that were
+        worked out earlier, from a full reading, by the normal rules.
+
+        What it must never do is start something. A new LONG or SHORT needs candles, indicators, structure, the
+        risk engine and the session -- none of which a price box can show. Price moving is not a reason to trade,
+        and anything that looks like an opportunity waits for the next full read to confirm it. So there is no path
+        from here to an entry, only to an exit or an invalidation.
+        """
+        act = rt.active
+        if act and act.get("stop") is not None and act.get("target_2") is not None:
+            if expired(act, now):
+                rt.active = None
+                return
+            d = 1 if act.get("direction") == "long" else -1
+            hit = ("stop", act["stop"]) if (price - act["stop"]) * d <= 0 else                   ("target", act["target_2"]) if (price - act["target_2"]) * d >= 0 else None
+            if hit:
+                kind, level = hit
+                rec = dict(rt.recommendation or {})
+                rec.update({"action": "EXIT", "direction": act.get("direction"), "exit_kind": kind, "active": act,
+                            "contract": act.get("contract"), "observed_price": price, "captured_at": now.isoformat(),
+                            "reason": f"{'Stop' if kind == 'stop' else 'Target 2'} {level} reached (observed price {price}).",
+                            "details": [("Seen on the price box between full chart reads, so you are told now rather "
+                                         "than at the next one. The level itself came from the last full reading.")]})
+                rt.recommendation = rec
+                rt.active = None
+                self._alerts_for(rt, rec, now)
+                self._push()
+                return
+        pot = rt.potential
+        if pot and pot.get("stop") is not None:
+            d = 1 if pot.get("direction") == "long" else -1
+            if (price - pot["stop"]) * d <= 0:
+                self._alert(rt, "invalid", "medium", f"Setup invalid: {pot['setup']} {pot['direction']} ({rt.profile.name})",
+                            f"Price {price} went through {pot['stop']}, where this setup stops being valid. "
+                            f"Seen on the price box between full chart reads.", f"{pot['setup']}|{pot['entry']}|invalid")
+                rt.potential = None
+                self._push()
 
     # ---------------- analysis + alerts ----------------
 

@@ -1,4 +1,4 @@
-# Known limitations (0.19.0)
+# Known limitations (0.19.1)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -173,3 +173,12 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - It does not test anything about whether a trade idea is any good.
 - Stages that cannot run (no chart set up, market closed, monitoring stopped) are reported as blocked, never as
   passes, and the overall verdict stays negative until all five chart stages pass.
+
+## Exits between full reads (0.19.1)
+
+- A stop or final target being reached is noticed on the fast price path, within about half a second rather than up
+  to two seconds. Entries are not: a new LONG or SHORT needs a full chart read and always will, because nothing in
+  a price box can justify one.
+- The level being compared against is only as fresh as the last full read. If the market structure changed in the
+  last second or two, the fast check does not know it; the next full read does.
+- Same tick size and same arithmetic as the full path, so the two cannot disagree about whether a level was reached.

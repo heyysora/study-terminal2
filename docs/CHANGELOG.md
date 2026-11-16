@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.1 (2026-11-16)
+
+An exit no longer waits for the next full chart read.
+
+- Study Terminal reads the price box about twice a second and the whole chart every couple of seconds. Until now a fresh price changed the number on screen and nothing else, so if your stop was hit a moment after a full read, you were told at the next one. For getting out of a trade, that gap is the whole point.
+- A fresh price is now re-checked against the two things a price alone can decide: whether a trade being tracked has reached its stop or its final target, and whether a setup that was only ever "potential" has gone through the level where it stops being valid. Both are comparisons against levels worked out earlier by the normal rules from a full reading, so nothing is being judged more loosely — just sooner.
+- **It can never open a trade.** A price box shows a number and nothing else: no candles, no indicators, no market structure, no session, no risk checks. Price moving is not a reason to trade, so there is no path from a price update to a BUY or a SHORT — those still wait for a full read. Ten tests hold that line, including one that throws prices from 1 to 99,999 at it and insists nothing is ever opened.
+- The alert says where each half came from: the price off the price box, the level it was compared against from the last full reading.
+
 ## 0.19.0 (2026-11-16)
 
 Two things: a test you can run on your own PC that proves whether the chart pipeline really works, and a chart read that is three and a half times faster.
