@@ -27,9 +27,11 @@ from ..futures import contracts as fc
 from ..futures.sessions import FuturesClock
 from . import capture as cap
 from . import vision
+from .latency import METER
 from .capture_sources import CaptureManager
 from .chart_profile import ChartProfile, ProfileStore
 from .chart_reader import ChartReading, read_chart
+from .token_cache import TokenCache
 from .visual_bars import bars_from_reading, visual_frame
 from .visual_recommend import build as build_rec
 from .visual_recommend import expired
@@ -123,12 +125,14 @@ class Runtime:
     readings: int = 0
     capture_method: str | None = None
     history: list[dict] = field(default_factory=list)
+    tokens: object = None                            # TokenCache: the words on this chart, re-read only when they move
     next_due: float = 0.0
     health: dict = field(default_factory=dict)       # capture method used, methods tried, frame age
     last_img: np.ndarray | None = None               # newest region image, in memory only (live preview)
     tape: object | None = None                       # PriceTape: accepted live prices (see live_price.py)
     live: dict = field(default_factory=dict)         # newest accepted price {price, at, method, confidence}
     next_live: float = 0.0
+    frame_at: float | None = None     # perf_counter when this pass's picture was taken
     last_full: float = 0.0
 
     def summary(self) -> dict:
@@ -362,9 +366,18 @@ class VisualMonitor:
                 fast = not full and mono >= rt.next_live and rt.status == "screen_capture"
                 if not (full or fast):
                     continue
+                # How late this turn is against the interval that was asked for. This is a setting, not work: if it
+                # dominates, the cure is a shorter interval, not faster code. Recorded apart so the two never blur.
+                due_at = rt.next_due if full else rt.next_live
+                if due_at:
+                    late = (mono - due_at) * 1000.0
+                    METER.record("wait", max(0.0, late))
+                    if late > 1000.0:
+                        METER.skip()
                 rt.next_live = mono + float(rt.profile.live_seconds)
                 if full:
                     rt.next_due = mono + float(rt.profile.capture_seconds)
+                t_pass = time.perf_counter()
                 try:
                     await self.tick(rt, fast=fast)
                 except vision.OcrUnavailable as e:
@@ -377,6 +390,8 @@ class VisualMonitor:
                     self.last_error = {"at": self._now().isoformat(), "chart": rt.profile.id, "detail": where(e)}
                     self._set(rt, "unreadable", f"Internal error while reading the chart: {where(e)}. That is a fault in Study "
                                                 "Terminal, not something you did. It is in the log file (tray menu > Open logs folder).")
+                finally:
+                    METER.record("pass", (time.perf_counter() - t_pass) * 1000.0)
 
     def _set(self, rt: Runtime, status: str, reason: str) -> None:
         changed = status != rt.status
@@ -468,13 +483,15 @@ class VisualMonitor:
         if self.win.minimized(rt.hwnd):
             self._set(rt, "disconnected", "The TopstepX window is minimized; minimized windows can't be captured.")
             return self._after(rt, now, None)
-        if self.capture_fn is not None:
-            frame, method = await asyncio.to_thread(self.capture_fn, cap.Target("window", rt.hwnd, rt.title or "", rt.process))
-            tried, age = [{"method": method, "error": None if frame is not None else method}], None
-        else:
-            res = await asyncio.to_thread(self.capture_manager.capture, rt.hwnd, p.capture_method,
-                                          lambda h: bool(self.win.obscured(h, p.region)))
-            frame, method, tried, age = res.frame, res.method, res.tried, res.frame_age
+        with METER.time("capture"):
+            if self.capture_fn is not None:
+                frame, method = await asyncio.to_thread(self.capture_fn, cap.Target("window", rt.hwnd, rt.title or "", rt.process))
+                tried, age = [{"method": method, "error": None if frame is not None else method}], None
+            else:
+                res = await asyncio.to_thread(self.capture_manager.capture, rt.hwnd, p.capture_method,
+                                              lambda h: bool(self.win.obscured(h, p.region)))
+                frame, method, tried, age = res.frame, res.method, res.tried, res.frame_age
+        rt.frame_at = time.perf_counter()                 # the moment the picture exists, for picture-to-decision
         rt.last_capture_at = now
         rt.captures += 1
         rt.capture_method = method
@@ -500,8 +517,9 @@ class VisualMonitor:
         rt.last_img = img
         import cv2
         # change detection at full resolution: a quiet market may move only the last candle by a pixel or two
-        thumb = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        changed = rt.thumb is None or rt.thumb.shape != thumb.shape or int((cv2.absdiff(thumb, rt.thumb) > 25).sum()) >= 3
+        with METER.time("change"):
+            thumb = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            changed = rt.thumb is None or rt.thumb.shape != thumb.shape or int((cv2.absdiff(thumb, rt.thumb) > 25).sum()) >= 3
         if changed:
             rt.last_change_at = now
         rt.thumb = thumb
@@ -509,17 +527,38 @@ class VisualMonitor:
             self._set(rt, "stale", f"Chart frozen: nothing on it has changed for {int((now - rt.last_change_at).total_seconds())} s "
                                    "while the market is open (disconnected platform, paused chart, or replay mode).")
             return self._after(rt, now, rt.reading)
-        if fast and await self._fast_price(rt, img, now, changed):
-            return
+        if fast:
+            with METER.time("price_box"):
+                done = await self._fast_price(rt, img, now, changed)
+            if done:
+                METER.pass_done(changed=changed, ok=True)
+                return
         if not changed and rt.reading is not None and time.monotonic() - rt.last_ocr < 30 and rt.status == "screen_capture":
             rt.last_good_at = now                         # same picture as the last good reading: still valid
             return self._after(rt, now, rt.reading, fresh=False)
         rt.last_ocr = time.monotonic()
-        kw = {"tokens": self.ocr_fn(img)} if self.ocr_fn else {}
-        reading = await asyncio.to_thread(read_chart, img, p, now, title=rt.title or "", **kw)
+        if self.ocr_fn is not None:                       # tests inject their own reader
+            kw, tmeta = {"tokens": self.ocr_fn(img)}, None
+        else:
+            # Reading the words is ~97% of the cost of reading a chart, and the words barely change. Re-read only the
+            # parts of the picture whose pixels moved (app/screen/token_cache.py explains the rules that keep this
+            # from passing stale text off as a fresh observation).
+            if rt.tokens is None:
+                rt.tokens = TokenCache(vision.ocr)
+            with METER.time("ocr"):
+                # The window title goes in too: TopstepX names the tab after the contract, so a change of market
+                # shows up there at once and forces the chart's label to be read again.
+                toks, tmeta = await asyncio.to_thread(rt.tokens.tokens, img, rt.signature, False, rt.title)
+            kw = {"tokens": toks}
+        with METER.time("parse"):
+            reading = await asyncio.to_thread(read_chart, img, p, now, title=rt.title or "", **kw)
+        if tmeta is not None:
+            reading.text_source = tmeta
         rt.readings += 1
         rt.reading = reading
         if not reading.ok:
+            if rt.tokens:
+                rt.tokens.forget()                        # never build on words from a picture we couldn't read
             if not reading.calibration_valid:
                 self._alert(rt, "calibration_invalid", "medium", f"{p.name}: recalibrate", reading.problems[-1], fingerprint="calibration")
             self._set(rt, "unreadable", "; ".join(reading.problems) or "Chart not readable.")
@@ -529,10 +568,14 @@ class VisualMonitor:
         if rt.signature and (abs(sig["axis_left"] - rt.signature["axis_left"]) > 15 or abs(sig["header_h"] - rt.signature["header_h"]) > 15):
             if rt.pending_signature != sig:
                 rt.pending_signature = sig
+                if rt.tokens:
+                    rt.tokens.forget()                    # the layout moved: every cached word is in the wrong place
                 self._set(rt, "unreadable", "Chart layout changed (price axis or header moved). Checking the new layout before using it.")
                 return self._after(rt, now, reading)
         rt.signature, rt.pending_signature = sig, None
         if reading.confidence < 0.4:
+            if rt.tokens:
+                rt.tokens.forget()                        # read it all again rather than trust a doubtful cache
             self._set(rt, "unreadable", f"Recognition confidence fell to {reading.confidence:.2f}: " + "; ".join(reading.problems[:2]))
             return self._after(rt, now, reading)
         rt.last_good_at = now
@@ -596,9 +639,16 @@ class VisualMonitor:
                                    + ("" if rt.status == "screen_capture" else f" ({rt.reason})") + ". Monitoring isn't producing reliable observations.")
         if self.state == "running" and self.capture_fn is None:      # only real screen captures count as evidence
             self.capture_stats.record(now.date().isoformat(), rt.status, rt.capture_method if rt.status != "disconnected" else None)
-        rec = self._recommend(rt, now, reading)
+        with METER.time("decide"):
+            rec = self._recommend(rt, now, reading)
         rt.recommendation = rec
-        self._alerts_for(rt, rec, now)
+        with METER.time("notify"):
+            self._alerts_for(rt, rec, now)
+        if rt.frame_at is not None:
+            # The number that matters: the picture existed, and now there is a decision from it.
+            METER.record("to_decision", (time.perf_counter() - rt.frame_at) * 1000.0)
+            rt.frame_at = None
+        METER.pass_done(changed=fresh, ok=reading is not None and reading.ok)
         entry = {"at": now.isoformat(), "status": rt.status, "action": rec["action"], "reason": rec["reason"][:160],
                  "price": rec.get("observed_price"), "confidence": rec.get("data_confidence")}
         last = rt.history[-1] if rt.history else None

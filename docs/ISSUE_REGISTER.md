@@ -128,6 +128,55 @@ where the problem cannot arise. 3.13 remains supported for running from source: 
 cover the affected version.
 **Status** FIXED
 
+## Cycle 2 — 2026-11-16 (latency)
+
+### ST-009 · HIGH · A whole module existed only on my disk and had never been committed
+
+**Component** backend/app/screen/token_cache.py
+**Found by** running `git status` while starting the latency work.
+**Root cause** The part that avoids re-reading unchanged chart text — written, tested, and the thing the speed of a
+full chart read depends on — was never added to the repository. Every release, 0.18.3 included, was built without
+it, so the installed app re-read every word on the chart on every pass. Its own test file was uncommitted too, so
+nothing failed and nothing said a word.
+**Fix** Committed, with its tests, after re-verifying it from scratch and measuring what it is worth.
+**Verification** 663 tests pass on Python 3.11 and 3.13, including the cache's own 14.
+**Status** FIXED. The general lesson is the same one as ST-002: nothing in the pipeline compares what is in the
+working tree against what is in the build.
+
+### ST-010 · HIGH · The text detector was being handed shapes that made it slow
+
+**Component** backend/app/screen/vision.py
+**Root cause** The detector resizes whatever it is given. A wide, short strip gets scaled UP; a big picture gets
+scaled DOWN. So reading the chart's header band alone measured **2,146 ms** against **1,163 ms** for the entire
+chart that band was cut from — reading less took nearly twice as long.
+**Fix** Pad a long thin strip out towards square (2:1) before reading it, on the bottom and right only so no
+coordinate changes meaning. Header band 2,146 → 664 ms, price-scale strip 994 → 658 ms, identical words out.
+**Status** FIXED
+
+### ST-011 · HIGH · The chart's label was re-read on every tick for an answer that never changed
+
+**Component** backend/app/screen/token_cache.py
+**Root cause** TopstepX prints the live open/high/low/close into the same line as the chart's name, so the pixels of
+that band change on every tick. The cache treated that as "the label changed" and re-read it — about a second each
+time at a real 1920-wide capture — to be told the same market and timeframe as a second earlier.
+**Fix** The band is re-read when the contract in the window title changes (TopstepX updates that on every tick, so a
+market change is noticed immediately), when the layout changes shape, or on an 8-second timer that bounds how long a
+timeframe change can go unnoticed. Pixels remain the trigger when no usable title exists, so nothing regresses for a
+window that does not name its contract.
+**Verification** Three new tests: the timer bound, a contract change noticed at once, a price-only title change
+ignored. Measured at the user's capture size: full chart read **2,208 → 638 ms at p50** (3.5x).
+**Status** FIXED
+
+### ST-012 · MEDIUM · The priming read never recorded which contract it had read
+
+**Component** backend/app/screen/token_cache.py
+**Found by** a test written for ST-011 failing.
+**Root cause** The first read of a chart stored no window title, so the "has the contract changed?" comparison had
+nothing to compare against and could never fire — the signal ST-011 relies on would have been dead in the real app
+while passing every test that did not look for it.
+**Fix** The priming read stores it. Covered by the contract-change test.
+**Status** FIXED
+
 ---
 
 ## Known limits of this cycle

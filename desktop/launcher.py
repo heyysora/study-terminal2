@@ -556,6 +556,9 @@ def main():
         sys.exit(ocr_check())
     if "--deps-check" in sys.argv:
         sys.exit(deps_check())
+    if "--acceptance" in sys.argv:
+        from acceptance import main as acceptance_main      # noqa: PLC0415 - only needed for this mode
+        sys.exit(acceptance_main())
     if "--headless" in sys.argv and "--stop-file" in sys.argv:
         sys.exit(headless(sys.argv[sys.argv.index("--stop-file") + 1]))
     if "--window-test" in sys.argv:

@@ -83,6 +83,32 @@ class Token:
         return (self.y0 + self.y1) / 2
 
 
+MAX_RATIO = 2.0                  # longest side : shortest side, before the text detector starts costing real time
+
+
+def _square_off(work: np.ndarray) -> np.ndarray:
+    """Pad a long thin strip out towards square, on the bottom and right only.
+
+    The text detector resizes what it is given, and a wide short strip ends up scaled UP while a big picture is
+    scaled DOWN -- so reading the chart's header band alone measured 2,146 ms against 1,163 ms for the entire chart
+    it came from. Padding that band to 2:1 brought it to 645 ms with exactly the same words out. Measured on both
+    shapes it goes wrong in (a wide header, a tall price-scale strip); see docs/TEST_RESULTS.md.
+
+    Bottom and right only, so every coordinate the detector returns still means what it meant before: no offset to
+    undo, nothing for a later change to get subtly wrong.
+    """
+    h, w = work.shape[:2]
+    if h == 0 or w == 0:
+        return work
+    add_b = max(0, int(w / MAX_RATIO) - h)
+    add_r = max(0, int(h / MAX_RATIO) - w)
+    if not (add_b or add_r):
+        return work
+    if (h + add_b) * (w + add_r) > 12_000_000:           # don't blow memory on an extreme strip; it is only a speed-up
+        return work
+    return cv2.copyMakeBorder(work, 0, add_b, 0, add_r, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+
+
 def ocr(img: np.ndarray, offset: tuple[int, int] = (0, 0), scale: float = 1.0, pad: int = 64, _retry: bool = True) -> list[Token]:
     """RapidOCR (local, CPU, no network). The text detector needs margin around text and dark
     themes need inverting, so each region is inverted if dark, padded white, and upscaled.
@@ -94,6 +120,7 @@ def ocr(img: np.ndarray, offset: tuple[int, int] = (0, 0), scale: float = 1.0, p
         return []
     work = 255 - img if float(img.mean()) < 110 else img
     work = cv2.copyMakeBorder(work, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    work = _square_off(work)
     if scale != 1.0:
         work = cv2.resize(work, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     res, _ = _OCR(work)

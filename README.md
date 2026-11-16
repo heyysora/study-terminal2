@@ -44,6 +44,21 @@ Docs: [Visual Monitor (start here for TopstepX)](docs/VISUAL_MONITOR.md) · [Tru
 
 ---
 
+
+## Does it work on my PC?
+
+```powershell
+.\scripts\acceptance-test.ps1
+```
+
+Open your TopstepX chart in Microsoft Edge, leave Study Terminal running, then run that. It walks the whole
+pipeline on your machine -- version, screen-text reader, every part of the build, the local engine, saving a chart
+profile, finding your Edge window, capturing it, reading the text on it, pulling out the market, timeframe and
+price and checking them against the Edge tab title, then timing each stage. It writes a report to
+`%LOCALAPPDATA%\StudyTerminal\logs\acceptance-<timestamp>.md` with a picture of what the app actually saw.
+
+It only reads. It never clicks or types in TopstepX, and it cannot place an order.
+
 ## Easiest: one double-click
 
 1. Unzip the folder anywhere (for example `Documents\study-terminal`).

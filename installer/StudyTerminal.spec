@@ -41,6 +41,7 @@ hidden = collect_submodules("app") + [
     # import (pyclipper, shapely, yaml) instead of silently leaving the reader half-built.
     *collect_submodules("rapidocr_onnxruntime"),
     "pyclipper", "shapely", "shapely.geometry", "yaml",
+    "acceptance",                                     # StudyTerminal.exe --acceptance (desktop/acceptance.py)
 ]
 
 a = Analysis(  # noqa: F821

@@ -80,6 +80,7 @@ class ChartReading:
     calibration_valid: bool = True
     signature: dict = field(default_factory=dict)
     title_check: dict | None = None                        # {"header": root read from the picture or None, "title": root in the tab name}
+    text_source: dict | None = None                        # which parts of the picture the words came from, and how old they are
     thumb: object = None                                   # small grayscale image for change detection (not serialized)
 
     def to_dict(self, candles: int = 300) -> dict:
@@ -88,7 +89,7 @@ class ChartReading:
              "bid": self.bid.to_dict(), "ask": self.ask.to_dict(), "axis": self.axis, "volume": self.volume.to_dict(),
              "candle_confidence": round(self.candle_confidence, 2), "levels": self.levels, "plot": self.plot, "colors": self.colors,
              "confidence": round(self.confidence, 2), "signature": self.signature, "calibration_valid": self.calibration_valid,
-             "title_check": self.title_check,
+             "title_check": self.title_check, "text_source": self.text_source,
              "indicators": {k: v for k, v in self.indicators.items()},
              "candles": [{**{k: v for k, v in asdict(c).items()}, "class": ESTIMATED} for c in self.candles[-candles:]]}
         return d
@@ -141,7 +142,10 @@ def _header_tokens(tokens: list[Token], h: int) -> list[Token]:
 # timeframe and the open as nothing at all: "1O027,688". Pull the timeframe back off the front of a word like that.
 _GLUED_TF = re.compile(r"^(\d{1,3})(?=[OHLC]\d)")
 # The whole label, for the times its line sits outside the header band (a capture region that starts above the chart).
-_LEGEND = re.compile(r"\b[A-Z]{1,4}[FGHJKMNQUVXZ]\d{1,2}\s*[·•|:]\s*[A-Za-z]{2,}\s*[·•|:]\s*(\d{1,3}\s?[smhdSMHD]?)(?!\d)")
+# Separators vary with how the picture was cropped before it was read: "NQZ26\u00b7Nasdaq\u00b71O027,688" from the whole
+# window, "NQZ26 - Nasdaq \u00b7 1 O 027,688" from the chart area alone. Same label, so accept either.
+_SEP = r"\s*[\u00b7\u2022|:,\-\u2013\u2014]\s*"
+_LEGEND = re.compile(r"\b[A-Z]{1,4}[FGHJKMNQUVXZ]\d{1,2}" + _SEP + r"[A-Za-z]{2,}" + _SEP + r"(\d{1,3}\s?[smhdSMHD]?)(?!\d)")
 
 
 def _header_words(text: str) -> list[str]:
