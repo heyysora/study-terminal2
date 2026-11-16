@@ -467,9 +467,13 @@ def read_chart(img: np.ndarray, profile: ChartProfile, captured_at: datetime, to
         return r
     tokens = ocr(img) if tokens is None else tokens
     from .vision import detect_auth_screen
-    auth = detect_auth_screen(title, tokens)
+    # `w` lets the detector check whether a price axis fits, which is what separates "a chart with the word
+    # 'sign in' in the browser toolbar above it" from "a login page". Credential words still stop everything.
+    auth = detect_auth_screen(title, tokens, width=w)
     if auth:
-        r.ok, r.problems = False, [f"Possible login/sensitive screen ('{auth}'); nothing is read or kept."]
+        r.ok, r.problems = False, [f"Possible login/sensitive screen ('{auth}' is on screen); nothing is read or kept. "
+                                   f"If that word is part of your browser's own toolbar rather than the chart, set the "
+                                   f"capture region to the chart area only (Set up a chart > choose the region)."]
         return r
     r.instrument, p1 = read_instrument(tokens, h, profile)
     from .platforms import topstepx_title

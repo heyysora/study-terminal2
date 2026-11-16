@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.19.3 (2026-11-16)
+
+Your chart being called a login screen, and a way to see what Study Terminal is actually looking at.
+
+**"Possible login/sensitive screen" on a working chart**
+- The check that stops Study Terminal reading a screen with a password on it was matching the words "sign in" and "log in" anywhere on the picture. Microsoft Edge puts **"Sign in"** in its own toolbar, and "Log in to sync your data" in a prompt — and capturing the whole browser window, which is how you watch a chart, catches both. Your chart was being blocked by a word belonging to the browser, not the page.
+- Those two words now need corroboration: they stop a reading only when nothing about the picture looks like a chart. A price scale is the test — login pages do not have one, charts always do. A login form sitting *over* a chart still has a password on it, and that is caught by the rule below, which did not change.
+- Words that actually mean credentials — password, passcode, one-time code, card number, CVV, and the rest — still stop everything instantly, with no corroboration and no exceptions.
+- The message now tells you which word was found and what to do if it belongs to your browser's toolbar rather than your chart.
+
+**A way to see what it sees**
+- `StudyTerminal.exe --diagnose-chart` captures every browser window in turn, saves each picture, and prints what was read from each: the title, the size, whether it looks like your chart, the first words found, whether a price scale fitted, and whether the credential check fired and on which word.
+- Open the saved pictures and compare them with your screen. If Study Terminal is looking at a different window or tab from the one you are, that is where it shows. Pictures stay on your machine, and a window with a credential word on it is deliberately never saved.
+
 ## 0.19.2 (2026-11-16)
 
 Two things about alerts arriving in time to be worth anything, and a page that shows you where the time goes.

@@ -153,8 +153,26 @@ TF_PATTERNS = [
 SUPPORTED_MIN = {1: Timeframe.M1, 2: Timeframe.M2, 5: Timeframe.M5, 15: Timeframe.M15, 30: Timeframe.M30, 60: Timeframe.H1,
                  240: Timeframe.H4, 1440: Timeframe.D1}
 NUM = re.compile(r"^[\$]?-?\d{1,3}(?:,\d{3})*(?:\.\d+)?$|^[\$]?-?\d+(?:\.\d+)?$")
-AUTH_WORDS = re.compile(r"password|passcode|sign[\s-]?in|log[\s-]?in|two[\s-]?factor|2fa|verification code|one[\s-]?time code|"
-                        r"security question|social security|routing number|card number|cvv", re.I)
+# Two tiers, because one list could not tell a credential screen from a browser toolbar.
+#
+# NO WORD BOUNDARIES, deliberately, and this cost a lesson. OCR runs words together: a real password prompt came
+# back from the reader as "Enteryourpasswordtosign in". Adding \b to these patterns -- which looks like obvious
+# tidying -- stopped "password" matching inside that run, so a screen with a password on it would have been read
+# and kept. A miss here leaks a credential; a false hit only costs a chart reading. The asymmetry decides it.
+#
+# STRONG: words that appear where credentials, cards or account numbers are being handled. One is enough to stop
+# everything, with no corroboration and no exceptions.
+# Every space is \s* for the same reason: "your card number" can come back as "yourcardnumberis".
+AUTH_STRONG = re.compile(r"password|passcode|two[\s-]*factor|2fa|verification\s*code|one[\s-]*time\s*code|"
+                         r"security\s*question|social\s*security|routing\s*number|card\s*number|cvv", re.I)
+# WEAK: "sign in" and "log in" are everywhere and mean nothing on their own. Microsoft Edge puts "Sign in" in its
+# own toolbar and "Log in to sync your data" in a prompt, and capturing the whole browser window -- which is how
+# anyone watches a chart -- catches both. That blocked a perfectly readable chart. So these two stop a reading
+# only when nothing about the picture looks like a chart. A login page has no price axis; a chart under a toolbar
+# does. A login form over a chart still has a password on it, and the strong tier above catches that.
+AUTH_WEAK = re.compile(r"sign[\s-]?in|log[\s-]?in", re.I)
+# Kept for anything still importing it; the two above are what the detector uses.
+AUTH_WORDS = re.compile(AUTH_STRONG.pattern + "|" + AUTH_WEAK.pattern, re.I)
 INDICATOR_WORDS = {"VWAP": "VWAP", "EMA": "EMA", "SMA": "SMA", "RSI": "RSI", "MACD": "MACD", "VOL": "Volume", "VOLUME": "Volume",
                    "BB": "Bollinger Bands", "BOLLINGER": "Bollinger Bands", "STOCH": "Stochastic", "ATR": "ATR", "OBV": "OBV"}
 
@@ -325,10 +343,36 @@ def recognize(title: str, header_tokens: list[Token], platform: str) -> Recognit
     return r
 
 
-def detect_auth_screen(title: str, tokens: list[Token]) -> str | None:
+def detect_auth_screen(title: str, tokens: list[Token], width: int | None = None,
+                       chart_like: bool | None = None) -> str | None:
+    """A word that means this picture may show credentials, or None.
+
+    The point of this check is that Study Terminal must never read or keep a password, a card number or a one-time
+    code that happens to be on screen. That part is absolute and unchanged: a strong word stops everything at once.
+
+    What changed is the two words that were making it fire on a working chart. "Sign in" and "log in" are not
+    credentials -- they are the most ordinary text on the web, and Microsoft Edge writes them into its own toolbar.
+    Capture the whole browser window, as anyone watching a chart does, and the toolbar comes with it. So those two
+    now have to be corroborated: they stop a reading only when nothing about the picture looks like a chart.
+
+    A price axis is the test. It is a column of numbers, evenly spaced, that fit a straight line from price to
+    pixel. Login pages do not have one; charts always do. If that fits, the picture is a chart with the word "sign
+    in" somewhere on it, which is a browser, not a bank.
+
+    The credential words match loosely, without word boundaries. That is on purpose: the reader runs words
+    together ("Enteryourpasswordtosign in"), so a tidier pattern would stop seeing a password that is plainly
+    there. A missed credential is a leak; a false hit costs one chart reading and says which word it was.
+    """
     blob = " ".join([title or ""] + [t.text for t in tokens])
-    m = AUTH_WORDS.search(blob)
-    return m.group(0) if m else None
+    strong = AUTH_STRONG.search(blob)
+    if strong:
+        return strong.group(0)
+    weak = AUTH_WEAK.search(blob)
+    if not weak:
+        return None
+    if chart_like is None:
+        chart_like = bool(width and fit_price_axis(tokens, width))
+    return None if chart_like else weak.group(0)
 
 
 # ---------------- chart geometry ----------------
@@ -543,7 +587,7 @@ def analyze_image(img: np.ndarray, title: str = "", process: str | None = None, 
     header_h = max(int(h * 0.14), 40)
     scale = min(1.0, 1600 / w)  # one full-frame OCR pass; big screens are downscaled for speed
     tokens = ocr(img, (0, 0), scale=scale, pad=16, _retry=False)
-    auth = detect_auth_screen(title, tokens)
+    auth = detect_auth_screen(title, tokens, width=w)
     if auth:
         return {"blocked": True, "reason": f"Possible login/sensitive screen detected ('{auth}'). Analysis paused for this frame; nothing was kept."}
     # dedicated header pass: small legend text needs more canvas than the full-frame pass gives it

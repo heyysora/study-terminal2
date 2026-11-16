@@ -122,3 +122,43 @@ def test_the_written_report_carries_the_evidence(tmp_path):
     assert "NOT been shown" in text, "with only one stage passing it must not read as a success"
     import json
     assert json.loads(j.read_text(encoding="utf-8"))["counts"]["PASS"] == 1
+
+
+# ---------------------------------------------------------------- which window is it actually looking at
+
+def _png(w=400, h=300, text="NQZ26"):
+    import cv2
+    import numpy as np
+    img = np.full((h, w, 3), 20, dtype=np.uint8)
+    cv2.putText(img, text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (240, 240, 240), 2)
+    return cv2.imencode(".png", img)[1].tobytes()
+
+
+def test_the_window_diagnostic_reports_each_window_separately(tmp_path, monkeypatch):
+    """When the app says it can't read a chart that is plainly on screen, the question is which window it looked
+    at. With several Edge windows open this is the only thing that answers it."""
+    import httpx
+
+    from app import acceptance
+    windows = {"windows": [
+        {"kind": "window", "id": 1, "title": "NQZ26 $27,686.00 - Profile 1 - Microsoft Edge", "process": "msedge.exe"},
+        {"kind": "window", "id": 2, "title": "TopstepX - Log in - Microsoft Edge", "process": "msedge.exe"},
+        {"kind": "window", "id": 3, "title": "Notepad", "process": "notepad.exe"},
+    ]}
+
+    def fake_get(url, **kw):
+        if "windows" in url:
+            return httpx.Response(200, json=windows)
+        hwnd = kw.get("params", {}).get("hwnd")
+        return httpx.Response(200, content=_png(text="Password" if hwnd == 2 else "NQZ26 27686"))
+    monkeypatch.setattr(httpx, "get", fake_get)
+    rep = acceptance.diagnose_windows("http://127.0.0.1:1", tmp_path)
+    assert rep["supported"] and rep["browser_windows"] == 2, "the text editor is not a browser and is not captured"
+    first, second = rep["windows"]
+    assert first["looks_like_a_topstepx_chart"] is True
+    assert second["looks_like_a_topstepx_chart"] is False
+    assert "window-1.png" in first["picture_saved"]
+    # the login window had a credential word on it, so its picture is deliberately not kept
+    assert second["credential_word"] and "not kept" in second["picture_saved"]
+    assert not (tmp_path / "window-2.png").exists(), "a screen with a credential word must never be written to disk"
+

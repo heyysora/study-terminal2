@@ -376,6 +376,66 @@ class Acceptance:
         }
 
 
+def diagnose_windows(base: str, out_dir: Path) -> dict:
+    """Every browser window that could be your chart, captured and read, side by side.
+
+    When Study Terminal says it cannot read a chart that is plainly on screen, the first question is not about OCR.
+    It is: which window did it actually look at, and did the picture it got match the one on your monitor? With
+    several tabs and more than one Edge window open, those can differ, and nothing in the app showed you that.
+
+    So this captures EVERY browser window in turn, saves each picture, and reports what was read from each: the
+    window's title and size, whether it looks like a TopstepX chart, the first words found, whether the
+    credential check fired and on which word, and whether a price scale could be fitted. Open the saved pictures
+    and you can see precisely what Study Terminal saw.
+
+    The pictures are written to your own machine and nowhere else. A window where the credential check fires on a
+    strong word is NOT saved -- the whole point of that check is to not keep such a screen.
+    """
+    import httpx
+
+    from .screen.platforms import topstepx_title
+    from .screen.vision import AUTH_STRONG, detect_auth_screen, fit_price_axis, is_browser, ocr
+    out_dir.mkdir(parents=True, exist_ok=True)
+    h = {"X-Study-Terminal": "1"}
+    body = httpx.get(f"{base}/api/visual/windows", headers=h, timeout=20).json() or {}
+    if body.get("window_capture_supported") is False:
+        return {"supported": False, "note": body.get("note")}
+    wins = [w for w in (body.get("windows") or []) if isinstance(w, dict) and w.get("kind") == "window"]
+    browsers = [w for w in wins if is_browser(w.get("process"))]
+    rows = []
+    for i, w in enumerate(browsers):
+        title = w.get("title") or ""
+        row: dict = {"title": title, "process": w.get("process"), "hwnd": w.get("id"),
+                     "looks_like_a_topstepx_chart": bool(topstepx_title(title))}
+        try:
+            r = httpx.get(f"{base}/api/visual/preview", params={"hwnd": w["id"]}, headers=h, timeout=60)
+            if r.status_code != 200 or len(r.content) < 2000:
+                row["capture"] = f"failed ({r.status_code}, {len(r.content)} bytes)"
+                rows.append(row)
+                continue
+            import cv2
+            import numpy as np
+            img = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR)
+            row["captured_size"] = [int(img.shape[1]), int(img.shape[0])]
+            toks = ocr(img)
+            row["words_found"] = len(toks)
+            row["first_words"] = " | ".join(t.text for t in toks[:8])[:200]
+            strong = AUTH_STRONG.search(" ".join([title] + [t.text for t in toks]))
+            row["credential_word"] = strong.group(0) if strong else None
+            row["blocked_as_sensitive"] = detect_auth_screen(title, toks, width=img.shape[1])
+            row["price_scale_fits"] = bool(fit_price_axis(toks, img.shape[1]))
+            if strong:
+                row["picture_saved"] = "no - a credential word was on this screen, so it is not kept"
+            else:
+                f = out_dir / f"window-{i + 1}.png"
+                f.write_bytes(r.content)
+                row["picture_saved"] = str(f)
+        except Exception as e:  # noqa: BLE001
+            row["error"] = f"{type(e).__name__}: {str(e)[:160]}"
+        rows.append(row)
+    return {"supported": True, "browser_windows": len(browsers), "windows": rows}
+
+
 def write_report(rep: dict, out_dir: Path) -> tuple[Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = rep["at"].replace(":", "").replace("-", "")[:15]

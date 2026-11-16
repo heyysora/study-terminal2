@@ -209,6 +209,53 @@ not late and is unaffected.
 side of the boundary, and incomplete plans.
 **Status** FIXED
 
+## Cycle 4 — 2026-11-16 (a working chart called a login screen)
+
+### ST-015 · HIGH · The browser's own "Sign in" button blocked the chart beneath it
+
+**Component** backend/app/screen/vision.py
+**Reported as** Monitoring running, chart UNREADABLE, confidence 0, "Possible login/sensitive screen", with the
+TopstepX chart plainly visible.
+**Root cause** The credential check searched the window title and every word on the picture for a list that
+included "sign in" and "log in". Those are the most ordinary words on the web, and Microsoft Edge writes them into
+its own toolbar ("Sign in") and its sync prompt ("Log in to sync your data"). Capturing the whole browser window
+— which is what watching a chart means — catches the toolbar, so the chart was blocked by a word belonging to the
+browser rather than the page. One match anywhere killed the entire reading.
+**Fix** Two tiers. Words that actually mean credentials still stop everything instantly, with no corroboration.
+"Sign in" and "log in" now stop a reading only when nothing about the picture looks like a chart, tested by whether
+a price scale can be fitted — login pages have none, charts always do. A login form *over* a chart still carries a
+password, which the first tier catches unchanged.
+**Verification** 13 tests, both directions. Also run against the user's real 1919x1074 Edge capture.
+**Status** FIXED in the code. **Not confirmed as the user's fault**: the detector does not fire on the real capture
+they sent earlier, so this is a genuine defect found and fixed, not a proven diagnosis of their current failure.
+
+### ST-016 · CRITICAL (nearly shipped) · Tidying the credential pattern would have leaked passwords
+
+**Component** backend/app/screen/vision.py
+**Found by** test_screen.py::test_login_screen_is_blocked failing on Python 3.13 and not on 3.11.
+**Root cause** While fixing ST-015 I added word boundaries (`\b`) around every credential word. It looks like
+obvious tidying. But OCR does not reliably put spaces between words: a real password prompt came back from the
+reader as `Enteryourpasswordtosign in`, and `\bpassword\b` does not match inside that run. The effect would have
+been that a screen with a password on it was read and kept — the exact thing the check exists to prevent. It
+passed on 3.11, whose newer OCR happened to separate the words, and failed only on 3.13.
+**Fix** Credential words match loosely, with every internal space as `\s*` so "yourcardnumberis" still matches.
+The asymmetry is written into the code comment: a missed credential is a leak, a false hit costs one chart reading
+and names the word. "Discard numbers" matching "card number" is accepted on purpose and has its own test saying so.
+**Status** FIXED before release. Worth recording as the clearest case yet of a change that reads as a cleanup and
+is actually a safety regression — and of why the same suite runs on two Python versions.
+
+### ST-017 · MEDIUM · No way to see which window the app was actually looking at
+
+**Component** backend/app/acceptance.py, desktop/launcher.py
+**Root cause** When the app reported a chart it could not read, nothing showed which of several browser windows it
+had captured or what that picture contained. With several tabs and more than one Edge window, the window being read
+and the window being looked at can differ, and no log would say so.
+**Fix** `StudyTerminal.exe --diagnose-chart` captures every browser window in turn, saves each picture, and reports
+per window: title, size, whether it looks like a TopstepX chart, the first words read, whether a price scale fits,
+and whether the credential check fired and on which word. Pictures are local, and a window with a credential word
+is never written to disk.
+**Status** FIXED
+
 ---
 
 ## Known limits of this cycle

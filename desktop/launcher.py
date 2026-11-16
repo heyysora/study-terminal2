@@ -585,11 +585,65 @@ def acceptance() -> int:
     return 0 if rep["real_chart_reading_proved"] else 1
 
 
+def diagnose_chart() -> int:
+    """`StudyTerminal.exe --diagnose-chart` -- which window is it actually looking at, and what did it see?
+
+    For the case where Study Terminal says it cannot read a chart that is plainly on your screen. It captures every
+    browser window in turn, saves each picture, and prints what was read from each: the title, the size, whether
+    the credential check fired and on which word, whether a price scale could be fitted. Open the pictures and you
+    can see exactly what the app saw, which is the one thing no amount of log reading will tell you.
+
+    Pictures stay on your machine. A window where a credential word is on screen is deliberately not saved."""
+    import json as _json
+
+    import httpx as _httpx
+
+    from app.acceptance import diagnose_windows
+    base = None
+    for port in range(S.port, S.port + 40):
+        try:
+            if _httpx.get(f"http://127.0.0.1:{port}/api/health", headers=HEADERS, timeout=2).status_code == 200:
+                base = f"http://127.0.0.1:{port}"
+                break
+        except Exception:  # noqa: BLE001
+            continue
+    if base is None:
+        print("Study Terminal isn't running. Start it, leave it running, then run this again.")
+        return 2
+    out = S.data_dir / "acceptance"
+    rep = diagnose_windows(base, out)
+    if not rep.get("supported"):
+        print(rep.get("note") or "window capture isn't available on this computer")
+        return 2
+    print(f"{rep['browser_windows']} browser window(s) found\n")
+    for i, w in enumerate(rep["windows"], 1):
+        print(f"--- window {i} ---------------------------------------------")
+        print(f"  title            {w.get('title', '')[:100]}")
+        print(f"  program          {w.get('process')}")
+        print(f"  looks like your chart  {w.get('looks_like_a_topstepx_chart')}")
+        print(f"  captured         {w.get('captured_size')}  ({w.get('words_found')} words read)")
+        print(f"  first words      {w.get('first_words', '')[:120]}")
+        print(f"  price scale fits {w.get('price_scale_fits')}")
+        print(f"  blocked as sensitive  {w.get('blocked_as_sensitive')!r}"
+              + (f"   (credential word: {w['credential_word']!r})" if w.get("credential_word") else ""))
+        print(f"  picture          {w.get('picture_saved')}")
+        if w.get("error"):
+            print(f"  ERROR            {w['error']}")
+    f = out / "diagnose-windows.json"
+    out.mkdir(parents=True, exist_ok=True)
+    f.write_text(_json.dumps(rep, indent=2), encoding="utf-8")
+    print(f"\nwritten to {f}")
+    print(f"pictures in {out} -- open them and compare with what is on your screen")
+    return 0
+
+
 def main():
     if "--self-test" in sys.argv:
         sys.exit(self_test())
     if "--acceptance" in sys.argv:
         sys.exit(acceptance())
+    if "--diagnose-chart" in sys.argv:
+        sys.exit(diagnose_chart())
     if "--ocr-check" in sys.argv:
         sys.exit(ocr_check())
     if "--deps-check" in sys.argv:
