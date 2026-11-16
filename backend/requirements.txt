@@ -14,7 +14,14 @@ numpy>=1.26
 scikit-learn>=1.4            # ML (XGBoost optional: pip install xgboost)
 joblib>=1.3
 opencv-python-headless>=4.9  # chart computer vision
-rapidocr_onnxruntime>=1.2    # local OCR (no internet, no Tesseract install needed)
+# Local OCR (no internet, no Tesseract install needed). PINNED, and not loosely:
+#   1.2.x/1.3.x load their three worker modules by a name read out of config.yaml at run time. A name built at run time
+#   is invisible to PyInstaller, so the packaged app shipped empty folders with those names and OCR died with
+#   "module 'ch_ppocr_v3_det' has no attribute 'TextDetector'" -- in the installed app only, never in a source checkout.
+#   1.4.x imports those modules normally (relative imports, no sys.path games), so the packaging tool can see them.
+#   Moving up is the fix; the pin keeps a resolver from quietly dropping back. Changing it needs the OCR self-test to
+#   pass inside the built .exe (app/screen/ocr_health.py, run by scripts/windows-reliability.ps1 and gated in CI).
+rapidocr_onnxruntime==1.4.4
 mss>=9                       # screen capture
 pillow>=10.1
 tzdata                       # required on Windows for America/New_York

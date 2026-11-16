@@ -109,6 +109,12 @@
    "Open TopstepX in Microsoft Edge and don't minimize it."
   ],
   [
+   "OCR unavailable",
+   "chart",
+   "The part of Study Terminal that reads text off your screen isn't working.",
+   "This is a fault in the app, not your chart or your PC. Open Health and press Check the text reader for the details and the fix."
+  ],
+  [
    "^UNREADABLE\\b|^The chart couldn't be read",
    "chart",
    "I can't read your chart right now.",

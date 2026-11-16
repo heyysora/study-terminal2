@@ -11,6 +11,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, Response, Upl
 from pydantic import BaseModel
 
 from ..screen import capture as cap
+from ..screen import vision
 from ..screen.chart_profile import ChartProfile
 from ..screen.platforms import topstepx_title
 from ..screen.vision import is_browser, title_looks_like_trading
@@ -125,7 +126,12 @@ async def test_read(body: TestIn, request: Request):
     except (ValueError, TypeError) as e:
         raise HTTPException(422, str(e)) from e
     frame, title, _, used = await asyncio.to_thread(_grab, request, body.hwnd, prof.capture_method)
-    return {**await _v(request).read_once(prof, frame, title), "capture_method": used}
+    try:
+        return {**await _v(request).read_once(prof, frame, title), "capture_method": used}
+    except vision.OcrUnavailable as e:
+        # Not a bad profile and not a bad chart: the text reader itself won't start. Say so, with the repair.
+        raise HTTPException(503, {"message": f"The part of Study Terminal that reads text off your screen isn't working. {e.advice}".strip(),
+                                  "error": e.detail, "kind": "ocr_unavailable"}) from None
 
 
 @router.post("/upload-read")
@@ -141,7 +147,20 @@ async def upload_read(request: Request, file: UploadFile = File(...), profile: s
         prof = ChartProfile.from_dict(json.loads(profile or "{}"))
     except (ValueError, TypeError, json.JSONDecodeError) as e:
         raise HTTPException(422, str(e)) from e
-    return await _v(request).read_once(prof, img)
+    try:
+        return await _v(request).read_once(prof, img)
+    except vision.OcrUnavailable as e:
+        raise HTTPException(503, {"message": f"The part of Study Terminal that reads text off your screen isn't working. {e.advice}".strip(),
+                                  "error": e.detail, "kind": "ocr_unavailable"}) from None
+
+
+@router.get("/ocr-check")
+async def ocr_check(refresh: bool = False):
+    """Is the part that reads text off the screen actually working? Checks the library, the modules it loads by name
+    at run time, the model files, that the engine starts, and that it can read known text out of a picture.
+    This is what the Health page's button calls, and what CI runs inside the built .exe before a release goes out."""
+    from ..screen import ocr_health
+    return await asyncio.to_thread(ocr_health.summary, refresh)
 
 
 @router.get("/status")

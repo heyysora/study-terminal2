@@ -507,9 +507,34 @@ def window_test() -> int:
     return 0 if r.get("ok") else 1
 
 
+def ocr_check() -> int:
+    """`StudyTerminal.exe --ocr-check` -- does the screen-text reader work IN THIS BUILD?
+
+    This exists because 0.18.1 shipped with it broken and nothing caught it. The reader loads parts of itself by a name
+    it reads from a file at run time; the packaging tool cannot see names like that, so they were left out of the .exe.
+    In a source checkout the files are all present, so every unit test passed and CI was green while the installed app
+    could not read a single character. The only way to catch that is to ask the packaged .exe itself, which is what
+    this does -- scripts/windows-reliability.ps1 runs it against the freshly built app and the release fails if it
+    fails. Prints a line per step and JSON on the last line; exit code 0 = the reader works."""
+    import json as _json
+    from app.screen import ocr_health
+    r = ocr_health.check(deep=True)
+    for st in r["steps"]:
+        print(f"  [{st['status']:7}] {st['name']}{': ' + st['detail'] if st.get('detail') else ''}", flush=True)
+    print(f"ocr-check: {'PASS' if r['ok'] else 'FAIL'}; {r['headline']} version {VERSION}; "
+          f"frozen={r['versions'].get('frozen')}; rapidocr={r['versions'].get('rapidocr_onnxruntime')}", flush=True)
+    if not r["ok"]:
+        print(f"ocr-check advice: {r['advice']}", flush=True)
+    print("ocr-check-json: " + _json.dumps(r), flush=True)
+    log.info("ocr-check result: ok=%s failed=%s", r["ok"], r["failed"])
+    return 0 if r["ok"] else 1
+
+
 def main():
     if "--self-test" in sys.argv:
         sys.exit(self_test())
+    if "--ocr-check" in sys.argv:
+        sys.exit(ocr_check())
     if "--headless" in sys.argv and "--stop-file" in sys.argv:
         sys.exit(headless(sys.argv[sys.argv.index("--stop-file") + 1]))
     if "--window-test" in sys.argv:

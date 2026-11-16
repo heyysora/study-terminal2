@@ -49,6 +49,18 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             rec(f"package {mod}", "FAIL", f"{type(e).__name__}: {e}")
 
+    # The text reader, for real. "package rapidocr_onnxruntime PASS" above only means the name imports: in 0.18.1 it
+    # imported fine and the reader was still broken, because the parts it loads by name at run time were missing from
+    # the build. So start the engine and read known text.
+    try:
+        from app.screen import ocr_health
+        r = ocr_health.check(deep=True)
+        for st in r["steps"]:
+            rec(f"text reader: {st['name']}", st["status"].upper() if st["status"] != "skipped" else "INFO", st.get("detail", ""))
+        rec("text reader overall", "PASS" if r["ok"] else "FAIL", r["headline"] + (" " + r["advice"] if r["advice"] else ""))
+    except Exception as e:  # noqa: BLE001
+        rec("text reader overall", "FAIL", f"{type(e).__name__}: {e}")
+
     # WebView2 runtime (needed for the app window)
     import winreg
     ver = None

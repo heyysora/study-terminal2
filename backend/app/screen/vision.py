@@ -8,6 +8,7 @@ When it can't recognize something, it says so instead of guessing.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 
@@ -16,9 +17,52 @@ import numpy as np
 
 from ..market_data.types import Timeframe
 
+log = logging.getLogger(__name__)
+
 # ---------------- OCR ----------------
 
 _OCR = None
+
+
+class OcrUnavailable(RuntimeError):
+    """The text reader itself won't start. Not the same as a chart that can't be read: nothing about your screen or
+    your chart will fix this one, so it must never be reported as "something is covering the chart"."""
+
+    def __init__(self, detail: str, advice: str = ""):
+        super().__init__(detail)
+        self.detail, self.advice = detail, advice
+
+
+_OCR_FAILED: tuple[float, OcrUnavailable] | None = None
+RETRY_ENGINE_AFTER = 300.0               # seconds: a broken reader is broken until the app is reinstalled, so don't thrash
+
+
+def _start_engine():
+    """Start RapidOCR, turning a failure into one clear error with the repair in it. app/screen/ocr_health.py explains
+    the packaging trap this guards against. A failure is remembered: starting the engine loads model files, and the
+    capture loop asks several times a second, so retrying every time would make a broken reader eat the CPU."""
+    global _OCR_FAILED
+    import time as _t
+    if _OCR_FAILED is not None:
+        when, err = _OCR_FAILED
+        if _t.monotonic() - when < RETRY_ENGINE_AFTER:
+            raise err
+        _OCR_FAILED = None
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+        engine = RapidOCR()
+    except Exception as e:  # noqa: BLE001
+        from . import ocr_health
+        try:
+            advice = ocr_health.check(deep=False).get("advice") or ""
+        except Exception:  # noqa: BLE001
+            advice = "Reinstalling Study Terminal fixes it; your settings and history are kept."
+        err = OcrUnavailable(f"{type(e).__name__}: {str(e).strip().splitlines()[0][:160]}", advice)
+        _OCR_FAILED = (_t.monotonic(), err)
+        log.error("OCR engine failed to start: %s", err.detail)
+        raise err from e
+    _OCR_FAILED = None
+    return engine
 
 
 @dataclass
@@ -45,9 +89,7 @@ def ocr(img: np.ndarray, offset: tuple[int, int] = (0, 0), scale: float = 1.0, p
     Coordinates are mapped back to the full image."""
     global _OCR
     if _OCR is None:
-        from rapidocr_onnxruntime import RapidOCR
-
-        _OCR = RapidOCR()
+        _OCR = _start_engine()          # re-raises a remembered failure for a while instead of retrying every capture
     if img.size == 0:
         return []
     work = 255 - img if float(img.mean()) < 110 else img

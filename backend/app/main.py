@@ -391,6 +391,21 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     app = FastAPI(title="Study Terminal API", version=VERSION, lifespan=lifespan)
     app.state.boot_settings = settings
 
+    @app.exception_handler(Exception)
+    async def unhandled(request, exc: Exception):
+        """A crash must still answer in JSON. The default answer is the plain words "Internal Server Error", and the
+        page then tried to read that as JSON and showed the user a parsing error instead of the real problem.
+        The reply names the fault and where it happened -- no paths, no values -- and the full traceback goes to the log."""
+        import traceback
+        from pathlib import Path
+        log.exception("unhandled error on %s %s", request.method, request.url.path)
+        frames = [f for f in traceback.extract_tb(exc.__traceback__) if "app" in Path(f.filename).parts]
+        spot = f" ({Path(frames[-1].filename).name}:{frames[-1].lineno})" if frames else ""
+        msg = str(exc).strip().splitlines()[0][:160] if str(exc).strip() else ""
+        return JSONResponse(status_code=500, content={"detail": {
+            "message": "Something went wrong inside Study Terminal. It is written to the log file: tray menu > Open logs folder.",
+            "error": f"{type(exc).__name__}{': ' + msg if msg else ''}{spot}", "where": request.url.path, "kind": "internal"}})
+
     @app.middleware("http")
     async def recovery_guard(request, call_next):
         """In Recovery mode only the data/help endpoints, the desktop shell and the page itself work."""

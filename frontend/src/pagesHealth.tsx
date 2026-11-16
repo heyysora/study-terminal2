@@ -34,6 +34,36 @@ function SelfCheck({ last, onDone }: { last: any; onDone: () => void }) {
   );
 }
 
+function TextReader() {
+  /** The screen-text reader, checked for real: the library, the modules it loads by name at run time, the model files,
+   *  that the engine starts, and that it reads known text out of a picture. 0.18.1 shipped with this broken and the
+   *  app could only say "I can't read your chart", so the check lives on screen with a button, not in a log file. */
+  const [r, setR] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async (refresh: boolean) => {
+    setBusy(true); setErr(null);
+    try { setR(await api(`/visual/ocr-check${refresh ? "?refresh=true" : ""}`, { timeoutMs: 120_000 })); }
+    catch (e: any) { setErr(e.message); }
+    setBusy(false);
+  };
+  const word = !r ? (busy ? "Checking…" : "Not checked yet") : r.ok ? "Working" : "Not working";
+  return (
+    <Row label="Screen text reader" word={word} level={!r ? "idle" : r.ok ? "ok" : "bad"}>
+      <div>Reading your chart means reading text off the picture: the market, the timeframe and the prices. This checks
+        that the part doing that can actually start and read known text, instead of waiting to find out on your chart.</div>
+      {r && !r.ok && r.advice && <div className="note bad">{r.advice}</div>}
+      {r && <ul className="small" style={{ margin: "4px 0" }}>
+        {r.steps.map((s: any) => <li key={s.id} className={s.status === "fail" ? "down" : s.status === "pass" ? "" : "muted"}>
+          {s.status === "pass" ? "✓" : s.status === "fail" ? "✗" : "–"} {s.name}{s.detail ? `: ${s.detail}` : ""}</li>)}
+      </ul>}
+      {r && <div className="muted small">Versions: {Object.entries(r.versions).map(([k, v]) => `${k} ${v}`).join(" · ")}{r.took_ms ? ` · took ${(r.took_ms / 1000).toFixed(1)}s` : ""}</div>}
+      <div className="row"><button onClick={() => run(!!r)} disabled={busy}>{busy ? "Checking…" : r ? "Check again" : "Check the text reader"}</button></div>
+      {err && <div className="note bad">{err}</div>}
+    </Row>
+  );
+}
+
 export function SystemHealth() {
   const h = usePoll("/system/health", 15000);
   const lock = usePoll("/crypto/lock-check", 600000);
@@ -89,6 +119,7 @@ export function SystemHealth() {
           {d.chart_loop_restarts > 0 && <div className="muted">The chart-reading loop restarted itself {d.chart_loop_restarts} time(s) since the app started.</div>}
           <div className="row"><a className="btn ghost" href="#/visual">My chart</a><a className="btn ghost" href="#/check">Chart check</a></div>
         </Row>
+        <TextReader />
         <Row label="Crypto prices" word={!lock.data ? "Checking…" : lock.data.locked ? "Read-only" : "Problem"} level={!lock.data ? "idle" : lock.data.locked ? "ok" : "bad"}>
           <div>{lock.data?.detail || "Checking that the exchange price library can only read public prices."}</div>
           <div className="muted">Live crypto prices come from public exchange data (Kraken, Coinbase or Bitstamp). No account, no keys, and every order function is switched off.</div>

@@ -2,26 +2,56 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { say } from "./plain";
 
-export async function api<T = any>(path: string, opts: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const { json, ...rest } = opts;
-  const res = await fetch(`/api${path}`, {
-    ...rest,
-    // X-Study-Terminal marks the request as coming from this app (the backend refuses
-    // state changes without it, so other web pages can't drive the local API).
-    headers: { "X-Study-Terminal": "1", ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...((rest.headers as any) || {}) },
-    body: json !== undefined ? JSON.stringify(json) : rest.body,
-  });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) {
-    const d = data?.detail;
-    const msg = typeof d === "string" ? d : d?.message || JSON.stringify(d ?? data);
-    throw new ApiError(say(msg), res.status, data);   // plain words in Simple mode; unchanged in Advanced
+/** 10 minutes. Long enough for the slowest real call (researching one product takes about 4 minutes) and short
+ *  enough that a wedged request fails instead of spinning forever. Pass timeoutMs to override. */
+const DEFAULT_TIMEOUT_MS = 600_000;
+
+export async function api<T = any>(path: string, opts: RequestInit & { json?: unknown; timeoutMs?: number } = {}): Promise<T> {
+  const { json, timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = opts;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(new DOMException("timeout", "TimeoutError")), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      ...rest,
+      signal: rest.signal ?? ctl.signal,
+      // X-Study-Terminal marks the request as coming from this app (the backend refuses
+      // state changes without it, so other web pages can't drive the local API).
+      headers: { "X-Study-Terminal": "1", ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...((rest.headers as any) || {}) },
+      body: json !== undefined ? JSON.stringify(json) : rest.body,
+    });
+  } catch (e: any) {
+    clearTimeout(timer);
+    if (e?.name === "TimeoutError" || e?.name === "AbortError")
+      throw new ApiError("That took too long and was stopped. Try again.", 0, null, "timeout");
+    throw new ApiError("Study Terminal's engine isn't answering. If you just started the app, give it a moment.", 0, null, "offline");
   }
+  clearTimeout(timer);
+
+  // Read the body as text first and only then try to make sense of it. A failing request does not have to answer in
+  // JSON -- a crash answers with the words "Internal Server Error", a proxy can answer with a web page -- and parsing
+  // that blind is what turned a backend fault into "Unexpected token 'I', "Internal S"... is not valid JSON" on screen.
+  const text = await res.text();
+  let data: any = null;
+  let parsed = true;
+  if (text) {
+    try { data = JSON.parse(text); } catch { parsed = false; }
+  }
+  if (!res.ok) {
+    const d = parsed ? data?.detail : null;
+    let msg = typeof d === "string" ? d : d?.message || (parsed && data ? JSON.stringify(d ?? data) : "");
+    if (!msg) msg = res.status >= 500
+      ? `Something went wrong inside Study Terminal (error ${res.status}). The details are in the log file: tray menu > Open logs folder.`
+      : `That request was refused (error ${res.status}).`;
+    throw new ApiError(say(msg), res.status, parsed ? data : null, res.status >= 500 ? "server" : "refused", parsed ? "" : text.slice(0, 300));
+  }
+  if (!parsed) throw new ApiError("Study Terminal's engine sent an answer this page couldn't read.", res.status, null, "badjson", text.slice(0, 300));
   return data as T;
 }
+
+/** kind: offline | timeout | server | refused | badjson -- so a page can tell a backend crash from a rejected input. */
 export class ApiError extends Error {
-  constructor(msg: string, public status: number, public data: any) { super(msg); }
+  constructor(msg: string, public status: number, public data: any, public kind: string = "refused", public body: string = "") { super(msg); }
 }
 
 /** Fetch on mount + every `everyMs`. */

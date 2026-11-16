@@ -26,6 +26,7 @@ import numpy as np
 from ..futures import contracts as fc
 from ..futures.sessions import FuturesClock
 from . import capture as cap
+from . import vision
 from .capture_sources import CaptureManager
 from .chart_profile import ChartProfile, ProfileStore
 from .chart_reader import ChartReading, read_chart
@@ -366,6 +367,11 @@ class VisualMonitor:
                     rt.next_due = mono + float(rt.profile.capture_seconds)
                 try:
                     await self.tick(rt, fast=fast)
+                except vision.OcrUnavailable as e:
+                    # The text reader itself is broken. Nothing about the chart, the window or the screen will fix it,
+                    # so it must not be reported as "something is covering the chart".
+                    self.last_error = {"at": self._now().isoformat(), "chart": rt.profile.id, "detail": e.detail, "ocr": True}
+                    self._set(rt, "unreadable", f"OCR unavailable: {e.detail}. {e.advice}".strip())
                 except Exception as e:  # noqa: BLE001
                     log.exception("visual monitor tick failed")
                     self.last_error = {"at": self._now().isoformat(), "chart": rt.profile.id, "detail": where(e)}

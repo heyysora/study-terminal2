@@ -135,6 +135,8 @@ REASONS: list[list[str]] = [
     [r"Chart frozen", "chart", "Your chart has stopped moving.", "Check that TopstepX is connected and not paused or in replay."],
     [r"^STALE\b", "chart", "Your chart isn't updating.", "Check that TopstepX is open and the chart is moving. Study Terminal starts again by itself when it does."],
     [r"^DISCONNECTED\b", "chart", "I can't find your chart window.", "Open TopstepX in Microsoft Edge and don't minimize it."],
+    [r"OCR unavailable", "chart", "The part of Study Terminal that reads text off your screen isn't working.",
+     "This is a fault in the app, not your chart or your PC. Open Health and press Check the text reader for the details and the fix."],
     [r"^UNREADABLE\b|^The chart couldn't be read", "chart", "I can't read your chart right now.", "Make sure nothing is covering the chart. If it keeps happening, check chart settings."],
     [r"^(PAUSED|STOPPED)\b", "chart", "Watching is turned off.", "Turn watching on to get a suggestion."],
     [r"^Chart doesn't match its setup: (.+)$", "chart", r"\1", "Switch the TopstepX chart back, or set up a new chart for this market."],

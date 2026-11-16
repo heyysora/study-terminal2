@@ -254,6 +254,25 @@ $wline = (Get-Content $so -ErrorAction SilentlyContinue | Select-String 'window-
 Copy-Item (Join-Path $wt "logs\desktop.log") (Join-Path $Out "window-test-desktop.log") -ErrorAction SilentlyContinue
 Record "Window opens with a loading screen, then the app" $(if ($wcode -eq 0) { "pass" } else { "fail" }) "Exit $wcode in $([math]::Round($sw.Elapsed.TotalSeconds,1)) s. $wline $((Get-Content $se -ErrorAction SilentlyContinue | Select-Object -Last 3) -join ' ')"
 
+# ---------------------------------------------------------------- 12. the screen-text reader, inside the packaged app
+# THE GATE 0.18.1 DIDN'T HAVE. The reader loads parts of itself by a name read from a file at run time, which the
+# packaging tool cannot see, so they were left out of the .exe -- and because a source checkout has every file on disk,
+# all 657 unit tests passed while the installed app could not read one character of the user's chart. Only the built
+# app can answer this, so ask it: start the reader and read known text out of a picture.
+$oc = Join-Path $env:TEMP "st-rel-ocr"
+Remove-Item -Recurse -Force $oc -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $oc | Out-Null
+$so = Join-Path $Out "ocr-check.out.txt"; $se = Join-Path $Out "ocr-check.err.txt"
+$env:STUDY_TERMINAL_DATA_DIR = $oc; $env:STUDY_TERMINAL_NO_ENV_FILE = "1"
+$sw = [Diagnostics.Stopwatch]::StartNew()
+$p = Start-Process -FilePath $Exe -ArgumentList "--ocr-check" -PassThru -NoNewWindow -RedirectStandardOutput $so -RedirectStandardError $se
+if (-not $p.WaitForExit(180000)) { try { $p.Kill() } catch {}; $occode = -1 } else { $occode = $p.ExitCode }
+$sw.Stop()
+Remove-Item Env:STUDY_TERMINAL_DATA_DIR, Env:STUDY_TERMINAL_NO_ENV_FILE -ErrorAction SilentlyContinue
+$ocline = (Get-Content $so -ErrorAction SilentlyContinue | Select-String 'ocr-check:|ocr-check advice:') -join ' '
+$ocfails = (Get-Content $so -ErrorAction SilentlyContinue | Select-String '\[fail' ) -join ' '
+Record "Screen-text reader works in the packaged app" $(if ($occode -eq 0) { "pass" } else { "fail" }) "Exit $occode in $([math]::Round($sw.Elapsed.TotalSeconds,1)) s. $ocline $ocfails"
+
 # ---------------------------------------------------------------- summary
 $json = $Results | ConvertTo-Json -Depth 4
 $json | Set-Content (Join-Path $Out "results.json")
