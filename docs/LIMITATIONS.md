@@ -1,4 +1,4 @@
-# Known limitations (0.19.1)
+# Known limitations (0.19.2)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -182,3 +182,13 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - The level being compared against is only as fresh as the last full read. If the market structure changed in the
   last second or two, the fast check does not know it; the next full read does.
 - Same tick size and same arithmetic as the full path, so the two cannot disagree about whether a level was reached.
+
+## Alerts that arrive too late (0.19.2)
+
+- An entry alert is not sent if the price has already moved more than a quarter of the way from the planned entry
+  towards the stop. You get a "missed" note instead. The setup may well have been right; the point is that entering
+  there is a different trade from the one that was worked out.
+- A quarter is a judgement, not a measured optimum. No out-of-sample test has shown that this threshold makes
+  results better, because no strategy has passed out-of-sample testing yet. It is there to stop the app advertising
+  a reward-for-risk number that no longer describes what you would actually be taking.
+- Exits are never suppressed for being late. Getting out late still beats not knowing.

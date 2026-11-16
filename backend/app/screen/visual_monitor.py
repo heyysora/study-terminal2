@@ -751,6 +751,35 @@ class VisualMonitor:
                 return F
         return None
 
+    MAX_ENTRY_DRIFT = 0.25      # of the distance from entry to stop
+
+    def _too_late(self, rec: dict) -> str | None:
+        """Has the price already moved too far past the entry for this plan to still be the plan?
+
+        Study Terminal sees the chart in pictures, so there is always a delay between a setup becoming true and you
+        being told. Usually it is under a second. Sometimes -- a slow read, a busy PC, a fast market -- it is not,
+        and by then the price has gone. Taking the trade anyway means taking a different trade: the same stop, much
+        further away, so the loss if it fails is bigger than the plan allowed and the reward for the risk is worse
+        than the number in the alert.
+
+        The line is a quarter of the distance from entry to stop. Beyond that the arithmetic the idea was built on
+        no longer describes what you would be doing, so the alert is not sent and the miss is recorded instead.
+        Moving against the entry (a better price than planned) is not late; only moving past it is.
+        """
+        entry, stop, price = rec.get("entry"), rec.get("stop"), rec.get("observed_price")
+        if entry is None or stop is None or price is None:
+            return None
+        risk = abs(float(entry) - float(stop))
+        if risk <= 0:
+            return None
+        d = 1 if rec.get("direction") == "long" else -1
+        drift = (float(price) - float(entry)) * d          # positive = price has run past the entry, in the trade's favour
+        if drift <= risk * self.MAX_ENTRY_DRIFT:
+            return None
+        return (f"Too late: the price is {float(price):,.2f} and the entry was {float(entry):,.2f}, which is "
+                f"{drift / risk:.0%} of the way to the stop already. Entering here would leave a bigger loss than "
+                f"this idea allowed for and less reward for it, so this is not being sent as a trade.")
+
     def _alert(self, rt: Runtime, kind: str, severity: str, title: str, body: str, fingerprint: str) -> bool:
         key = f"{rt.profile.id}:{kind}"
         if self._alerted.get(key) == fingerprint:
@@ -782,9 +811,20 @@ class VisualMonitor:
                             (rec.get("reason") or "") + conf, f"{pot['setup']}|{pot['entry']}|invalid")
                 rt.potential = None
         if rec["action"] in ("LONG", "SHORT"):
-            self._alert(rt, "entry", "high", f"{rec['action']} {rec.get('contract')}: entry confirmation ({name})",
-                        f"{rec.get('setup')}: entry {rec.get('entry')}, stop {rec.get('stop')}, T1 {rec.get('target_1')}, T2 {rec.get('target_2')}, "
-                        f"{rec.get('reward_risk')}R. Passed the risk engine." + conf, rec.get("decision_id") or "")
+            late = self._too_late(rec)
+            if late:
+                # An entry alert that arrives after the price has left the entry behind is worse than no alert: act
+                # on it and you are in a different trade from the one that was worked out, with a stop that is now
+                # much further away than the plan said. So it is not sent, and the reason is recorded.
+                rec["action"], rec["late_entry"] = "NO TRADE", late
+                rec["reason"] = late
+                rec.setdefault("details", []).append("The setup itself was sound; the price just moved first.")
+                self._alert(rt, "late", "low", f"Missed: {rec.get('setup')} {rec.get('direction')} {rec.get('contract')} ({name})",
+                            late + conf, f"{rec.get('decision_id')}|late")
+            else:
+                self._alert(rt, "entry", "high", f"{rec['action']} {rec.get('contract')}: entry confirmation ({name})",
+                            f"{rec.get('setup')}: entry {rec.get('entry')}, stop {rec.get('stop')}, T1 {rec.get('target_1')}, T2 {rec.get('target_2')}, "
+                            f"{rec.get('reward_risk')}R. Passed the risk engine." + conf, rec.get("decision_id") or "")
         if rec["action"] == "EXIT":
             self._alert(rt, "exit", "high", f"EXIT {rec.get('contract')}: {rec.get('exit_kind')} reached ({name})",
                         rec["reason"] + conf, f"{rec.get('exit_kind')}|{(rec.get('active') or {}).get('decision_id')}")

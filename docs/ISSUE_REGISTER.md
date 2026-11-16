@@ -177,6 +177,38 @@ while passing every test that did not look for it.
 **Fix** The priming read stores it. Covered by the contract-change test.
 **Status** FIXED
 
+## Cycle 3 — 2026-11-16 (timeliness)
+
+### ST-013 · HIGH · A fresh price could not end a trade, only redraw a number
+
+**Component** backend/app/screen/visual_monitor.py
+**Root cause** The fast path reads the price box about twice a second; the whole chart every couple of seconds. A
+fresh price updated the display and returned, so a stop being hit a moment after a full read waited for the next
+one. For an exit, that is the gap that costs money.
+**Fix** `_fast_decide` re-checks on a fresh price the two things a fresh price can decide: a tracked trade reaching
+its stop or final target, and a "potential" setup going through its invalidation level. Both compare against levels
+computed earlier, by the normal rules, from a full reading — judged sooner, not more loosely. An expired trade is
+dropped rather than reported as an exit, since calling it a stop hit would misstate when it happened.
+**What it must not do** Open a trade. A price box shows a number: no candles, no indicators, no structure, no
+session, no risk engine. Ten tests hold that line, one feeding prices from 1 to 99,999 with no active trade and
+asserting that nothing is opened and nothing is even said.
+**Status** FIXED
+
+### ST-014 · MEDIUM · An entry alert could arrive after the price had already left
+
+**Component** backend/app/screen/visual_monitor.py
+**Root cause** An entry was alerted whenever the conditions passed, with no check on whether the price was still
+anywhere near the planned entry. Reading a chart from pictures always costs some delay; in a fast market the price
+can be well past the entry by the time the alert goes out. Taking it then is a different trade from the one that
+was worked out — the same stop, much further away, so a bigger loss if it fails and a worse reward for the risk
+than the number in the alert says.
+**Fix** An entry whose price has run more than a quarter of the way from entry to stop is not sent as a trade. The
+miss is recorded as its own low-priority note instead. Moving *against* the entry (a better price than planned) is
+not late and is unaffected.
+**Verification** Six tests: at the planned price, a better price, past the line, a short in both directions, either
+side of the boundary, and incomplete plans.
+**Status** FIXED
+
 ---
 
 ## Known limits of this cycle

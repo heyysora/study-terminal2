@@ -136,3 +136,68 @@ def test_the_exit_says_where_its_levels_came_from(mon):
     detail = " ".join(rt.recommendation["details"])
     assert "price box" in detail and "full chart read" in detail
     assert "last full reading" in detail
+
+
+# ---------------------------------------------------------------- an alert that arrives after the move is not help
+
+def _mon():
+    m = VisualMonitor.__new__(VisualMonitor)
+    m.fired = []
+    m._alert = lambda rt, kind, sev, title, body, fp: m.fired.append({"kind": kind, "title": title, "body": body})
+    m._now = _now
+    return m
+
+
+def _plan(direction="long", entry=27_650.0, stop=27_600.0, price=27_650.0):
+    return {"action": "LONG" if direction == "long" else "SHORT", "direction": direction, "entry": entry,
+            "stop": stop, "target_1": 27_700.0, "target_2": 27_750.0, "observed_price": price,
+            "setup": "pullback", "contract": "NQZ26", "decision_id": "d9", "reward_risk": 2.0,
+            "data_confidence": 0.9, "captured_at": _now().isoformat()}
+
+
+def test_an_entry_at_the_planned_price_is_sent():
+    m = _mon()
+    assert m._too_late(_plan()) is None
+    m._alerts_for(_RT(), _plan(), _now())
+    assert any(f["kind"] == "entry" for f in m.fired)
+
+
+def test_a_better_price_than_planned_is_not_late():
+    """Price moving AGAINST the entry gives a better fill than the plan asked for. That is not a missed trade."""
+    m = _mon()
+    assert m._too_late(_plan(price=27_630.0)) is None          # long, price below entry: better
+    assert m._too_late(_plan(direction="short", entry=27_650.0, stop=27_700.0, price=27_670.0)) is None
+
+
+def test_an_entry_the_price_has_already_run_past_is_not_sent():
+    """Risk here is 50 points. Thirty points past the entry is 60% of the way to the stop: taking it means a much
+    bigger loss than the idea allowed and a worse reward for it. Not a trade, and not sent as one."""
+    m = _mon()
+    late = m._too_late(_plan(price=27_680.0))
+    assert late and "Too late" in late and "60%" in late
+    rec = _plan(price=27_680.0)
+    m._alerts_for(_RT(), rec, _now())
+    assert rec["action"] == "NO TRADE" and rec["late_entry"]
+    assert not any(f["kind"] == "entry" for f in m.fired), "this must never go out as an entry"
+    assert any(f["kind"] == "late" for f in m.fired), "but the miss is worth recording"
+
+
+def test_the_same_rule_applies_to_a_short():
+    m = _mon()
+    assert m._too_late(_plan(direction="short", entry=27_650.0, stop=27_700.0, price=27_620.0))
+    assert m._too_late(_plan(direction="short", entry=27_650.0, stop=27_700.0, price=27_645.0)) is None
+
+
+def test_just_inside_the_line_is_still_sent():
+    """A quarter of the way to the stop is the line. It has to be a line somewhere, and either side of it must
+    behave predictably rather than drifting with rounding."""
+    m = _mon()
+    assert m._too_late(_plan(price=27_650.0 + 50 * 0.25)) is None
+    assert m._too_late(_plan(price=27_650.0 + 50 * 0.26))
+
+
+def test_a_plan_with_no_price_or_no_stop_is_left_alone():
+    m = _mon()
+    assert m._too_late({"entry": 1.0, "stop": None, "observed_price": 2.0, "direction": "long"}) is None
+    assert m._too_late({"entry": 1.0, "stop": 1.0, "observed_price": 2.0, "direction": "long"}) is None, "no risk, no scale"
+    assert m._too_late({"entry": None, "stop": 1.0, "observed_price": 2.0, "direction": "long"}) is None

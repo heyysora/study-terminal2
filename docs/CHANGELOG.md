@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.19.2 (2026-11-16)
+
+Two things about alerts arriving in time to be worth anything, and a page that shows you where the time goes.
+
+**An entry alert that arrives after the price has gone is not sent**
+- Reading your chart from pictures always costs a moment. Usually under a second; in a fast market, sometimes long enough that the price has already left the entry behind. Taking the trade then is a different trade from the one that was worked out: the same stop, now much further away, so a bigger loss if it goes wrong and less reward for the risk than the alert claimed.
+- If the price has run more than a quarter of the way from the planned entry towards the stop, it is no longer sent as a trade. You get a quiet "missed" note instead, saying how far past it went. The setup may well have been right — the point is that entering there isn't the same bet.
+- A price that moved *against* the entry gives you a better fill than planned. That is not late and is unaffected.
+- Exits are never held back for being late. Getting out late still beats not knowing.
+
+**Health > Speed**
+- Every stage of one pass, timed: taking the picture, spotting that something changed, the price box, reading the words, turning it into prices and candles, deciding, alerting. Typical, slow (95th percentile) and worst, with the slowest stage highlighted.
+- How often a pass actually happens, how many found nothing changed, how many ran late, and what the app is using in memory and CPU.
+- What a screenshot cannot show — how long the market took to reach your screen — is named as not measurable rather than folded into a total.
+
 ## 0.19.1 (2026-11-16)
 
 An exit no longer waits for the next full chart read.

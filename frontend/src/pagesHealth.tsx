@@ -89,6 +89,38 @@ function BuildCheck() {
   );
 }
 
+function Speed() {
+  /** Where the time goes, stage by stage, from the live monitor. Medians hide the stalls that make an alert late,
+   *  so the 95th percentile is shown next to them and the slowest working stage is named outright. */
+  const v = usePoll("/visual/status", 5000);
+  const lat = v.data?.latency;
+  const stages = lat?.stages || [];
+  if (!lat) return null;
+  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
+  const running = v.data?.state === "running";
+  return (
+    <Row label="Speed" word={lat.bottleneck ? `slowest: ${lat.bottleneck.stage}` : running ? "measuring…" : "not watching"}
+      level={lat.bottleneck ? (lat.bottleneck.p95 > 1500 ? "attention" : "ok") : "idle"}>
+      <div>How long each part of one pass takes. Reading your chart means taking a picture of it, so there is a floor
+        on how fast anything here can be — but if one stage is far slower than the rest, this is where it shows.</div>
+      {!stages.length && <div className="muted">Nothing measured yet. Start watching your chart on My chart.</div>}
+      {!!stages.length && <table className="small" style={{ width: "100%", marginTop: 4 }}>
+        <thead><tr><th style={{ textAlign: "left" }}>Stage</th><th>typical</th><th>slow (95%)</th><th>worst</th></tr></thead>
+        <tbody>{stages.map((s: any) => (
+          <tr key={s.name} className={lat.bottleneck?.stage === s.name ? "warn-link" : ""}>
+            <td>{s.what}</td><td style={{ textAlign: "right" }}>{fmt(s.p50)}</td>
+            <td style={{ textAlign: "right" }}>{fmt(s.p95)}</td><td style={{ textAlign: "right" }}>{fmt(s.max)}</td>
+          </tr>))}</tbody>
+      </table>}
+      {lat.between_passes && <div className="muted">A pass every {fmt(lat.between_passes.p50)} typically
+        ({lat.passes} so far{lat.unchanged ? `, ${lat.unchanged} with nothing changed on the chart` : ""}
+        {lat.behind ? `, ${lat.behind} late` : ""}).</div>}
+      {lat.resources && <div className="muted">This app: {lat.resources.memory_mb ?? "?"} MB in memory, {lat.resources.cpu_seconds ?? "?"}s of CPU since it started.</div>}
+      <div className="faint small">{lat.not_measurable}</div>
+    </Row>
+  );
+}
+
 export function SystemHealth() {
   const h = usePoll("/system/health", 15000);
   const lock = usePoll("/crypto/lock-check", 600000);
@@ -146,6 +178,7 @@ export function SystemHealth() {
         </Row>
         <TextReader />
         <BuildCheck />
+        <Speed />
         <Row label="Crypto prices" word={!lock.data ? "Checking…" : lock.data.locked ? "Read-only" : "Problem"} level={!lock.data ? "idle" : lock.data.locked ? "ok" : "bad"}>
           <div>{lock.data?.detail || "Checking that the exchange price library can only read public prices."}</div>
           <div className="muted">Live crypto prices come from public exchange data (Kraken, Coinbase or Bitstamp). No account, no keys, and every order function is switched off.</div>
