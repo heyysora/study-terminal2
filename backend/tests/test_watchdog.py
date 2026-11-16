@@ -109,7 +109,7 @@ def test_header_words_handle_colon_separators_but_not_clock_times():
     inst, probs = read_instrument(toks, 820, prof)
     assert inst.confidence == 0.2 and any("ESZ26" in x for x in probs)  # wrong market still caught
     tf, _ = read_timeframe([Token("10:15", 0.9, 900, 12, 960, 40)], 820, prof)
-    assert tf.confidence == 0.5 and tf.source == "profile setting, not confirmed by the chart"
+    assert tf.value == "5Min" and "you set" in tf.source       # a clock time is not a timeframe; yours stands unchallenged
 
 
 def test_degraded_signals():

@@ -1,4 +1,22 @@
-# Test results (0.18.0, 2026-11-15)
+# Test results (0.18.1, 2026-11-16)
+
+## 0.18.1 — reading your TopstepX chart (2026-11-16)
+
+Run against the actual screenshot of your Edge window (1920x1074, whole window captured, nothing set by hand):
+
+| What | 0.18.0 | 0.18.1 |
+|---|---|---|
+| Window matched | yes | yes |
+| Market | NQ (from the tab title) | NQ (from the tab title) |
+| Timeframe | not found | **1Min, from the chart label** |
+| Price | 27,686.00 | 27,686.00 |
+| Candles read | 219 | 219 |
+| Overall confidence | **0.00** | **0.51** |
+| Status | UNREADABLE | readable |
+
+- 657 tests pass on Python 3.11 and 3.13. 6 new tests cover the glued timeframe, the label shape, a stray number not being mistaken for a timeframe, a hand-set timeframe clearing the gate, a missing label not blacking out the chart, and the error text naming its own line.
+- Two existing tests were corrected, not removed: one asserted the old "set but never counted" timeframe behaviour; the other compared two whole API payloads including a timestamp computed as "now + minutes to close", so it failed on any run within an hour of the daily futures break (it fired for the first time today). Both now test the same thing without the clock race.
+
 
 ## 0.18.0 (automated practice trading on by default, weekly strategy re-testing)
 

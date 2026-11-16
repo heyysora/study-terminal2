@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.18.1 (2026-11-16)
+
+Your TopstepX chart reads now. Three separate faults were stopping it, and the app was telling you almost nothing about any of them.
+
+**The timeframe is read off your chart**
+- Your chart's label reads `NQZ26 · Nasdaq · 1`, and the picture-reader ran the timeframe into the open price next to it ("1O027,688"), so the `1` never survived. It is now pulled back off the front of that number, and the whole label is recognised wherever it sits on the picture -- not only in the top strip of the captured area.
+- That label is the only shape accepted: contract, then exchange, then the timeframe. A loose number somewhere else on the chart can't be mistaken for it.
+- If the captured area genuinely doesn't include the label, the timeframe you set yourself in **Set up a chart** is now used. It was being recorded but never counted, so setting it changed nothing -- every reading still ended as "timeframe uncertain". The chart showing a *different* timeframe than you set still blocks trade ideas, as before.
+
+**A missing timeframe no longer blacks out the whole chart**
+- Overall confidence was the lowest of five figures, and the timeframe was one of them. No timeframe meant 0.00, which meant "I can't read your chart right now" -- while the price, the axis, the market and 219 candles were all being read perfectly.
+- The timeframe is a label on your screen, not a measurement off it, so it no longer drags that figure down. Your price and candles show; trade ideas still wait for a confirmed timeframe.
+
+**Errors say what broke**
+- "Internal error while reading the chart (AttributeError)" named the kind of fault and nothing else -- not the message, not where it happened. It now reads like `AttributeError: 'NoneType' has no attribute 'price' (visual_recommend.py:88)`, and the newest fault is kept in the chart status. No file paths, nothing from your screen.
+
+**Sticking to the window you picked**
+- Your Edge tab renames itself every time the price ticks ("NQZ26 $27,686.00 ... and 1 more page"). The app now stays on the window you picked when it renames, instead of letting go and hunting for it again, and it re-checks every ten seconds that the window id still belongs to the same program.
+- A window that is *not* a browser can no longer be taken for your TopstepX chart. 0.17.0 matched any window titled like a contract -- a text file called `NQZ26 $27,686.00` would have been captured. TopstepX is a web page, so only a browser qualifies.
+
 ## 0.18.0 (2026-11-15)
 
 The two things you said yes to: the app places practice trades by itself, and it re-tests its strategies every week.

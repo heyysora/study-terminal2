@@ -88,8 +88,11 @@ class ChartProfile:
         want = (self.window_title_contains or "").lower()
         ok = want in title.lower() if want else True
         if not ok and any(w in want for w in ("topstep", "projectx")):
-            from .platforms import topstepx_title          # the real TopstepX tab is titled "<contract> $<price> ...", without its name
-            ok = topstepx_title(title) is not None
+            # The real TopstepX tab is titled "<contract> $<price> ...", without its name. TopstepX is a web app, so this
+            # only ever applies to a browser window: a text editor or folder named after a contract is not your chart.
+            from .platforms import topstepx_title
+            from .vision import is_browser
+            ok = (process is None or is_browser(process)) and topstepx_title(title) is not None
         if ok and self.window_process:
             ok = (process or "").lower() == self.window_process.lower()
         return ok

@@ -44,7 +44,9 @@ def quality_gates(reading, status: str, status_reason: str, profile) -> str | No
     if reading.instrument.value not in ("NQ", "MNQ", "ES", "MES") or reading.instrument.confidence < 0.6:
         return "Instrument uncertain: " + (reading.instrument.source or "not readable")
     if reading.timeframe.value is None or reading.timeframe.confidence < 0.6:
-        return "Timeframe uncertain: " + (reading.timeframe.source or "not readable")
+        return ("The timeframe isn't readable on the part of the chart being captured, and a trade idea can't be worked out "
+                "without it. Set it in Set up a chart (next to the market), or include the chart's own label in the captured "
+                "area. Everything else is being read: " + (reading.timeframe.source or "not readable") + ".")
     if reading.price.value is None or reading.price.confidence < 0.6:
         return "Current price can't be read reliably: " + (reading.price.source or "not readable")
     if len(reading.candles) < MIN_CANDLES:

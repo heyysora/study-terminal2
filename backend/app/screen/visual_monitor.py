@@ -19,6 +19,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 
@@ -84,6 +85,17 @@ class WinInfo:
                 if top and u.GetAncestor(top, 2) != hwnd:          # GA_ROOT
                     return True
         return False
+
+
+def where(e: BaseException) -> str:
+    """'AttributeError: ... (visual_recommend.py:88)' — the fault and the last line of Study Terminal's own code it passed
+    through, so a screenshot of the status line is enough to find it. No paths, no user data."""
+    import traceback
+    frames = [f for f in traceback.extract_tb(e.__traceback__) if "app" in Path(f.filename).parts or "desktop" in Path(f.filename).parts]
+    last = frames[-1] if frames else (traceback.extract_tb(e.__traceback__)[-1] if e.__traceback__ else None)
+    msg = str(e).strip().split("\n")[0][:120]
+    spot = f" ({Path(last.filename).name}:{last.lineno})" if last else ""
+    return f"{type(e).__name__}{': ' + msg if msg else ''}{spot}"
 
 
 @dataclass
@@ -190,6 +202,9 @@ class VisualMonitor:
         self.runtimes: dict[str, Runtime] = {}
         self._task: asyncio.Task | None = None
         self._alerted: dict[str, str] = {}           # alert key -> fingerprint of the last alert sent (one alert per change)
+        self._renamed = False                        # logged once when a followed window's tab renames itself
+        self._verified: dict[int, float] = {}        # window id -> when its program was last confirmed
+        self.last_error: dict | None = None          # the newest internal fault, shown on screen instead of only in the log
         self.alert_log: list[dict] = []
 
     # ---------------- control ----------------
@@ -320,7 +335,7 @@ class VisualMonitor:
 
     def status(self) -> dict:
         return {"state": self.state, "charts": {pid: rt.summary() for pid, rt in self.runtimes.items()},
-                "alerts": self.alert_log[-30:][::-1],
+                "alerts": self.alert_log[-30:][::-1], "last_error": self.last_error,
                 "note": "Screen-captured chart data: visual observations with capture times, not a verified exchange feed. "
                         "Analysis only: Study Terminal never clicks, types into or sends orders to TopstepX."}
 
@@ -353,7 +368,9 @@ class VisualMonitor:
                     await self.tick(rt, fast=fast)
                 except Exception as e:  # noqa: BLE001
                     log.exception("visual monitor tick failed")
-                    self._set(rt, "unreadable", f"Internal error while reading the chart ({type(e).__name__}).")
+                    self.last_error = {"at": self._now().isoformat(), "chart": rt.profile.id, "detail": where(e)}
+                    self._set(rt, "unreadable", f"Internal error while reading the chart: {where(e)}. That is a fault in Study "
+                                                "Terminal, not something you did. It is in the log file (tray menu > Open logs folder).")
 
     def _set(self, rt: Runtime, status: str, reason: str) -> None:
         changed = status != rt.status
@@ -371,13 +388,48 @@ class VisualMonitor:
             for k in ("chart_missing", "chart_stale", "low_confidence", "calibration_invalid"):
                 self._alerted.pop(f"{rt.profile.id}:{k}", None)
 
+    VERIFY_EVERY = 10.0
+
+    def _still_same_program(self, rt: Runtime) -> bool:
+        """Windows reuses a closed window's id, so a window kept by anything other than its own name must still belong to the
+        same program. Listing every window is cheap but not free and the TopstepX tab renames itself constantly, so the answer
+        is reused for a few seconds."""
+        now = time.monotonic()
+        if now - self._verified.get(rt.hwnd or -1, 0.0) < self.VERIFY_EVERY:
+            return True
+        try:
+            for t in self.list_fn():
+                if t.get("kind") == "window" and int(t["id"]) == rt.hwnd:
+                    same = rt.process is None or (t.get("process") or "").lower() == (rt.process or "").lower()
+                    if same:
+                        self._verified[rt.hwnd] = now
+                    return same
+        except Exception:  # noqa: BLE001 - if the window list can't be read, don't keep the window on trust
+            return False
+        return False
+
+    def _keep(self, rt: Runtime, title: str) -> bool:
+        """Should the window we are already on be kept? Either its name still contains the text in your chart profile, or it is
+        still the same browser window and still showing a chart page. The second clause is what makes a tab that renames itself
+        work: TopstepX names its tab after the contract and its price, which changes with every tick."""
+        want = (rt.profile.window_title_contains or "").lower()
+        if not want or want in title.lower():
+            return True
+        from .vision import is_browser, title_looks_like_trading
+        if not (is_browser(rt.process) and title_looks_like_trading(title, rt.process) and self._still_same_program(rt)):
+            return False
+        if rt.title != title and not self._renamed:
+            self._renamed = True
+            log.info("chart window renamed to %r; still following the window you picked", title[:120])
+        return True
+
     def _resolve_window(self, rt: Runtime) -> bool:
         p = rt.profile
         if rt.hwnd and self.win.exists(rt.hwnd) is not False:
             title = cap.window_title(rt.hwnd) if IS_WIN else rt.title
             if title is None and IS_WIN:
                 rt.hwnd = None
-            elif title is not None and not p.matches(title, rt.process) and IS_WIN:
+            elif title is not None and IS_WIN and not self._keep(rt, title):
                 rt.hwnd = None
             else:
                 rt.title = title or rt.title

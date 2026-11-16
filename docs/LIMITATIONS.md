@@ -1,4 +1,4 @@
-# Known limitations (0.18.0)
+# Known limitations (0.18.1)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -128,3 +128,10 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
 - Each run takes a few minutes of CPU (about 4 minutes per contract on the build machine) and downloads about 59 days of 5-minute bars per contract from Yahoo. Rate limits can make a run fail; it is logged and retried later.
 - The holdout period moves forward as new data arrives, so later runs are not strictly independent of earlier ones; each run records its own dates.
 - Weekly runs were tested here and in the Windows checks with scripted results. Only one real run (MES, about 4 minutes, inconclusive) was performed end to end on the build machine.
+
+## Reading the timeframe off a chart (0.18.1)
+
+- The timeframe is read from the chart's own label (`NQZ26 · Nasdaq · 1`). If your captured area doesn't include that label, set the timeframe yourself in **Set up a chart**; the app then uses what you set and says on screen that the chart itself doesn't show it.
+- A timeframe you set by hand is not verified against the chart. If you change the chart to another timeframe and forget to change the setting, the app notices only once the label is visible again. While the label is visible, the chart always wins and trade ideas stop.
+- Only the full label shape is accepted (contract, exchange, timeframe). A timeframe shown anywhere else on your screen, or in a layout that writes it differently, is not read.
+- A chart with no readable timeframe still shows its price and candles, and still records them. It produces no trade ideas.

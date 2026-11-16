@@ -1,5 +1,6 @@
 """Home (five plain answers), Stop everything, Simple/Advanced. Display only: none of it may change limits, decisions or permissions."""
 import httpx
+import re
 import pytest
 
 from app import home
@@ -152,11 +153,23 @@ async def test_simple_and_advanced_show_the_same_limits_and_decisions(client):
     await c.put("/api/settings", json={"app.market_mode": "futures"})
     await c.put("/api/futures/risk/personal", json={"max_daily_loss_usd": 400, "max_risk_per_trade_usd": 150})
 
+    def steady(x):
+        """Same payload, minus the clock. "closes_at" is now + minutes-to-close, so within an hour of the daily break two
+        calls a moment apart differ in the microseconds -- which says nothing about Simple and Advanced agreeing."""
+        if isinstance(x, dict):
+            return {k: steady(v) for k, v in x.items()}
+        if isinstance(x, (list, tuple)):
+            return [steady(v) for v in x]
+        if isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?([+-]\d\d:\d\d|Z)?", x):
+            return x[:16]                                          # to the minute
+        return x
+
     async def snapshot():
         sett = (await c.get("/api/settings")).json()["values"]
-        return ({k: v for k, v in sett.items() if not k.startswith("ui.")}, (await c.get("/api/futures/risk")).json(),
-                (await c.get("/api/futures/info")).json()["personal"], (await c.get("/api/futures/automation")).json()["live"],
-                {k: v for k, v in (await c.get("/api/home")).json().items() if k != "ui_mode"})
+        return steady(({k: v for k, v in sett.items() if not k.startswith("ui.")}, (await c.get("/api/futures/risk")).json(),
+                       (await c.get("/api/futures/info")).json()["personal"],
+                       (await c.get("/api/futures/automation")).json()["live"],
+                       {k: v for k, v in (await c.get("/api/home")).json().items() if k != "ui_mode"}))
     simple = await snapshot()
     assert (await c.put("/api/settings", json={"ui.mode": "advanced"})).status_code == 200
     assert (await c.get("/api/home")).json()["ui_mode"] == "advanced"

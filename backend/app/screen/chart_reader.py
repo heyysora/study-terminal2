@@ -137,6 +137,13 @@ def _header_tokens(tokens: list[Token], h: int) -> list[Token]:
     return [t for t in tokens if t.cy < max(60, 0.12 * h)]
 
 
+# TopstepX writes its chart label as "NQZ26 · Nasdaq · 1 O27,688.00 H27,692.25 L… C…", and OCR reads the gap between the
+# timeframe and the open as nothing at all: "1O027,688". Pull the timeframe back off the front of a word like that.
+_GLUED_TF = re.compile(r"^(\d{1,3})(?=[OHLC]\d)")
+# The whole label, for the times its line sits outside the header band (a capture region that starts above the chart).
+_LEGEND = re.compile(r"\b[A-Z]{1,4}[FGHJKMNQUVXZ]\d{1,2}\s*[·•|:]\s*[A-Za-z]{2,}\s*[·•|:]\s*(\d{1,3}\s?[smhdSMHD]?)(?!\d)")
+
+
 def _header_words(text: str) -> list[str]:
     """Words of a header token. Some OCR versions read TopstepX's '·' separators as ':' ('ESZ6:5m:CME'), so ':' also splits,
     but only pieces with a letter are kept from it: a clock time like '10:15' must not turn into a '15 minute' timeframe."""
@@ -145,8 +152,23 @@ def _header_words(text: str) -> list[str]:
         if ":" in word:
             out += [w for w in word.split(":") if re.search(r"[A-Za-z]", w)]
         elif word:
+            glued = _GLUED_TF.match(word)
+            if glued:
+                out.append(glued.group(1))
             out.append(word)
     return out
+
+
+def _legend_timeframe(tokens: list[Token]):
+    """The timeframe out of a full chart label, wherever it is on the picture. Only this exact shape counts -- contract,
+    exchange, then the timeframe -- so a stray number somewhere on the chart can never be mistaken for it."""
+    for t in sorted(tokens, key=lambda t: (t.cy, t.cx)):
+        m = _LEGEND.search(t.text)
+        if m:
+            tf, note = tf_from_text(m.group(1).replace(" ", ""))
+            if tf is not None and note is None:
+                return tf.value
+    return None
 
 
 def read_instrument(tokens: list[Token], h: int, profile: ChartProfile) -> tuple[Observation, list[str]]:
@@ -185,13 +207,17 @@ def read_timeframe(tokens: list[Token], h: int, profile: ChartProfile) -> tuple[
                 break
         if seen:
             break
+    if seen is None:
+        seen = _legend_timeframe(tokens)
     if profile.timeframe != "auto":
         if seen and seen != profile.timeframe:
             probs.append(f"Timeframe conflict: the chart shows {seen} but this profile is set to {profile.timeframe}.")
             return Observation(profile.timeframe, TEXT, 0.2, "profile setting contradicted by the chart"), probs
         if not seen:
-            probs.append(f"Timeframe not readable on the chart; can't confirm it is {profile.timeframe}.")
-            return Observation(profile.timeframe, CALCULATED, 0.5, "profile setting, not confirmed by the chart"), probs
+            # You told the app which timeframe this chart is on and nothing on the chart contradicts it. A timeframe is a
+            # setting you can see, not a measurement, so your answer is used -- and it still says where it came from.
+            probs.append(f"Timeframe not readable on the chart; using the {profile.timeframe} you set for this chart.")
+            return Observation(profile.timeframe, CALCULATED, 0.65, "the timeframe you set (the chart itself doesn't show it)"), probs
         return Observation(profile.timeframe, TEXT, 0.95, "chart text (matches profile)"), probs
     if not seen:
         probs.append("Timeframe not readable on the chart; set it in the chart profile.")
@@ -573,9 +599,11 @@ def read_chart(img: np.ndarray, profile: ChartProfile, captured_at: datetime, to
         pv = snap(fit.price_at(y), spec) if spec else round(fit.price_at(y), 4)
         r.levels.append({"price": pv, "y": round(y, 1), "label": name, "class": CALCULATED, "confidence": round(base_conf, 2),
                          "source": "visible horizontal line"})
-    # overall confidence = the weakest input a recommendation needs
-    parts = [r.price.confidence, axis_info["confidence"] if axis_info else 0, r.instrument.confidence, r.timeframe.confidence,
-             r.candle_confidence]
+    # Overall confidence = the weakest input a recommendation needs FROM THE PICTURE. The timeframe is deliberately not in it:
+    # it is a label, not a measurement, and a chart region that doesn't include the legend would otherwise make a perfectly
+    # readable price and candles count as "chart unreadable". A missing timeframe still blocks every trade idea on its own
+    # (visual_recommend.quality_gates), which is where that belongs.
+    parts = [r.price.confidence, axis_info["confidence"] if axis_info else 0, r.instrument.confidence, r.candle_confidence]
     r.confidence = float(min(parts))
     if r.confidence < 0.4:
         r.problems.append(f"Overall reading confidence is low ({r.confidence:.2f}).")
