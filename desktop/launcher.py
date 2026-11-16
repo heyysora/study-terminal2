@@ -549,9 +549,47 @@ def deps_check() -> int:
     return 0 if r["ok"] else 1
 
 
+def acceptance() -> int:
+    """`StudyTerminal.exe --acceptance` -- does this app read THIS PC's real TopstepX chart, right now?
+
+    Everything else that tests Study Terminal runs on a build machine or against saved pictures. Neither can answer
+    that question. This one talks to the running app, finds the real Edge window, captures it, reads it, and checks
+    what it read against the price TopstepX itself puts in the window title. Exit code 0 only when the chart was
+    genuinely read and the reading checked out. Writes a timestamped report next to the logs."""
+    import httpx as _httpx
+
+    from app.acceptance import Acceptance, write_report
+    # The running app may have moved off its usual port because something else had it (see choose_port), and this
+    # is a separate process, so find the one that answers rather than assume.
+    base = None
+    for port in range(S.port, S.port + 40):
+        try:
+            if _httpx.get(f"http://127.0.0.1:{port}/api/health", headers=HEADERS, timeout=2).status_code == 200:
+                base = f"http://127.0.0.1:{port}"
+                break
+        except Exception:  # noqa: BLE001
+            continue
+    if base is None:
+        print(f"Study Terminal isn't running (nothing answered on ports {S.port}-{S.port + 39}).")
+        print("Start Study Terminal, leave it running, then run this again.")
+        return 2
+    print(f"talking to Study Terminal on {base}\n")
+    out = S.data_dir / "acceptance"
+    a = Acceptance(out_dir=out)
+    out.mkdir(parents=True, exist_ok=True)
+    rep = a.run(base)
+    j, m = write_report(rep, out)
+    print(f"\n{rep['verdict']}")
+    print(f"report: {m}")
+    print(f"   raw: {j}")
+    return 0 if rep["real_chart_reading_proved"] else 1
+
+
 def main():
     if "--self-test" in sys.argv:
         sys.exit(self_test())
+    if "--acceptance" in sys.argv:
+        sys.exit(acceptance())
     if "--ocr-check" in sys.argv:
         sys.exit(ocr_check())
     if "--deps-check" in sys.argv:

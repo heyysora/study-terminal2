@@ -1,4 +1,4 @@
-# Known limitations (0.18.3)
+# Known limitations (0.19.0)
 
 Plain list of what Study Terminal can't do, what wasn't verified, and why. Each item says what would change it.
 
@@ -148,3 +148,28 @@ Plain list of what Study Terminal can't do, what wasn't verified, and why. Each 
   your window or your chart settings will fix it.
 - The checks prove the reader can read a test picture. They do not prove it can read *your* chart: that depends on
   your layout, theme, zoom and the region you captured.
+
+## Speed, and what it can and cannot be (0.19.0)
+
+- Study Terminal watches your chart by taking pictures of it. That sets a floor on how fast it can notice anything,
+  and it will never be as quick as TopstepX itself, which is being told the price rather than looking at it.
+- Measured here at a 1920x1074 capture: a full chart read takes about 640 ms, and the fast path that notices a price
+  tick takes about 63 ms. Your PC will differ; the acceptance test measures it on yours.
+- How long the market took to reach your screen cannot be measured from a screenshot. Every timing the app reports
+  starts at the moment it took the picture. It is never added to a total that implies otherwise.
+- The chart's name line is re-read on an 8-second timer rather than on every tick. A change of **contract** is
+  noticed immediately (the tab's name carries it). A change of **timeframe** can take up to 8 seconds to be noticed.
+  Until it is, the reading still reports how old that text is, and the gates refuse to act on a timeframe they
+  cannot stand behind.
+- Faster does not mean better signals. Nothing in this release changes what counts as a trade, and no strategy has
+  passed out-of-sample testing yet.
+
+## What the acceptance test does and does not prove (0.19.0)
+
+- It proves that this app, on this PC, found your Edge window, captured it, read a market, timeframe and price off
+  the pixels, and that the price agrees with the one TopstepX writes into the tab's name.
+- It does not prove the price is correct in the market, only that two independent routes to it agree. There is no
+  free feed to check against.
+- It does not test anything about whether a trade idea is any good.
+- Stages that cannot run (no chart set up, market closed, monitoring stopped) are reported as blocked, never as
+  passes, and the overall verdict stays negative until all five chart stages pass.

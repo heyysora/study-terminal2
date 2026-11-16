@@ -53,6 +53,7 @@ NETWORK_FILES = {
     "news/econ_data.py": "free U.S. Bureau of Labor Statistics data",
     "news/sources.py": "free news and public economic calendars",
     "memecoins/sources.py": "read-only memecoin data: DexScreener prices and Solana public chain data (no wallet, no signing)",
+    "acceptance.py": "the real-PC acceptance test: talks to 127.0.0.1 only, to Study Terminal's own engine on this PC",
 }
 
 
@@ -116,6 +117,21 @@ def test_only_known_files_reach_the_network():
     net = re.compile(r"httpx\.(AsyncClient|Client|get|post)|requests\.(get|post)|websockets\.|urlopen")
     found = {str(p.relative_to(APP)).replace("\\", "/") for p, t in _src().items() if net.search(t)}
     assert found == set(NETWORK_FILES), f"new network code: {found - set(NETWORK_FILES)}; gone: {set(NETWORK_FILES) - found}"
+
+
+def test_the_acceptance_test_only_talks_to_this_computer():
+    """It is allowed on the network list because it calls Study Terminal's own engine. If it ever grew a call to
+    somewhere else, that list entry would be a lie, so pin it: every address it builds is the loopback one."""
+    text = (APP / "acceptance.py").read_text(encoding="utf-8")
+    calls = re.findall(r'httpx\.(?:get|post)\(\s*(f?"[^"]*")', text)
+    assert calls, "expected it to make requests"
+    for c in calls:
+        assert c.startswith('f"{base}/'), f"an address not built from the local base: {c}"
+    # ...and the only thing that supplies `base` builds it from the loopback address and nothing else.
+    launcher = (APP.parent.parent / "desktop" / "launcher.py").read_text(encoding="utf-8")
+    block = launcher[launcher.index("def acceptance("):launcher.index("def main(")]
+    bases = re.findall(r'base = (f?"[^"]*")', block)
+    assert bases and all("127.0.0.1" in b for b in bases), f"the acceptance run is pointed somewhere else: {bases}"
 
 
 def test_network_files_contain_no_order_methods():

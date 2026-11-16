@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.19.0 (2026-11-16)
+
+Two things: a test you can run on your own PC that proves whether the chart pipeline really works, and a chart read that is three and a half times faster.
+
+**Prove it on your own machine**
+- `scripts\acceptance-test.ps1` (or `StudyTerminal.exe --acceptance`) checks twelve things in order: which build this is, which libraries it's using, the text reader on known text, every part of the app doing real work, the engine, saving and reloading your chart settings, finding your actual Edge TopstepX window, capturing it, reading it, checking what it read, stamping it, and the live timings.
+- The reading is checked against something independent: the price it reads off the pixels is compared with the price TopstepX itself puts in the tab's name. Two different routes to the same number. If they disagree, it fails and says by how much.
+- A stage that can't run says so and why. It never counts as a pass, and the final verdict only says your chart works when all five chart stages earned it. The report is timestamped, keeps the evidence, and saves the picture it actually read.
+- Then it walks you through the things only you can do: resizing the browser, switching tabs, minimising, changing instrument and timeframe, pulling the network, restarting, and leaving it in the background.
+
+**A chart read is 3.5x faster**
+- Measured first, at your capture size: a full read took 2,208 ms, and 97% of that was reading text. So that is what got fixed, and nothing else was touched on a hunch.
+- The text reader was being handed shapes that made it slow. It resizes what it's given, so a wide short strip gets scaled up while a whole picture gets scaled down -- reading just the chart's header band cost *more* than reading the entire chart. Padding a strip towards square first: header band 2,146 ms to 664 ms, same words out.
+- The chart's name line was re-read on every single tick, because TopstepX prints the live open/high/low/close into it, so its pixels always change. It now re-reads when the contract in the tab's name changes (noticed immediately), when the layout moves, or on an 8-second timer.
+- Result: **2,208 ms to 638 ms** for a full read. The fast path that notices a price tick runs in 63 ms.
+- A part of this was sitting in my working folder and had never actually been put into the app. That is why your copy was re-reading every word on the chart every time. It's in now.
+
+**You can see where the time goes**
+- Every stage is timed -- capture, change detection, price box, text, parsing, deciding, alerting -- with median, 95th and 99th percentile, and the slowest stage named automatically. Waiting for the next turn is counted separately from doing work, because one is a setting and the other is code.
+- What a screenshot cannot see -- how long the market took to reach your screen -- is reported as not measurable, never folded into a total.
+
 ## 0.18.3 (2026-11-16)
 
 Small follow-up to 0.18.2, from watching its own release checks.

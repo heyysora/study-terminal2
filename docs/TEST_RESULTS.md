@@ -1,4 +1,34 @@
-# Test results (0.18.3, 2026-11-16)
+# Test results (0.19.0, 2026-11-16)
+
+## 0.19.0 — latency, measured before and after (2026-11-16)
+
+Generated charts that move the way a live one does (fixed history, only the newest candle and the price box change,
+the scale holds until price leaves it), at the user's real capture size of 1920x1074. Python 3.11, this machine.
+
+| | p50 | p95 | max |
+|---|---|---|---|
+| Full chart read, 0.18.3 as shipped | **2,208 ms** | 2,249 ms | 2,249 ms |
+| Full chart read, 0.19.0 | **638 ms** | 1,753 ms | 1,753 ms |
+| Fast price path (price box only) | 63 ms | 68 ms | — |
+
+3.5x at p50. The p95 is where a timer or a price-scale rescale falls due and the text is read again.
+
+Per-stage, same conditions: text reading was 97% of a pass; parsing 80 ms; change detection 1 ms; deciding under
+1 ms. Which is why only the text reading was touched.
+
+Individual regions, before and after the shape fix: header band 2,146 → 664 ms, price-scale strip 994 → 658 ms,
+whole chart 1,163 ms either way (it was never an extreme shape). Word-for-word identical output.
+
+**Not measured, and not estimated:** how long the market took to reach the screen (a screenshot cannot show it), and
+how long Windows takes to hand over a picture of the window. The second is measured by the acceptance test on the
+user's own PC.
+
+Acceptance test, run here against a live engine with no Windows and no chart: 5 passed, 0 failed, 6 blocked, 1
+informational, verdict "has NOT been shown to read your real chart" — correct, since nothing proved it. 9 tests
+cover the ways it must refuse to claim success.
+
+673 tests pass on Python 3.11 and 3.13.
+
 
 ## 0.18.2 — the screen-text reader, and the gate that was missing (2026-11-16)
 

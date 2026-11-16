@@ -340,7 +340,7 @@ class VisualMonitor:
 
     def status(self) -> dict:
         return {"state": self.state, "charts": {pid: rt.summary() for pid, rt in self.runtimes.items()},
-                "alerts": self.alert_log[-30:][::-1], "last_error": self.last_error,
+                "alerts": self.alert_log[-30:][::-1], "last_error": self.last_error, "latency": METER.report(),
                 "note": "Screen-captured chart data: visual observations with capture times, not a verified exchange feed. "
                         "Analysis only: Study Terminal never clicks, types into or sends orders to TopstepX."}
 
