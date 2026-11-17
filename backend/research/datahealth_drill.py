@@ -26,14 +26,29 @@ LIVE = ["yahoo_stocks", "yahoo_futures", "crypto_exchanges", "memecoin_data", "s
 
 
 def wait_checked(timeout: float = 240) -> dict:
+    """Wait until every source this drill makes a claim about has actually been checked.
+
+    It used to wait only for the live ones. The app runs its probes one after another, and the sources with no
+    legitimate connection (FOMO, pump.fun) sit later in that list, so the drill could read the results in the gap
+    between the last live probe and those -- and then assert that FOMO was classified UNSUPPORTED when the app had
+    not reached it yet. That is a race in the test, not a fault in the app: the assertion is right, it was just
+    being made too early. Waiting for everything it asserts on is the fix.
+    """
+    want = list(LIVE) + list(MUST)
     t0, d = time.time(), {}
     while time.time() - t0 < timeout:
         code, d = R.http("GET", "/datahealth", timeout=20)
         if code == 200 and d.get("enforcing"):
             by = {s["source"]: s for s in d.get("sources", [])}
-            if all(by.get(k, {}).get("checked_at") and not by[k].get("from_previous_run") for k in LIVE):
+            fresh = all(by.get(k, {}).get("checked_at") and not by[k].get("from_previous_run") for k in LIVE)
+            classified = all(by.get(k, {}).get("checked_at") for k in MUST)
+            if fresh and classified:
                 return d
         time.sleep(3)
+    by = {s["source"]: s for s in (d.get("sources") or [])}
+    missing = [k for k in want if not by.get(k, {}).get("checked_at")]
+    if missing:
+        print(f"NOTE|waited {timeout:.0f}s and these were still unchecked: {', '.join(missing)}", flush=True)
     return d
 
 
