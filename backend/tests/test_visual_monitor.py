@@ -439,3 +439,24 @@ async def test_market_analysis_block(fut):
     assert a["levels"]["previous_day_high"]["class"] == "UNAVAILABLE"            # previous session isn't on screen
     assert a["volume"]["class"] == "VISUALLY_ESTIMATED" and "support_resistance" in a
     assert all(p in ("HH", "LH", "HL", "LL") for p in a["swings"]["pattern"])
+
+
+def test_an_extra_topstepx_window_does_not_inherit_the_first_windows_region():
+    """Each TopstepX window you open is its own size, with the chart in its own place. Giving a second window the
+    region drawn for the first made it report "Layout changed" whenever the two differed, which is the normal case.
+    A price-axis calibration from the first window is wrong there for the same reason."""
+    from app.screen.chart_profile import ChartProfile
+    from app.screen.visual_monitor import VisualMonitor
+    parent = ChartProfile(id="p1", name="TopstepX chart", window_title_contains="TopstepX", root="NQ",
+                          region=[120, 80, 1400, 900], window_size=[1920, 1074], axis_mode="manual",
+                          axis_points=[[10.0, 27600.0], [900.0, 27500.0]], axis_x=1700, axis_size=[1400, 900])
+    clone = VisualMonitor._clone(parent, "p1@42", 42, "ESZ26 $6,120.25 - Profile 1 - Microsoft Edge")
+    assert clone.region == [0, 0, 0, 0], "an extra window is read whole, not through the first window's cut-out"
+    assert clone.window_size is None, "nothing to compare against means nothing to wrongly call a layout change"
+    assert clone.axis_mode == "auto" and clone.axis_points == [] and clone.axis_x is None, \
+        "a price scale calibrated on another window would read prices off the wrong pixels"
+    assert clone.id == "p1@42" and clone.window_hwnd == 42
+    assert "ESZ26" in clone.name, "it should say which contract it is, so two charts are tellable apart"
+    assert clone.root == "auto", "the second window is a different contract; it must not be forced to the first's"
+    # things that SHOULD carry over: how often to look, and when to call it stale
+    assert clone.capture_seconds == parent.capture_seconds and clone.stale_seconds == parent.stale_seconds

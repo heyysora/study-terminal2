@@ -236,7 +236,14 @@ class VisualMonitor:
 
         from .platforms import topstepx_title
         tab = topstepx_title(title) or {}
-        return replace(p, id=key, name=f"{p.name} · {tab.get('contract') or 'another window'}", window_hwnd=hwnd, root="auto")
+        # A second TopstepX window is a DIFFERENT window: its size and the position of the chart inside it have
+        # nothing to do with the one whose region you drew. Inheriting that region made every extra window report
+        # "Layout changed: the window is 1600x900 now, 1920x1074 when the region was set" unless the two happened
+        # to be identical -- so the whole window is read instead, and the layout check is given nothing to trip on.
+        # The reader copes with a full window; that is what it gets from an uncalibrated chart anyway.
+        return replace(p, id=key, name=f"{p.name} · {tab.get('contract') or 'another window'}", window_hwnd=hwnd,
+                       root="auto", region=[0, 0, 0, 0], window_size=None, axis_points=[], axis_mode="auto",
+                       axis_x=None, axis_size=None)
 
     def _attach_windows(self) -> None:
         """Every open TopstepX chart window gets read, not only the first. A browser shows one tab per window, and only the tab
